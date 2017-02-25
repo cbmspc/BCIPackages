@@ -1,0 +1,191 @@
+% function [] = crossvalidation (K, M, Fdim, DimDataCell, ClassifierType,
+% Prior, CParm)
+%
+% Stratified K-fold Cross Validation using CPCA-IDA classifier
+%
+% K = Number of folds for K-fold crossvalidation.
+%     If K is larger than the number of trials in any class, it uses
+%     leave-one-out.
+%
+% M = Number of times to run cross validation. Each run reshuffles the
+% random sequence (makes a new pie).
+%
+% Fdim = Feature space dimension
+%
+% DimDataCell =
+%     Each cell element is a DimData and represent one class.
+%     Each DimData is (dim, obs) of the same class.
+%      DimDataCell{c}(:,obs) = reshape(RawDataCell{c}(:,:,obs), 1, []);
+%
+% Class ID always start from zero. For example, the first element in
+% DimDataCell is considered class 0.
+%
+% ClassifierType: 'knn', 'quadratic', or 'parzen'
+%
+% Prior: Set to [] or '' for equal priors. Set to 'empirical' for empirical
+% frequencies. Or set your own.
+%
+% Output is a confusion matrix in the form of
+%              actual-------->
+% prediction   [ ]   [ ]   [ ]
+%    |         [ ]   [ ]   [ ]
+%    |         [ ]   [ ]   [ ]
+%    v
+%
+% If there are exactly 2 classes, the confusion matrix turns out to be:
+%            |
+%            |          actual value
+% -----------+----------------+---------------
+%            |  TruePositive  | FalsePositive
+% prediction +----------------+---------------
+%            |  FalseNegative | TrueNegative
+% -----------+----------------+---------------
+%
+
+
+function ConfusionCC = crossvalidation (K, M, Fdim, DimDataCell, ClassifierType, Prior, CParmC)
+
+if ~iscell(DimDataCell)
+    error('DimDataCell must be a cell, whose elements represent separate classes.');
+end
+
+Nclass = length(DimDataCell);
+
+if Nclass <= 1
+    error('DimDataCell must contain at least 2 elements');
+end
+
+K = round(K);
+if K < 2
+    error('K (number of folds) cannot be less than 2');
+end
+M = round(M);
+if M < 1
+    error('M (number of cross validation runs) cannot be less than 1');
+end
+
+if ~iscell(CParmC)
+    error('CParm must be a cell');
+end
+
+% if length(who('CParm')) == 0
+%     CParm = [];
+% end
+
+% Calculate the numbers of training trials and validation (testing) trials
+% for each class. Also determine the trials to become training or testing.
+
+
+Ntrial_largest = 0;
+for c = 1:Nclass
+    NtrialC{c} = size(DimDataCell{c},2);
+    Ntrial_largest = max([Ntrial_largest, NtrialC{c}]);
+end
+if K > Ntrial_largest
+    K = Ntrial_largest;
+end
+
+
+if length(who('Prior')) == 0
+    Prior = [];
+elseif strcmp(Prior,'empirical')
+    Prior = cell2mat(NtrialC) ./ sum(cell2mat(NtrialC));
+end
+
+StatusSwitch = 1;
+
+if StatusSwitch
+    fprintf('  # trials:   %s\n', num2str(cell2mat(NtrialC)));
+    fprintf('   # folds:   %i\n', K);
+    fprintf('    # runs:   %i\n', M);
+    fprintf('  Data dim:   %i\n', size(DimDataCell{1},1));
+    fprintf(' Final dim:   %i\n', Fdim);
+    fprintf('Classifier:   %s\n', ClassifierType);
+    %fprintf(' Parameter:   %s\n', num2str(CParm));
+    fprintf('    Priors:   %s\n', num2str(Prior));
+end
+
+Ntotalsteps = M*K;
+
+for m = 1:M
+    for w = 1:length(CParmC)
+        confusion{w} = zeros(Nclass,Nclass);
+    end
+    ndone = 1;
+    for n = 1:K
+        dimdata_training = [];
+        dimdata_testing = [];
+        Flabel_training = [];
+        Flabel_testing = [];
+        for c = 1:Nclass
+            if n == 1
+                NtestingC{c} = ceil(NtrialC{c} / K);
+                NtrainC{c} = NtrialC{c} - NtestingC{c};
+                random_sequence{c} = randperm(NtrialC{c});
+            end
+
+            testing_set_sequence{c} = random_sequence{c}( (n-1)*NtestingC{c}+1 : min([n*NtestingC{c},NtrialC{c}]) );
+            training_set_sequence{c} = setdiff(random_sequence{c},testing_set_sequence{c});
+
+%             Flabel_training = [Flabel_training (c-1)*ones( 1, length(training_set_sequence{c}))];
+             Flabel_testing = [Flabel_testing (c-1)*ones( 1, length(testing_set_sequence{c}))];
+
+%             dimdata_training = cat(2,dimdata_training,DimDataCell{c}(:,training_set_sequence{c}));
+             dimdata_testing = cat(2,dimdata_testing,DimDataCell{c}(:,testing_set_sequence{c}));
+
+            dimdatac_training{c} = DimDataCell{c}(:,training_set_sequence{c});
+            %dimdatac_testing{c} = DimDataCell{c}(:,testing_set_sequence{c});
+        end
+
+        FPmatC = dataproc_main_c_training (dimdatac_training, Fdim);
+        
+%         size(dimdata_testing)
+        for w = 1:length(CParmC)
+            Flabel_predictionC{w} = dataproc_main_c_classify (FPmatC, dimdatac_training, dimdata_testing, ClassifierType, Prior, CParmC{w});
+        end
+
+%         Ftrain = Fmat*dimdata_training;
+%         Ftesting = Fmat*dimdata_testing;
+
+%         Flabel_prediction = classify(Ftesting',Ftrain',Flabel_training, ClassifierType, PriorType).';
+
+        % Flabel_testing are the "actual" values
+        % Flabel_prediction are the "predicted" values
+        for w = 1:length(CParmC)
+            for x = 0:Nclass-1
+                for y = 0:Nclass-1
+                    confusion{w}(x+1,y+1) = confusion{w}(x+1,y+1) + length(intersect(find(Flabel_predictionC{w} == x), find(Flabel_testing == y)));;
+                end
+            end
+        end
+
+%         FeatureMatrix{m}{n} = Fmat;
+
+%         dimdataTraining{m}{n} = dimdata_training;
+%         dimdataTesting{m}{n} = dimdata_testing;
+%         FlabelTraining{m}{n} = Flabel_training;
+%         FlabelTesting{m}{n} = Flabel_testing;
+
+
+        if StatusSwitch
+            
+            if n/K >= 0.2 * ndone
+                fprintf('.');
+                ndone = ndone+1;
+            end
+        end
+    end
+    
+    ConfusionCC{m} = confusion;
+    
+    if StatusSwitch
+        if mod(m, 10) == 0
+            fprintf('\n');
+        else
+            fprintf(' ');
+        end
+    end
+end
+
+fprintf('\n');
+
