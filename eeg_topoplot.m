@@ -7,6 +7,10 @@ function [xi, yi, zi, fhand] = eeg_topoplot (Filter, ChanNames, time, FullHeadEl
 % electrode names
 % OnlyShowElectrodes (optional) shows the labels of only these electrodes
 %    (shortcut) Enter 19 for 19-channel cap, 61 for 61-channel cap.
+%
+% EXAMPLE: 
+% [xi, yi, zi, fhand] = eeg_topoplot (randn(19,1), {'Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4' ,'F8', 'T7', 'C3', 'Cz', 'C4', 'T8', 'P7', 'P3', 'Pz', 'P4', 'P8', 'O1', 'O2'}, 1, {'Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4' ,'F8', 'T7', 'C3', 'Cz', 'C4', 'T8', 'P7', 'P3', 'Pz', 'P4', 'P8', 'O1', 'O2'}, 19, 1, [], [], 24);
+%
 
 %Re-create the appearance of full head coverage by filling missing channels
 %with zeros
