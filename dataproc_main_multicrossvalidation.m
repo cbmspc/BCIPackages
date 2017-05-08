@@ -76,8 +76,7 @@
 % N training trials are used, where N is least number of training trials in
 % any one class. Because trial sequence is randomized at the beginning of
 % each run (except for leave-one-out), different trials will be used for
-% training. This switch does not balance test trials.
-%
+% training. If set to 2, also balance the number of testing trials.
 % 
 %
 % OUTPUT ARGUMENTS
@@ -135,6 +134,7 @@
 % 2012-08-09 Added SWbalanced
 % 2012-08-28 Renamed the input argument variable Opts to SWoutput
 %            Fixed a warning message about stratify and balanced
+% 2017-04-19 Added SWbalanced for test trials
 %            
 %
 % ptwang@uci.edu
@@ -177,7 +177,6 @@ if K <= 1 % Disable stratification
 end
 
 if exist('SWbalanced','var') && ~isempty(SWbalanced) && SWbalanced
-    SWbalanced = 1;
 else
     SWbalanced = 0;
 end
@@ -342,12 +341,16 @@ end
 if SWbalanced && SWdisablestratify
     SWbalanced = 0;
     if ~SWleaveoneout && ~SWleavenothingout
-        warning('DMMCV:NOBAL', 'Number of training trials can only be balanced if stratification is used');
+        warning('DMMCV:NOBAL', 'Number of trials can only be balanced if stratification is used');
     end
 end
 
-if SWprogressoutput && SWbalanced
-    fprintf('Balanced: For each run, number of training trials per class is equalized.\n');
+if SWprogressoutput
+    if SWbalanced == 2
+        fprintf('Balanced: For each run, number of training and testing trials per class is equalized.\n');
+    elseif SWbalanced == 1
+        fprintf('Balanced: For each run, number of training trials per class is equalized.\n');
+    end
 end
 
 % The variable Trialstotest is re-used for either the list of testable
@@ -551,6 +554,18 @@ for m = 1:M
                 % Pick only the first tmp trials from each class
                 for c = 1:Nclass
                     ridxtrain{c} = ridxtrain{c}(1:tmp);
+                end
+                
+                %20170419: If SWbalanced == 2, also balance the test set
+                if SWbalanced >= 2
+                    tmp = inf;
+                    for c = 1:Nclass
+                        tmp = min(tmp,length(ridxtest{c}));
+                    end
+                    % Pick only the first tmp trials from each class
+                    for c = 1:Nclass
+                        ridxtest{c} = ridxtest{c}(1:tmp);
+                    end
                 end
             end
 

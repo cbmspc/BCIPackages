@@ -39,6 +39,7 @@ NOPLOT = 0;
 FPID = 1;
 TimePoints = [];
 FilterImage = {};
+SWcompactfilter = 0;
 
 TrainLabels = TrainLabels(:);
 
@@ -205,7 +206,9 @@ for i = 1:2:length(varargin)
                 TRIALSTOTEST = varargin{i+1};
             end
         case 'BALANCED'
-            if varargin{i+1} == 1
+            if varargin{i+1} == 2
+                BALANCED = 2;
+            elseif varargin{i+1} == 1
                 BALANCED = 1;
             elseif varargin{i+1} == 0
                 BALANCED = 0;
@@ -215,6 +218,12 @@ for i = 1:2:length(varargin)
                 NOPLOT = 1;
             elseif varargin{i+1} == 0
                 NOPLOT = 0;
+            end
+        case 'COMPACTIMAGE'
+            if varargin{i+1} == 1
+                SWcompactfilter = 1;
+            elseif varargin{i+1} == 0
+                SWcompactfilter = 0;
             end
     end
 end
@@ -258,9 +267,26 @@ end
 NeedToSpecTimeNames = 0;
 if ~isempty(who('TIMESPEC')) || ~isempty(who('CHANSPEC'))
    if size(TrainData,3) == 1
-       warning('TrainData is already reshaped. TIMESPEC and CHANSPEC are ignored!');
+       warning('TrainData is already reshaped. TIMESPEC is ignored, and CHANSPEC behaves differently.');
        TIMESPEC = [1:size(TrainData,2)];
-       CHANSPEC = [1:size(TrainData,1)];
+       if ~isempty(who('CHANSPEC'))
+           if islogical(CHANSPEC)
+               CHANSPEC = find(CHANSPEC);
+           end
+           
+           TrainData = TrainData(:,CHANSPEC);
+           if ~isempty(ChanNames) && length(ChanNames) ~= length(CHANSPEC)
+               ChanNames = ChanNames(CHANSPEC);
+               Nchan = length(ChanNames);
+           end
+           
+           if OPTS > 0
+               disp('Subset of TrainData extracted using:');
+               disp(['CHANSPEC = ' summarize_idx(CHANSPEC)]);
+           end
+       else
+           CHANSPEC = [1:size(TrainData,1)];
+       end
    else
        if isempty(who('TIMESPEC'))
            TIMESPEC = [1:size(TrainData,2)];
@@ -625,9 +651,10 @@ for pr = 1:PR
             fprintf(FPID, '%i (class %i), ',Parameters.NtestcandidateA(i),classes(i));
         end
         fprintf(FPID, '%i (class %i), %i (total)\n',Parameters.NtestcandidateA(Nclass),classes(Nclass), sum(Parameters.NtestcandidateA));
-        if BALANCED
+        if BALANCED >= 2
+            fprintf(FPID, 'BALANCED: Number of training and testing trials were balanced during each run.\n');
+        elseif BALANCED >= 1
             fprintf(FPID, 'BALANCED: Number of training trials were balanced during each run.\n');
-            fprintf(FPID, '          Up to %i trials per class were used as training.\n', min(Ntrial));
         end
         fprintf(FPID, '     Data dimension: %i\n', size(Data,2));
         if ~isempty(ChanNames)
@@ -1019,26 +1046,33 @@ if ~isempty(Nchan)
             CommentTextCell(c) = {['ID=' Identifier ', ' tmp_CmtZscored 'P[all]=' tmp_pcor ', P[' Classname{c} ']=' tmp_pcondiag{c} ', n=' num2str(tmp_Ntrial(c)) ', nch=' num2str(FmatNchan)]};
         end
         
-        if ~isempty(FileName)
-            [FilterImage, TimePoints] = generate_filter_image(Fmat,Classname,FmatNchan,[],thres,FmatChanNames,TimeNames,FileName,ClassifierDesc,SWsortchans,CommentTextCell,NOPLOT);
+        if SWcompactfilter
+            if ~isempty(FileName)
+                generate_compact_filter(trfmat, FmatChanNames, [], TimeNames, FileName);
+                FilterImage = [];
+                TimePoints = [];
+            else
+                generate_compact_filter(trfmat, FmatChanNames, [], TimeNames, []);
+                FilterImage = [];
+                TimePoints = [];
+            end
+            if ~NOPLOT
+                gcfpos = [120    50   760   700];
+                set(gcf,'Position',gcfpos);
+                drawnow
+            end
         else
-            [FilterImage, TimePoints] = generate_filter_image(Fmat,Classname,FmatNchan,[],thres,FmatChanNames,TimeNames,[],ClassifierDesc,SWsortchans,CommentTextCell,NOPLOT);
+            if ~isempty(FileName)
+                [FilterImage, TimePoints] = generate_filter_image(Fmat,Classname,FmatNchan,[],thres,FmatChanNames,TimeNames,FileName,ClassifierDesc,SWsortchans,CommentTextCell,NOPLOT);
+            else
+                [FilterImage, TimePoints] = generate_filter_image(Fmat,Classname,FmatNchan,[],thres,FmatChanNames,TimeNames,[],ClassifierDesc,SWsortchans,CommentTextCell,NOPLOT);
+            end
+            if ~NOPLOT
+                gcfpos = [100    50   760   700];
+                set(gcf,'Position',gcfpos);
+                drawnow
+            end
         end
-        if ~NOPLOT
-            gcfpos = [100    50   760   700];
-            set(gcf,'Position',gcfpos);
-            drawnow
-        end
-        %if ~isempty(FileName)
-        %    generate_compact_filter(trfmat_trimmed, FmatChanNames, [], TimeNames, FileName);
-        %else
-        %    generate_compact_filter(trfmat_trimmed, FmatChanNames, [], TimeNames, []);
-        %end
-        %if ~NOPLOT
-        %    gcfpos = [120    50   760   700];
-        %    set(gcf,'Position',gcfpos);
-        %    drawnow
-        %end
     end
 end
 
