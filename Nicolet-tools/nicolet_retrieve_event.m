@@ -3,7 +3,7 @@
 %
 % Primary Syntax: 
 % [data, channames, fs] = nicolet_retrieve_event (Subject, EventTiming, RetrieveTiming, ChanNameRegexp, NotChanNameRegexp, DatabaseDir)
-%   Subject = The subject name as shown on the folder name
+%   Subject = Subject name (part of the folder name before the @ sign)
 %   EventTiming = [YYYY MM DD HH nn ss]
 %   RetrieveTiming = [SecondsBefore SecondsAfter]
 %   (Optional) ChanNameRegexp = regexp pattern for including channels.
@@ -59,7 +59,7 @@ if isempty(a)
 end
 
 for i = length(a):-1:1
-    b = regexp(a(i).name, '^(SJ\d{4,})@(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$', 'tokens', 'once');
+    b = regexp(a(i).name, '^(\w+)@(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$', 'tokens', 'once');
     FolderDateNum = datenum(sprintf('%s-%s-%s %s:%s:%s', b{2}, b{3}, b{4}, b{5}, b{6}, b{7}));
     if FolderDateNum < EventDateNum
         Folder = [BaseDir filesep a(i).name];
