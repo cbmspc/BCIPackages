@@ -2,11 +2,49 @@
 % standard placement system
 %
 
-function eeg_topoplot2 (values, ChanNames, Opts)
+function [SurfHand, FlatXYCoords_active, ElecNames_active] = eeg_topoplot2 (values, ChanNames, Opts)
 SWnocontour = 1;
+SWnosurf = 0;
 SWnocolorbar = 0;
+NumContourLevels = 10;
 OnlyShowElectrodes = ChanNames;
 FontSize = 12;
+
+if exist('Opts', 'var') && isstruct(Opts)
+    if isfield(Opts, 'contour')
+        if Opts.contour
+            SWnocontour = 0;
+        else
+            SWnocontour = 1;
+        end
+    end
+    if isfield(Opts, 'nocontour')
+        if Opts.nocontour
+            SWnocontour = 1;
+        else
+            SWnocontour = 0;
+        end
+    end
+    if isfield(Opts, 'surf')
+        if Opts.surf
+            SWnosurf = 0;
+        else
+            SWnosurf = 1;
+        end
+    end
+    if isfield(Opts, 'nosurf')
+        if Opts.nosurf
+            SWnosurf = 1;
+        else
+            SWnosurf = 0;
+        end
+    end
+    if isfield(Opts, 'numcontourlevels') && ~isempty(Opts.numcontourlevels)
+        NumContourLevels = Opts.numcontourlevels;
+    end
+end
+
+
 [~, ElecNames, FlatXYCoords] = eeg_electrode_to_gridcoord_3d ('all');
 ElecNames = ElecNames(1:336);
 FlatXYCoords = FlatXYCoords(1:336,:);
@@ -44,7 +82,7 @@ tyi = linspace(min(ProjGridCoord(:,2)),max(ProjGridCoord(:,2)),Npts);
 
 zi = griddata(ProjGridCoord(:,1),ProjGridCoord(:,2),data,xi,yi,'cubic');
 
-fhand = figure;
+% fhand = figure;
 hold on
 set(gca,'DataAspectRatio',[1 1 1]);
 % if ~isnan(Clim(1))
@@ -54,23 +92,32 @@ set(gca,'DataAspectRatio',[1 1 1]);
 radius = -min(min(FlatXYCoords));
 drawcirc(gca, [0 0], radius);
 
-surf(xi,yi,zi,'EdgeColor','none');
+SurfHand = surf(xi, yi, zi, 'EdgeColor', 'none');
+[~, ContourHand] = contour(xi, yi, zi, NumContourLevels, 'LineWidth', 2);
 
-[temp ch] = contour(xi,yi,zi); %#ok<ASGLU>
+
+
 if SWnocontour
-    set(ch, 'Visible', 'off');
+    set(ContourHand, 'Visible', 'off');
 end
-cch = get(ch,'Children');
+if SWnosurf
+    set(SurfHand, 'Visible', 'off');
+end
+
+cch = get(ContourHand,'Children');
 if isempty(cch)
-    cch = ch;
+    cch = ContourHand;
 end
 for i = 1:length(cch)
     xdata = get(cch(i),'xdata');
     ydata = get(cch(i),'ydata');
     MX = max(data);
-    p3h = plot3(xdata,ydata,MX*ones(1,length(xdata))+1,'k');
-    if SWnocontour
-        set(p3h, 'Visible', 'off');
+    if ~SWnosurf
+        % Draw the contour lines as black if surface plot is enabled
+        p3h = plot3(xdata,ydata,MX*ones(1,length(xdata))+1,'k');
+        if SWnocontour
+            set(p3h, 'Visible', 'off');
+        end
     end
 end
 
@@ -99,7 +146,14 @@ if exist('Opts', 'var') && isstruct(Opts)
         CLim = max(abs(data(:)))*[-1 1];
         set(gca, 'CLim', CLim);
     end
+    if isfield(Opts, 'clim') && length(Opts.clim) == 2
+        set(gca, 'CLim', Opts.clim);
+    end
 end
+
+tmp = chan2lidx(upper(ElecNames),upper(OnlyShowElectrodes));
+FlatXYCoords_active = FlatXYCoords(tmp,:);
+ElecNames_active = ElecNames(tmp);
 
 
 function drawcirc (ax, origin, radius)

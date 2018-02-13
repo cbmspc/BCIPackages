@@ -372,7 +372,9 @@ for Dataset = 1:Ndataset
         end
     end
     
-    t2 = (1:size(x2,1)).'/Fs_x;
+    %t2 = (1:size(x2,1)).'/Fs_x;
+    %20171011: Changed the start time to 0
+    t2 = (0:size(x2,1)-1).'/Fs_x;
     
     me = median(x2(:,Dataset));
     
@@ -874,7 +876,8 @@ for Dataset = 1:Ndataset
                         
                         
                         if ~isempty(Bounds)
-                            Actions = [Bounds(:,1) Bounds(:,2)]./Fs_x;
+                            %20171011: Changed to 0 start index
+                            Actions = ([Bounds(:,1) Bounds(:,2)] - 1)./Fs_x;
                             % Process MinLen, MaxLen, MinHeight, MaxHeight
                             peak = zeros(size(Bounds,1),1);
                             peakloc = peak;
@@ -887,7 +890,8 @@ for Dataset = 1:Ndataset
                                     peak(k) = NaN;
                                     peakloc(k) = NaN;
                                 end
-                                peakloc(k) = peakloc(k) / Fs_x;
+                                %20171011: Changed to 0 start index
+                                peakloc(k) = (peakloc(k)-1) / Fs_x;
                             end
                             passed_minlen = diff(Actions,[],2) >= MinLen;
                             passed_maxlen = diff(Actions,[],2) <= MaxLen;
@@ -921,7 +925,9 @@ for Dataset = 1:Ndataset
                         end
                         
                         if ~isempty(Actions)
-                            Bounds = round(Actions*Fs_x+ones(size(Actions,1),1)*[1 0]);
+                            %20171011: Changed to 0 start index
+                            %Bounds = round(Actions*Fs_x+ones(size(Actions,1),1)*[1 0]);
+                            Bounds = round(Actions*Fs_x+1);
                         else
                             Bounds = [];
                         end
@@ -1005,7 +1011,8 @@ for Dataset = 1:Ndataset
                                     peak(k) = NaN;
                                     peakloc(k) = NaN;
                                 end
-                                peakloc(k) = peakloc(k) / Fs_x;
+                                %20171011: Changed to 0 start index
+                                peakloc(k) = (peakloc(k)-1) / Fs_x;
                             end
                             info_Height = [nanmean(peak), nanstd(peak), nanmin(peak), nanmedian(peak), nanmax(peak)];
                             
@@ -1089,7 +1096,8 @@ for Dataset = 1:Ndataset
     end
     
     if size(Bounds,2) == 2
-        Actions = [Bounds(:,1) Bounds(:,2)]./Fs_x;
+        %20171011: Changed to 0 start index
+        Actions = ([Bounds(:,1) Bounds(:,2)]-1)./Fs_x;
         % Process MinLen, MaxLen, MinHeight, MaxHeight
         peak = zeros(size(Bounds,1),1);
         peakloc = peak;
@@ -1102,7 +1110,8 @@ for Dataset = 1:Ndataset
                 peak(k) = NaN;
                 peakloc(k) = NaN;
             end
-            peakloc(k) = peakloc(k) / Fs_x;
+            %20171011: Changed to 0 start index
+            peakloc(k) = (peakloc(k)-1) / Fs_x;
         end
         passed_minlen = diff(Actions,[],2) >= MinLen;
         passed_maxlen = diff(Actions,[],2) <= MaxLen;
@@ -1136,7 +1145,9 @@ for Dataset = 1:Ndataset
     end
     
     if ~isempty(Actions)
-        Bounds = Actions*Fs_x+ones(size(Actions,1),1)*[1 0];
+        %Bounds = Actions*Fs_x+ones(size(Actions,1),1)*[1 0];
+        %20171011: Changed to 0 start index
+        Bounds = Actions*Fs_x+1;
     else
         Bounds = [];
     end
