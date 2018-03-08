@@ -3,7 +3,7 @@
 % corresponding to DRFUN{dr}, FEFUN{fe}, CFUN{cf}, PRIOR{pr} that are
 % specified by user or in the default xvalid settings
 
-function [pcorrect, pconfuse, indivfold, ChanNames, TimePoints, FilterImage, DRFUN, FEFUN, FEPARM, CFUN, CNAME, PRIOR, BestParms, Fmat] = xvalid (TrainData, TrainLabels, varargin)
+function [pcorrect, pconfuse, indivfold, ChanNames, TimePoints, FilterImage, DRFUN, FEFUN, FEPARM, CFUN, CNAME, PRIOR, BestParms, Fmat, DRPARM] = xvalid (TrainData, TrainLabels, varargin)
 
 OPTS = 1;
 KFOLD = 10;
@@ -227,6 +227,15 @@ for i = 1:2:length(varargin)
             end
     end
 end
+
+if length(DRFUN) > 1
+    DRFUN = DRFUN(1);
+    DRPARM = DRPARM(1);
+    if OPTS > 0
+        fprintf(FPID, 'Only the first dimension reduction function (DRFUN=%s) is used.\n', DRFUN{1});
+    end
+end
+    
 
 
 if (isempty(who('TrainLabels')) || isempty(TrainLabels)) && ~isempty(TrainData) && isstruct(TrainData(1))
@@ -656,7 +665,33 @@ for pr = 1:PR
         elseif BALANCED >= 1
             fprintf(FPID, 'BALANCED: Number of training trials were balanced during each run.\n');
         end
-        fprintf(FPID, '     Data dimension: %i\n', size(Data,2));
+        fprintf(FPID, '     Data dimension (starting): %i\n', size(Data,2));
+        
+        switch DRFUN{1}
+            case 'pca'
+                tmp = dataproc_func_pca(TrainData, TrainLabels, DRPARM{1});
+                if iscell(tmp)
+                    for tmp2 = 1:length(tmp)
+                        drdim(tmp2) = size(tmp{tmp2},2);
+                    end
+                else
+                    drdim = size(tmp,2);
+                end
+            case 'cpca'
+                tmp = dataproc_func_cpca(TrainData, TrainLabels, DRPARM{1});
+                if iscell(tmp)
+                    for tmp2 = 1:length(tmp)
+                        drdim(tmp2) = size(tmp{tmp2},2);
+                    end
+                else
+                    drdim = size(tmp,2);
+                end
+            otherwise
+                drdim = NaN;
+                
+        end
+        
+        fprintf(FPID, '     Data dimension (after DR): %s (estimated)\n', num2str(drdim));
         if ~isempty(ChanNames)
             fprintf(FPID, 'Included %i channels: %s\n', length(ChanNames), cell_to_string(ChanNames(:).', ', '));
         end
@@ -926,14 +961,12 @@ for fe = 1:length(FEPARM)
                 else
                     tm2 = FEF(Data*tm1,Labels,BestParms.FEPARM);
                     trfmatbest = tm1 * tm2;
+                    Ftrain{1} = Data*trfmatbest;
+                    tm1 = {tm1};
                 end
                 
                 BestParms.trfmat = trfmatbest;
-                
                 SuffStat.classes = unique(Labels);
-                if ~iscell(tm1)
-                    tm1 = tm1{1};
-                end
                 for s = 1:length(tm1)
                     for c = 1:length(SuffStat.classes)
                         SuffStat.stats{s,c,1} = mean(Ftrain{s}(Labels==SuffStat.classes(c),:),1);

@@ -61,8 +61,9 @@
 % enter [] as placeholder. This is also the 6th argument passed into the
 % classifier function.
 %
-% SWoutput: 0 to silence the progress output (each dot is one fold, each
-% line is one run)
+% SWoutput: (OPTIONAL, Default = not silent) 
+% 0 to silence the progress output (each dot is one fold, each line is one
+% run)
 %
 % Trialstotest: (OPTIONAL, Default = all trials)
 % Specify the trial numbers to test. Default (if empty) is all trials.
@@ -105,17 +106,19 @@
 %
 % USAGE EXAMPLE
 %
-% [pcorrect,pconfuse] = dataproc_main_multicrossvalidation (TrainData,
-% TrainLabels, 10, 10, {'pca','cpca'}, {1,1}, {'aida','aida','aida'},
-% {1,2,3}, {[],[],[],[]}, {'linear','quadratic','parzen','knn'},
-% 'empirical', {0,0,0,3})
+% [pcorrect,pconfuse] = dataproc_main_multicrossvalidation ( ...
+% TrainData, TrainLabels, 10, 10, ...
+% {'pca','cpca'}, {0.9999,0.9999}, ...
+% {'aida','aida','aida'}, {1,2,3}, ...
+% {[],[],[],[]}, {'linear','quadratic','parzen','knn'}, ...
+% 'empirical', {0,0,0,3}, 1, [], []);
 %
 % Here, we do K=10 fold, M=10 run CV. Two dimension reduction
-% algorithms (pca (parm 1) first, then cpca (parm 1)) are performed. Then
-% three feature extraction are performed at different parameters (1,2,3)
-% (they are all aida, but can be different if needed). Then four
+% algorithms (pca first, then cpca (both with parm 0.9999)) are performed. 
+% Then three feature extraction are performed at different parameters
+% (1,2,3) (they are all aida, but can be different if needed). Then four
 % classifiers are performed using four corresponding parameters. The
-% resulting output variables would be a cell in the format {DR,FE,CF}.
+% resulting output variables would be a cell in the format {DR,FE,CF}. 
 %
 %
 % AUTHOR
@@ -135,7 +138,8 @@
 % 2012-08-28 Renamed the input argument variable Opts to SWoutput
 %            Fixed a warning message about stratify and balanced
 % 2017-04-19 Added SWbalanced for test trials
-%            
+% 2018-03-08 Updated example usage
+%
 %
 % ptwang@uci.edu
 % Biomedical Engineering, University of California Irvine
@@ -269,6 +273,8 @@ if exist('SWoutput','var') && ~isempty(SWoutput)
     else
         SWprogressoutput = 1;
     end
+else
+    SWoutput = 1;
 end
 
 if nargout >= 3

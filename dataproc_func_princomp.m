@@ -5,7 +5,7 @@ function [Un, Eval] = dataproc_func_princomp (data)
 % Un = Eigenvectors
 
 
-[n p] = size(data);
+[n, p] = size(data);
 dmdata = data - ones(n,1)*mean(data,1);
 
 
@@ -18,7 +18,7 @@ dmdata = data - ones(n,1)*mean(data,1);
 
 % EIG Method
 if p >= n  % Small sample size
-    [V D] = eig(dmdata*dmdata');
+    [V, D] = eig(dmdata*dmdata');
     % % LAPACK Approximation
     % OPTS.issym = true;
     % OPTS.disp = 0;
@@ -30,7 +30,7 @@ if p >= n  % Small sample size
     Un = V(:,I(1:n-1));
     Un = dmdata' * Un * diag(d.^(-0.5));
 else  % Small dimension
-    [Un D] = eig(dmdata'*dmdata);
+    [Un, D] = eig(dmdata'*dmdata);
     Eval = diag(D)/(n-1);
     [Eval,I] = sort(Eval);
     Eval = flipud(Eval);
