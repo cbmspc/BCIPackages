@@ -4,6 +4,7 @@
 
 function signalviewer(Signal, Time, Chan, EventTimeStamps)
 Chan = Chan(:).';
+Time = Time(:);
 if size(Signal,1) == length(Chan) && size(Signal,2) ~= length(Chan)
     Signal = Signal.';
 end
@@ -11,16 +12,35 @@ if size(Signal,1) ~= length(Time) && length(Time) == 1
     Fs = Time;
     Time = (0:size(Signal,1)-1).' / Fs;
 else
-    Fs = round(1/mean(diff(Time)));
+    Fs = round(1/nanmean(diff(Time)));
 end
+
+% Remove channels that are completely flat
+tmp = nanstd(Signal,[],1);
+Signal = Signal(:,tmp>0);
+Chan = Chan(tmp>0);
+
+selchan = 1:length(Chan);
+selica = [];
+
+
 [Chan,ix] = sort(Chan);
 Signal = Signal(:,ix);
+Signal1 = Signal;
 Signal2 = Signal;
-Signal3 = Signal2;
+Signal3 = Signal;
+PowerLineFrequency = 60;
 MaxFilterOrder = 4;
+FilterOrder = MaxFilterOrder;
+FilterReflectMult = 0;
+FilterChunkSec = 100;
+FilterBusy = 0;
+ICA_Initialized = 0;
+ica_sig = [];
+ica_A = [];
+icachans = {};
 
-
-Nch = length(Chan);
+Nch = length(Chan(selchan));
 Ntp = length(Time);
 
 PermittedXZoomRanges   = [0.001 0.005 0.01 0.05 0.1 0.5 1 2 5 10 20 30 60 120 300 600 1200 1800 3600:3600:6*3600 8*3600 12*3600 24*3600 7*24*3600];
@@ -70,6 +90,7 @@ Kolor = [
 Nkolor = size(Kolor,1);
 
 EventKolor = [0.75 0.75 0];
+EventFontSize = 20;
 
 sig_sd = std(Signal,[],1);
 sig_sd_max = max(sig_sd);
@@ -78,19 +99,92 @@ chansep = 100;
 
 screensize = get(groot,'Screensize');
 figure(40301);
-set(gcf,'Position',screensize);
 clf
 hold on
+set(gcf,'Position',screensize);
 YLim = [-chansep*Nch-0.5*chansep, -chansep+0.5*chansep];
 XLim = [0 10];
-set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan), 'YLim', YLim, 'XLim', XLim, 'Position', [0.0500    0.0600    0.86    0.93], 'FontWeight', 'bold');
+set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', [0.0500    0.0600    0.86    0.93], 'FontWeight', 'bold');
 
-t1 = 1;
+t1 = find(Time<=0,1);
+if isempty(t1)
+    % Signal does not start from 0 seconds
+    % Pad
+    Time = [0; Time];
+    Ntp = Ntp + 1;
+    Signal = [nan(1,Nch); Signal];
+    t1 = 1;
+end
 t2 = find(Time>=10,1);
+if isempty(t2)
+    % Signal is less than 10 seconds long
+    % Pad
+    Time(end+1) = 10;
+    Ntp = Ntp + 1;
+    Signal(end+1,:) = NaN;
+    t2 = find(Time>=10,1);
+end
 
 for ch = Nch:-1:1
-    plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,ch) - mean(Signal(t1:t2,ch)) - chansep*ch);
-    set(plothand(ch), 'Color', Kolor(mod(ch-1,Nkolor)+1,:));
+    plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - nanmean(Signal(t1:t2,selchan(ch))) - chansep*ch);
+    set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
+end
+
+tmax = max(Time);
+SigChunkRendered = false(ceil(tmax / FilterChunkSec),1);
+ChunkIndexMax = length(SigChunkRendered);
+
+
+% Allow different kinds of event time stamp formats
+if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps)
+    if isstruct(EventTimeStamps)
+        % event_time format
+        tmp = EventTimeStamps;
+        EventTimeStamps = {};
+        tmpf = fieldnames(tmp);
+        k = 0;
+        for i = 1:length(tmpf)
+            if isnumeric(tmp.(tmpf{i}))
+                for j = 1:length(tmp.(tmpf{i}))
+                    k = k + 1;
+                    EventTimeStamps(k,:) = {tmp.(tmpf{i})(j), tmpf{i}};
+                end
+            end
+        end
+    elseif isnumeric(EventTimeStamps) && size(EventTimeStamps,2) == 3
+        % boundary format with augmented label
+        tmp = EventTimeStamps;
+        EventTimeStamps = {};
+        k = 0;
+        for i = 1:size(tmp,1)
+            k = k + 1;
+            EventTimeStamps(k,:) = {tmp(i,1), sprintf('Event %g Start', tmp(i,3))};
+            k = k + 1;
+            EventTimeStamps(k,:) = {tmp(i,2), sprintf('Event %g End', tmp(i,3))};
+        end
+    elseif isnumeric(EventTimeStamps) && size(EventTimeStamps,2) == 2
+        % boundary format without augmented label
+        tmp = EventTimeStamps;
+        EventTimeStamps = {};
+        k = 0;
+        for i = 1:size(tmp,1)
+            k = k + 1;
+            EventTimeStamps(k,:) = {tmp(i,1), sprintf('Event %i Start', i)};
+            k = k + 1;
+            EventTimeStamps(k,:) = {tmp(i,2), sprintf('Event %i End', i)};
+        end
+    elseif isnumeric(EventTimeStamps) && size(EventTimeStamps,2) == 1
+        % simple time stamps with no labels
+        tmp = EventTimeStamps;
+        EventTimeStamps = {};
+        k = 0;
+        for i = 1:size(tmp,1)
+            k = k + 1;
+            EventTimeStamps(k,:) = {tmp(i,1), sprintf('Event %i', i)};
+        end
+    end
+    
+    
 end
 
 if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps) && iscell(EventTimeStamps) && size(EventTimeStamps,2) == 2
@@ -103,61 +197,75 @@ end
 if EventEnable
     EventTimeStamps = sortrows(EventTimeStamps);
     EventTimes = cell2mat(EventTimeStamps(:,1));
-    YPos = [mean(YLim)+diff(YLim)/8     mean(YLim)    mean(YLim)-diff(YLim)/8];
+    YPos = sort(mean(YLim)+diff(YLim)/20*([-8:2:8]), 'descend');
     NYPos = length(YPos);
     for i = size(EventTimeStamps,1):-1:1
         eventplothand(i) = plot( EventTimeStamps{i,1}*[1 1], [-10000000*(Nch+1), 10000000], '-', 'Color', EventKolor );
-        eventtexthand(i) = text( EventTimeStamps{i,1}, YPos(mod(i-1,NYPos)+1), EventTimeStamps{i,2});
+        eventtexthand(i) = text( EventTimeStamps{i,1}, YPos(mod(i-1,NYPos)+1), EventTimeStamps{i,2}, 'FontSize', EventFontSize);
     end
     set(eventtexthand(i), 'Visible', 'off');
 end
 
 
-HighPassFilter.state = 1;
+HighPassFilter.state = 0;
 HighPassFilter.cutoff = 1;
-LowPassFilter.state = 1;
+LowPassFilter.state = 0;
 LowPassFilter.cutoff = 30;
-NotchFilter.state = 60;
+NotchFilter.state = 0;
+ZscoreFilter.state = 0;
+ZscoreFilter.multiplier = 100;
+
+h_bigtext = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.35 0.5 0.25 0.05], 'String', 'BIG TEXT', 'FontSize', 28, 'Visible', 'off');
+
+h_xoomtitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.96 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Horizontal Zoom');
+h_xzoomout = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.94 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-');
+h_xzoomlevel = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.94 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '10 s');
+h_xzoomin = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.94 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+');
+
+h_yoomtitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.90 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Vertical Zoom');
+h_yzoomout = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.88 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-');
+h_yzoomlevel = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.88 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '64 ch');
+h_yzoomin = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.88 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+');
+
+h_sensititle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.84 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Sensitivity');
+h_sepup = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.82 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-');
+h_sensitivity = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.82 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '100 uV');
+h_sepdown = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.82 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+');
+
+h_pantitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.78 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pan');
+h_panleft = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.725 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '<');
+h_panright = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.725 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '>');
+h_panup = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.75 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '^');
+h_pandown = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.725 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'v');
+
+h_passfilttitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.68 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Filters');
+h_hpf_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.66 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HP');
+h_hpf_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.66 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF');
+h_hpf_cutoff = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.66 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '1');
+h_hpf_unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.66 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz');
+h_lpf_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'LP');
+h_lpf_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.64 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF');
+h_lpf_cutoff = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.64 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '30');
+h_lpf_unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz');
+h_notch_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.62 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Notch');
+h_notch_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.95 0.62 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF');
+h_zscore_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.60 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Z-Score');
+h_zscore_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.95 0.60 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF');
 
 
-h_xoomtitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.84 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Horizontal Zoom');
-h_xzoomout = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.82 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-');
-h_xzoomlevel = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.82 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '10 s');
-h_xzoomin = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.82 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+');
+h_chansel_title = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels');
+h_chansel_list = uicontrol(gcf, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.92 0.12 0.040, 0.400]);
+h_chansel_confirm = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.10 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Confirm');
+h_chansel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.08 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Reset');
 
-h_yoomtitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.78 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Vertical Zoom');
-h_yzoomout = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.76 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-');
-h_yzoomlevel = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.76 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '64 ch');
-h_yzoomin = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.76 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+');
+h_icasel_title = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.525 0.020 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps');
+h_icasel_list = uicontrol(gcf, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.96 0.12 0.030, 0.400]);
+h_icasel_confirm = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.10 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Run ICA');
+h_icasel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.08 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Reset');
 
-h_sensititle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.72 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Sensitivity');
-h_sepup = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.70 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-');
-h_sensitivity = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.70 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '100 uV');
-h_sepdown = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.70 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+');
-
-h_pantitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.66 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pan');
-h_panleft = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.605 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '<');
-h_panright = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.605 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '>');
-h_panup = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.63 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '^');
-h_pandown = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.605 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'v');
-
-h_passfilttitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.56 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Band-pass');
-h_hpf_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.54 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HP');
-h_hpf_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.54 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF');
-h_hpf_cutoff = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.54 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '1');
-h_hpf_unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.54 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz');
-h_lpf_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.52 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'LP');
-h_lpf_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.52 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF');
-h_lpf_cutoff = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.52 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '30');
-h_lpf_unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.52 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz');
-
-h_passfilttitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.48 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Notch');
-h_notch_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.46 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Notch');
-h_notch_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.46 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF');
-
-notch_update();
-filter_update();
-
+set(h_icasel_reset, 'Enable', 'off');
+set(h_chansel_list, 'String', Chan);
+set(h_chansel_list, 'Value', selchan);
 
 set(h_xzoomin, 'Callback', @f_xzoomin);
 set(h_xzoomout, 'Callback', @f_xzoomout);
@@ -175,8 +283,17 @@ set(h_lpf_switch, 'Callback', @f_lpf_switch);
 set(h_hpf_cutoff, 'Callback', @f_hpf_cutoff);
 set(h_lpf_cutoff, 'Callback', @f_lpf_cutoff);
 set(h_notch_switch, 'Callback', @f_notch_switch);
-
+set(h_zscore_switch, 'Callback', @f_zscore_switch);
+set(h_chansel_confirm, 'Callback', @f_chansel_confirm);
+set(h_chansel_reset, 'Callback', @f_chansel_reset);
+set(h_icasel_confirm, 'Callback', @f_icasel_confirm);
+set(h_icasel_reset, 'Callback', @f_icasel_reset);
 set(gcf, 'KeyPressFcn', @f_fig_keypress);
+set(gcf,'Position',screensize);
+
+notch_update();
+filter_update();
+%set(h_bigtext, 'Visible', 'off', 'String', '');
 
 
     function f_fig_keypress(hObject, eventdata)
@@ -196,9 +313,12 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
         else
             Shift = 0;
         end
+        
         switch Key
             case 'leftarrow'
-                if Ctrl && EventEnable
+                if Ctrl
+                    f_xzoomin(hObject, []);
+                elseif Alt && EventEnable
                     u = find(EventTimes < XLim(1), 1, 'last');
                     if ~isempty(u)
                         XRange = XLim(2) - XLim(1);
@@ -214,7 +334,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
                     f_panleft(hObject, []);
                 end
             case 'rightarrow'
-                if Ctrl && EventEnable
+                if Ctrl
+                    f_xzoomin(hObject, []);
+                elseif Alt && EventEnable
                     u = find(EventTimes > XLim(2), 1, 'first');
                     if ~isempty(u)
                         XRange = XLim(2) - XLim(1);
@@ -230,9 +352,17 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
                     f_panright(hObject, []);
                 end
             case 'uparrow'
-                f_panup(hObject, []);
+                if Ctrl
+                    f_sepdown(hObject, []);
+                else
+                    f_panup(hObject, []);
+                end
             case 'downarrow'
-                f_pandown(hObject, []);
+                if Ctrl
+                    f_sepup(hObject, []);
+                else
+                    f_pandown(hObject, []);
+                end
             case 'pageup'
                 f_sepdown(hObject, []);
             case 'pagedown'
@@ -311,12 +441,10 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     function f_notch_switch(hObject, eventdata)
         set(h_notch_switch, 'Enable', 'off');
         set(h_notch_state, 'String', 'Wait'); drawnow;
-        if NotchFilter.state == 60
-            NotchFilter.state = 50;
-        elseif NotchFilter.state == 50
+        if NotchFilter.state
             NotchFilter.state = 0;
         else
-            NotchFilter.state = 60;
+            NotchFilter.state = 1;
         end
         notch_update();
         filter_update();
@@ -324,31 +452,44 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
     
     function notch_update()
-        if NotchFilter.state == 50
-            set(h_notch_state, 'String', '50Hz');
+        if NotchFilter.state
+            set(h_notch_state, 'String', 'ON');
+            FilterBusy = 1;
+            set(h_bigtext, 'Visible', 'on', 'String', 'Applying notch filter...'); drawnow;
             ETime = (Time(1):1/Fs:Time(end)).';
-            ESignal = interp1(Time, Signal, ETime);
-            Signal2 = freqfilter(ESignal, Fs, [48 52], 'stop', 'fft');
-            Signal2 = interp1(ETime, Signal2, Time);
-            clear ETime ESignal
-        elseif NotchFilter.state == 60
-            set(h_notch_state, 'String', '60Hz');
-            ETime = (Time(1):1/Fs:Time(end)).';
-            ESignal = interp1(Time, Signal, ETime);
-            Signal2 = freqfilter(ESignal, Fs, [58 62], 'stop', 'fft');
-            Signal2 = interp1(ETime, Signal2, Time);
-            clear ETime ESignal
+            ESignal = interp1(Time, Signal1, ETime);
+            tmp = freqfilter(ESignal, Fs, [PowerLineFrequency+[-2 2], 2], 'stop', 'butter', 1*Fs);
+            Signal2 = interp1(ETime, tmp, Time);
+            FilterBusy = 0;
+            set(h_bigtext, 'Visible', 'off', 'String', '');
+            clear ETime ESignal tmp
         else
             set(h_notch_state, 'String', 'OFF');
-            Signal2 = Signal;
+            Signal2 = Signal1;
         end
     end
+
+
+    function f_zscore_switch(hObject, eventdata)
+        set(h_zscore_switch, 'Enable', 'off');
+        set(h_zscore_state, 'String', 'Wait'); drawnow;
+        if ZscoreFilter.state
+            ZscoreFilter.state = 0;
+            set(h_zscore_state, 'String', 'OFF');
+        else
+            ZscoreFilter.state = 1;
+            set(h_zscore_state, 'String', 'ON');
+        end
+        redraw();
+        set(h_zscore_switch, 'Enable', 'on');
+    end
+
 
     function filter_update()
         hpf = str2double(get(h_hpf_cutoff, 'String'));
         lpf = str2double(get(h_lpf_cutoff, 'String'));
         
-        if hpf <= 0
+        if hpf <= 0.01
             HighPassFilter.state = 0;
             set(h_hpf_state, 'String', 'OFF');
         end
@@ -368,42 +509,148 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
             LowPassFilter.cutoff = lpf;
         end
         if HighPassFilter.state || LowPassFilter.state
-            set([h_hpf_state h_lpf_state], 'String', 'Wait'); drawnow
-            ETime = (Time(1):1/Fs:Time(end)).';
+            SigChunkRendered(:) = 0;
+            FilterOrder = MaxFilterOrder;
+            filter_render();
+            
+%             set([h_hpf_state h_lpf_state], 'String', 'Wait'); drawnow
+%             ETime = (Time(1):1/Fs:Time(end)).';
+%             ESignal = interp1(Time, Signal2, ETime);
+%             if HighPassFilter.state
+%                 [Signal3a, FilterInfo] = freqfilter(ESignal, Fs, [hpf FilterOrder], 'high', 'butter', FilterReflectMult*FilterOrder/hpf*Fs);
+%                 while any(FilterInfo.ButterUnstable)
+%                     if FilterOrder <= 1
+%                         Signal3a = ESignal;
+%                         HighPassFilter.state = 0;
+%                         set(h_hpf_state, 'String', 'OFF');
+%                         break
+%                     end
+%                     FilterOrder = ceil(FilterOrder / 2);
+%                     [Signal3a, FilterInfo] = freqfilter(ESignal, Fs, [hpf FilterOrder], 'high', 'butter', FilterReflectMult*FilterOrder/hpf*Fs);
+%                 end
+%             else
+%                 Signal3a = ESignal;
+%             end
+%             
+%             if LowPassFilter.state
+%                 [Signal3, FilterInfo] = freqfilter(Signal3a, Fs, [lpf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/lpf*Fs);
+%                 while any(FilterInfo.ButterUnstable)
+%                     if FilterOrder <= 1
+%                         Signal3 = Signal3a;
+%                         LowPassFilter.state = 0;
+%                         set(h_lpf_state, 'String', 'OFF');
+%                         break
+%                     end
+%                     FilterOrder = ceil(FilterOrder / 2);
+%                     [Signal3, FilterInfo] = freqfilter(Signal3a, Fs, [lpf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/lpf*Fs);
+%                 end
+%             else
+%                 Signal3 = Signal3a;
+%             end
+%             Signal3 = interp1(ETime, Signal3, Time);
+%             clear ETime ESignal Signal3a
+%             
+%             if HighPassFilter.state
+%                 set(h_hpf_state, 'String', 'ON');
+%             else
+%                 set(h_hpf_state, 'String', 'OFF');
+%             end
+%             if LowPassFilter.state
+%                 set(h_lpf_state, 'String', 'ON');
+%             else
+%                 set(h_lpf_state, 'String', 'OFF');
+%             end
+            
+        else
+            Signal3 = Signal2;
+            SigChunkRendered(:) = 1;
+        end
+        
+        redraw();
+    end
+
+
+    function chunkindexrange = xlim_to_sigchunk()
+        chunkindexrange = [max(1,floor(XLim(1)/FilterChunkSec)+1), min(ChunkIndexMax,ceil(XLim(2) / FilterChunkSec))];
+    end
+
+
+    function filter_render()
+        hpf = str2double(get(h_hpf_cutoff, 'String'));
+        lpf = str2double(get(h_lpf_cutoff, 'String'));
+        chunkindexrange = xlim_to_sigchunk();
+        if SigChunkRendered(chunkindexrange(1):chunkindexrange(2))
+            %redraw();
+            return;
+        end
+            
+        if HighPassFilter.state || LowPassFilter.state
+            set([h_hpf_state h_lpf_state], 'String', 'Wait');
+            redraw();
+            
+            % Only need to render the chunks and one chunk to the left and
+            % to the right
+            
+            
+            e1 = max(Time(1), (chunkindexrange(1)-1-1)*FilterChunkSec);
+            e2 = min(Time(end), (chunkindexrange(2)+1)*FilterChunkSec);
+            
+            ti1 = find(Time>=e1,1);
+            ti2 = find(Time<=e2,1,'last');
+            
+            %fprintf('Rendering time range %g-%g s, Time(%i) to Time(%i)\n', e1, e2, ti1, ti2);
+            
+            %ETime = (Time(1):1/Fs:Time(end)).';
+            ETime = (e1:1/Fs:e2).';
+            
             ESignal = interp1(Time, Signal2, ETime);
+            
             if HighPassFilter.state
-                [Signal3a, FilterInfo] = freqfilter(ESignal, Fs, [hpf MaxFilterOrder], 'high', 'butter');
+                FilterBusy = 1;
+                set(h_bigtext, 'Visible', 'on', 'String', 'Applying high-pass filter...'); drawnow;
+                [Signal3a, FilterInfo] = freqfilter(ESignal, Fs, [hpf FilterOrder], 'high', 'butter', FilterReflectMult*FilterOrder/hpf*Fs);
                 while any(FilterInfo.ButterUnstable)
-                    if MaxFilterOrder <= 1
+                    if FilterOrder <= 1
                         Signal3a = ESignal;
                         HighPassFilter.state = 0;
                         set(h_hpf_state, 'String', 'OFF');
+                        SigChunkRendered(:) = 0;
                         break
                     end
-                    MaxFilterOrder = ceil(MaxFilterOrder / 2);
-                    [Signal3a, FilterInfo] = freqfilter(ESignal, Fs, [hpf MaxFilterOrder], 'high', 'butter');
+                    FilterOrder = ceil(FilterOrder / 2);
+                    [Signal3a, FilterInfo] = freqfilter(ESignal, Fs, [hpf FilterOrder], 'high', 'butter', FilterReflectMult*FilterOrder/hpf*Fs);
                 end
             else
                 Signal3a = ESignal;
             end
             
             if LowPassFilter.state
-                [Signal3, FilterInfo] = freqfilter(Signal3a, Fs, [lpf MaxFilterOrder], 'low', 'butter');
+                FilterBusy = 1;
+                set(h_bigtext, 'Visible', 'on', 'String', 'Applying low-pass filter...'); drawnow;
+                [Signal3b, FilterInfo] = freqfilter(Signal3a, Fs, [lpf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/lpf*Fs);
                 while any(FilterInfo.ButterUnstable)
-                    if MaxFilterOrder <= 1
-                        Signal3 = Signal3a;
+                    if FilterOrder <= 1
+                        Signal3b = Signal3a;
                         LowPassFilter.state = 0;
                         set(h_lpf_state, 'String', 'OFF');
+                        SigChunkRendered(:) = 0;
                         break
                     end
-                    MaxFilterOrder = ceil(MaxFilterOrder / 2);
-                    [Signal3, FilterInfo] = freqfilter(Signal3a, Fs, [lpf MaxFilterOrder], 'low', 'butter');
+                    FilterOrder = ceil(FilterOrder / 2);
+                    [Signal3b, FilterInfo] = freqfilter(Signal3a, Fs, [lpf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/lpf*Fs);
                 end
             else
-                Signal3 = Signal3a;
+                Signal3b = Signal3a;
             end
-            Signal3 = interp1(ETime, Signal3, Time);
-            clear ETime ESignal Signal3a
+            Signal3(ti1:ti2,:) = interp1(ETime, Signal3b, Time(ti1:ti2));
+            clear ETime ESignal Signal3a Signal3b
+            
+            
+            
+            SigChunkRendered(chunkindexrange(1):chunkindexrange(2)) = 1;
+            FilterBusy = 0;
+            set(h_bigtext, 'Visible', 'off', 'String', '');
+            
             
             if HighPassFilter.state
                 set(h_hpf_state, 'String', 'ON');
@@ -415,15 +662,25 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
             else
                 set(h_lpf_state, 'String', 'OFF');
             end
-            
-        else
-            Signal3 = Signal2;
         end
         
         redraw();
     end
 
+
+
+
+
+
+
+
+
+
+
     function f_xzoomin(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         XRange = XLim(2)-XLim(1);
         [~,in] = min(abs(XRange - PermittedXZoomRanges));
         if in > 1
@@ -437,6 +694,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
 
     function f_xzoomout(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         XRange = XLim(2)-XLim(1);
         [~,in] = min(abs(XRange - PermittedXZoomRanges));
         if in < length(PermittedXZoomRanges)
@@ -455,6 +715,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
 
     function f_yzoomin(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         YRange = YLim(2)-YLim(1);
         YRange = YRange / 2;
         YLim(1) = YLim(2) - YRange;
@@ -463,6 +726,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
 
     function f_yzoomout(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         YRange = YLim(2)-YLim(1);
         YCenter = (YLim(1)+YLim(2))/2;
         YRange = YRange * 2;
@@ -472,6 +738,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
 
     function f_panleft(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         XRange = XLim(2)-XLim(1);
         XLim = XLim - XRange;
         set(gca, 'XLim', XLim);
@@ -479,6 +748,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
 
     function f_panright(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         XRange = XLim(2)-XLim(1);
         XLim = XLim + XRange;
         set(gca, 'XLim', XLim);
@@ -486,6 +758,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
 
     function f_panup(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         YRange = YLim(2)-YLim(1);
         YLim = YLim + YRange;
         set(gca, 'YLim', YLim);
@@ -493,6 +768,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
 
     function f_pandown(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         YRange = YLim(2)-YLim(1);
         YLim = YLim - YRange;
         set(gca, 'YLim', YLim);
@@ -500,8 +778,12 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
     end
 
     function f_sepup(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         yl2 = YLim(2)-0.5*chansep;
         yl1 = YLim(1)+0.5*chansep;
+        FirstChViewable = ceil(-(yl2+chansep/2)/chansep);
         Nchviewable = ceil((yl2-yl1)/chansep);
         [~,in] = min(abs(chansep - PermittedChanSepRanges));
         if in < length(PermittedChanSepRanges)
@@ -511,16 +793,20 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
         end
         %YLim = [-chansep*Nch-0.5*chansep, -chansep+0.5*chansep];
         %set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan), 'YLim', YLim);
-        YLim(2) = 0.5*chansep;
+        YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan), 'YLim', YLim);
+        set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan(selchan)), 'YLim', YLim);
         resnap_zoom();
         %redraw();
     end
 
     function f_sepdown(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
         yl2 = YLim(2)-0.5*chansep;
         yl1 = YLim(1)+0.5*chansep;
+        FirstChViewable = ceil(-(yl2+chansep/2)/chansep);
         Nchviewable = ceil((yl2-yl1)/chansep);
         [~,in] = min(abs(chansep - PermittedChanSepRanges));
         if in > 1
@@ -530,9 +816,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
         end
         %YLim = [-chansep*Nch-0.5*chansep, -chansep+0.5*chansep];
         %set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan), 'YLim', YLim);
-        YLim(2) = 0.5*chansep;
+        YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan), 'YLim', YLim);
+        set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan(selchan)), 'YLim', YLim);
         resnap_zoom();
         %redraw();
     end
@@ -553,10 +839,11 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
             YLim(1) = -chansep*Nch-chansep/2;
             YLim(2) = YLim(1) + YRange;
         end
-        if YLim(2) > chansep/2
-            YLim(2) = chansep/2;
+        if YLim(2) > -chansep/2
+            YLim(2) = -chansep/2;
             YLim(1) = YLim(2) - YRange;
         end
+        
         
         if XRange >= 1
             XLim(1) = floor(XLim(1));
@@ -574,8 +861,8 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
             XLim(1) = floor(XLim(1)*1000000)/1000000;
         end
         XLim(2) = XLim(1) + XRange;
-        
         set(gca, 'XLim', XLim, 'YLim', YLim);
+        filter_render();
         redraw();
     end
 
@@ -613,6 +900,7 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
         XLim(2) = XLim(1) + XRange;
         
         set(gca, 'XLim', XLim, 'YLim', YLim);
+        filter_render();
         redraw();
     end
 
@@ -625,8 +913,26 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
         if isempty(t2)
             t2 = Ntp;
         end
+        Nch = length(selchan);
+        
         for ch = Nch:-1:1
-            set(plothand(ch), 'XData', Time(t1:t2), 'YData', Signal3(t1:t2,ch) - Signal3(t1,ch) - chansep*ch);
+            if -chansep/2-chansep*ch < YLim(1) || chansep/2-chansep*ch > YLim(2)
+                % out of plotting range
+                %fprintf('%i is out of range\n', ch);
+                set(plothand(ch), 'Visible', 'off');
+                continue;
+            end
+            YDATA = Signal3(t1:t2,selchan(ch));
+            if ZscoreFilter.state
+                YDATA = zscore(YDATA)*ZscoreFilter.multiplier;
+            else
+                YDATA = YDATA - nanmedian(YDATA);
+            end
+            set(plothand(ch), 'XData', Time(t1:t2), 'YData', YDATA - chansep*ch, 'Visible', 'on');
+            set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
+        end
+        for ch = length(plothand):-1:Nch+1
+            set(plothand(ch), 'Visible', 'off');
         end
         
         [~,in] = min(abs((Time(t2)-Time(t1))./XTickSpacings - 20));
@@ -640,7 +946,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
         set(gca, 'XTick', tms, 'XTickLabel', tmslabel);
         
         if EventEnable
-            YPos = [mean(YLim)+diff(YLim)/8     mean(YLim)    mean(YLim)-diff(YLim)/8];
+            %YPos = [mean(YLim)+diff(YLim)/8     mean(YLim)    mean(YLim)-diff(YLim)/8];
+            YPos = sort(mean(YLim)+diff(YLim)/20*([-8:2:8]), 'descend');
+            NYPos = length(YPos);
             for i = size(EventTimeStamps,1):-1:1
                 tmp = get(eventtexthand(i), 'Position');
                 tmp(2) = YPos(mod(i-1,NYPos)+1);
@@ -662,7 +970,9 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
         YRange = YLim(2)-YLim(1);
         set(h_yzoomlevel, 'String', sprintf('%g ch', YRange/chansep));
         
-        if chansep < 1000
+        if ZscoreFilter.state
+            set(h_sensitivity, 'String', sprintf('%g sdev', chansep/ZscoreFilter.multiplier));
+        elseif chansep < 1000
             set(h_sensitivity, 'String', sprintf('%g µV', chansep));
         elseif chansep < 1e6
             set(h_sensitivity, 'String', sprintf('%g mV', chansep/1000));
@@ -675,6 +985,73 @@ set(gcf, 'KeyPressFcn', @f_fig_keypress);
             set(eventtexthand(l), 'Visible', 'on');
             set(eventtexthand(~l), 'Visible', 'off');
         end
+    end
+
+
+    function f_chansel_confirm(hObject, eventdata)
+        selchan = get(h_chansel_list, 'Value');
+        Nch = length(selchan);
+        set(gca, 'YTick', [-chansep*Nch:chansep:-chansep], 'YTickLabel', fliplr(Chan(selchan)));
+        redraw();
+    end
+
+    function f_chansel_reset(hObject, eventdata)
+        set(h_chansel_list, 'Value', selchan);
+    end
+
+    function f_icasel_confirm(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
+        if ~ICA_Initialized
+            FilterBusy = 1;
+            set(h_icasel_confirm, 'Enable', 'off', 'String', 'Wait');
+            set(h_bigtext, 'Visible', 'on', 'String', 'Calculating ICA...'); drawnow;
+            [ica_sig, ica_A, ~] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
+            mica = size(ica_A,2);
+            selica = mica;
+            icachans = string_to_cell(num2str(1:mica, 'IC%i '), ' ');
+            set(h_icasel_list, 'String', icachans);
+            set(h_icasel_list, 'Value', 1:mica);
+            set(h_icasel_confirm, 'String', 'Confirm', 'Enable', 'on');
+            set(h_icasel_reset, 'Enable', 'on');
+            ICA_Initialized = 1;
+            FilterBusy = 0;
+            set(h_bigtext, 'Visible', 'off', 'String', ''); drawnow;
+        else
+            tmp = get(h_icasel_list, 'Value');
+            if length(tmp) == length(selica) && min(tmp == selica) == 1
+                % No change
+                return;
+            else
+                selica = tmp;
+            end
+            if length(selica) == size(ica_A,2)
+                % All ICs selected
+                FilterBusy = 1;
+                set(h_bigtext, 'Visible', 'on', 'String', 'Mixing new ICs...'); drawnow;
+                Signal1 = Signal;
+                FilterBusy = 0;
+                set(h_bigtext, 'Visible', 'off', 'String', '');
+            else
+                FilterBusy = 1;
+                set(h_bigtext, 'Visible', 'on', 'String', 'Mixing new ICs...'); drawnow;
+                tmp = ica_A;
+                tmp(:,setdiff(1:size(ica_A,2),selica)) = 0;
+                Signal1 = (tmp*ica_sig).';
+                FilterBusy = 0;
+                set(h_bigtext, 'Visible', 'off', 'String', '');
+            end
+            notch_update();
+            filter_update();
+        end
+    end
+
+    function f_icasel_reset(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
+        set(h_icasel_list, 'Value', selica);
     end
 
 end

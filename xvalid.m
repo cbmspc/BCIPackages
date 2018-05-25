@@ -686,6 +686,15 @@ for pr = 1:PR
                 else
                     drdim = size(tmp,2);
                 end
+            case 'fkt'
+                tmp = dataproc_func_fktdr(TrainData, TrainLabels, DRPARM{1});
+                if iscell(tmp)
+                    for tmp2 = 1:length(tmp)
+                        drdim(tmp2) = size(tmp{tmp2},2);
+                    end
+                else
+                    drdim = size(tmp,2);
+                end
             otherwise
                 drdim = NaN;
                 
@@ -935,6 +944,8 @@ for fe = 1:length(FEPARM)
                         DRF = @dataproc_func_pca;
                     case 'cpca'
                         DRF = @dataproc_func_cpca;
+                    case 'fkt'
+                        DRF = @dataproc_func_fktdr;
                     otherwise
                         DRF = BestParms.DRFUN;
                 end

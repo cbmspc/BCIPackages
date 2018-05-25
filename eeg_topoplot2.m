@@ -8,7 +8,12 @@ SWnosurf = 0;
 SWnocolorbar = 0;
 NumContourLevels = 10;
 OnlyShowElectrodes = ChanNames;
-FontSize = 12;
+FontSize = 16;
+FontName = 'VariableWidth';
+
+if length(ChanNames) > 128
+    FontSize = 6;
+end
 
 if exist('Opts', 'var') && isstruct(Opts)
     if isfield(Opts, 'contour')
@@ -41,6 +46,12 @@ if exist('Opts', 'var') && isstruct(Opts)
     end
     if isfield(Opts, 'numcontourlevels') && ~isempty(Opts.numcontourlevels)
         NumContourLevels = Opts.numcontourlevels;
+    end
+    if isfield(Opts, 'fontsize') && ~isempty(Opts.fontsize)
+        FontSize = Opts.fontsize;
+    end
+    if isfield(Opts, 'fontname') && ~isempty(Opts.fontname)
+        FontName = Opts.fontname;
     end
 end
 
@@ -90,7 +101,7 @@ set(gca,'DataAspectRatio',[1 1 1]);
 % end
 
 radius = -min(min(FlatXYCoords));
-drawcirc(gca, [0 0], radius);
+drawcirc(gca, [0 0], radius, 2);
 
 SurfHand = surf(xi, yi, zi, 'EdgeColor', 'none');
 [~, ContourHand] = contour(xi, yi, zi, NumContourLevels, 'LineWidth', 2);
@@ -122,7 +133,7 @@ for i = 1:length(cch)
 end
 
 if ~SWnocolorbar
-    colorbar
+    colorbar('FontSize', 16);
 end
 axis equal
 axis square
@@ -131,11 +142,11 @@ axis off
 % plotting nose
 %plot3(0, radius+0.03, MX+2, 'k^', 'MarkerSize', 15);
 nosesize = 0.3;
-drawnose(gca, radius, nosesize);
+drawnose(gca, radius, nosesize, 2);
 
 for i = 1:length(ElecNames)
     if ismember(upper(ElecNames{i}), upper(OnlyShowElectrodes))
-        text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+2,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontSize',FontSize,'FontName','VariableWidth');
+        text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+2,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontSize',FontSize,'FontName',FontName);
     end
 end
 
@@ -156,10 +167,10 @@ FlatXYCoords_active = FlatXYCoords(tmp,:);
 ElecNames_active = ElecNames(tmp);
 
 
-function drawcirc (ax, origin, radius)
+function drawcirc (ax, origin, radius, linewidth)
 [x,y] = pol2cart(linspace(-pi,pi,3600), radius);
-plot(ax, origin(1)+x, origin(2)+y, 'k');
+plot(ax, origin(1)+x, origin(2)+y, 'k', 'LineWidth', linewidth);
 
-function drawnose(ax, radius, nosesize)
-plot(ax, [0, -nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'k');
-plot(ax, [0, nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'k');
+function drawnose(ax, radius, nosesize, linewidth)
+plot(ax, [0, -nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'k', 'LineWidth', linewidth);
+plot(ax, [0, nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'k', 'LineWidth', linewidth);

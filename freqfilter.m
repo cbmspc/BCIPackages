@@ -1,6 +1,6 @@
 % Frequency filter based on discrete fourier transform
 %
-% yout = freqfilter (y, Fs, Fc, Type, Method)
+% yout = freqfilter (y, Fs, Fc, Type, Method, ReflectLen)
 % 
 % y: Time domain signal (time x channel)
 %
@@ -34,8 +34,13 @@
 %     'butter' = uses Butterworth filter and filtfilt
 %     'buttercausal' = uses Butterworth filter and filter
 %
+% ReflectLen:
+%      default = 0
+%        Length (in samples) to reflect signal at start and at end to
+%        provide initial conditions for the filter
+%
 
-function [yout, FilterInfo] = freqfilter (y, Fs, Fc, Type, Method)
+function [yout, FilterInfo] = freqfilter (y, Fs, Fc, Type, Method, ReflectLen)
 
 if isempty(who('y'))
     error('Time signal (1st parameter) not specified.');
@@ -57,6 +62,77 @@ if ~exist('Method', 'var')
     Method = 'fft';
 end
 
+if ~exist('ReflectLen', 'var') || isempty(ReflectLen)
+    ReflectLen = 0;
+end
+
+% 20180516 ReflectLen
+if ReflectLen > 0
+    ReflectLen = round(ReflectLen);
+    y = [nan(ReflectLen,size(y,2)); y; nan(ReflectLen,size(y,2))];
+end
+
+
+% 20180514 Remove NaNs before processing
+ny = isnan(y);
+
+if any(ny)
+    y = bridge_nans(y, 'linear', '');
+    
+    % If any NaNs still exist at either ends, reflect each channel's data
+    for ch = 1:size(y,2)
+        
+        if ~any(isfinite(y(:,ch)))
+            continue
+        end
+        
+        
+        nyc = isnan(y(:,ch));
+        if any(nyc)
+            cgnan = get_contig_groups(find(~isfinite(y(:,ch))));
+            cgfin = get_contig_groups(find(isfinite(y(:,ch))));
+            cgfin = cgfin{1};
+            tmp = y(cgfin(1):cgfin(end),ch);
+            
+            if nyc(1)
+                % NaN at start
+                cgnan1 = cgnan{1};
+                nn = cgnan1(end)-cgnan1(1)+1;
+                nm = ceil(nn / length(tmp));
+                ytmp = [];
+                for j = 1:nm
+                    if mod(j,2) == 1
+                        ytmp = [-flipud(tmp(2:end)); ytmp];
+                    else
+                        ytmp = [tmp(1:end-1); ytmp];
+                    end
+                end
+                y(cgnan1(1):cgnan1(end),ch) = ytmp(end-nn+1:end);
+            end
+                
+            if nyc(end)
+                % NaN at end
+                cgnan2 = cgnan{end};
+                nn = cgnan2(end)-cgnan2(1)+1;
+                nm = ceil(nn / length(tmp));
+                ytmp = [];
+                for j = 1:nm
+                    if mod(j,2) == 1
+                        ytmp = [ytmp; -flipud(tmp(1:end-1))];
+                    else
+                        ytmp = [ytmp; tmp(2:end)];
+                    end
+                end
+                y(cgnan2(1):cgnan2(end),ch) = ytmp(1:nn);
+            end
+            
+            
+        end
+    end
+    
+    
+end
+
 switch Method
     case 'butter'
         [yout, FilterInfo] = butter_filter(y, Fs, Fc, Type, [], @filtfilt);
@@ -65,6 +141,18 @@ switch Method
     otherwise
         [yout, FilterInfo] = fft_filter(y, Fs, Fc, Type);
 end
+
+% 20180514 Add NaNs back after processing
+if any(ny)
+    yout(ny) = NaN;
+end
+
+
+% 20180516 ReflectLen
+if ReflectLen > 0
+    yout = yout(ReflectLen+1:end-ReflectLen,:);
+end
+
 
 
 function [yout, FilterInfo] = butter_filter(y, Fs, Fc, Type, FilterInfo, FilterCommand)

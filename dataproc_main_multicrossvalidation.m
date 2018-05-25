@@ -108,13 +108,13 @@
 %
 % [pcorrect,pconfuse] = dataproc_main_multicrossvalidation ( ...
 % TrainData, TrainLabels, 10, 10, ...
-% {'pca','cpca'}, {0.9999,0.9999}, ...
+% {'pca','cpca'}, {0.99,0.99}, ...
 % {'aida','aida','aida'}, {1,2,3}, ...
 % {[],[],[],[]}, {'linear','quadratic','parzen','knn'}, ...
 % 'empirical', {0,0,0,3}, 1, [], []);
 %
 % Here, we do K=10 fold, M=10 run CV. Two dimension reduction
-% algorithms (pca first, then cpca (both with parm 0.9999)) are performed. 
+% algorithms (pca first, then cpca (both with parm 0.99)) are performed. 
 % Then three feature extraction are performed at different parameters
 % (1,2,3) (they are all aida, but can be different if needed). Then four
 % classifiers are performed using four corresponding parameters. The
@@ -241,6 +241,8 @@ for dr = 1:DR
         DRfunC{dr} = @dataproc_func_pca;
     elseif strcmp(DRfunC{dr},'ctpca')
         DRfunC{dr} = @dataproc_func_ctpca;
+    elseif strcmp(DRfunC{dr},'fkt')
+        DRfunC{dr} = @dataproc_func_fktdr;
     end
 end
 
