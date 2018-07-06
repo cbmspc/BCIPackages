@@ -1,9 +1,15 @@
 % Time can also be the sampling frequency of Signal instead of an array of sample time
-% EventTimeStamps should be a Nx2 cell {1.2345, 'Abc'; 4.5, 'Def'} with first column in seconds, and 2nd column a string
-% 
+%
+% Optional input arguments:
+%   EventTimeStamps should be a Nx2 cell {1.2345, 'Abc'; 4.5, 'Def'} with first column in seconds, and 2nd column a string
+%   ica_W = ICA separating matrix with orientation (Nsource x Nchan), i.e. ica_W * Signal.' = Source.'
+%   ica_A = ICA mixing matrix with orientation (Nchan x Nsource), i.e. ica_A * Source.' = Signal.'
+%   Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
+%
+% TODO: Add ~ic## to the list of plottable channels
 
-function signalviewer(Signal, TimeOrSampleRate, ChanNames, EventTimeStamps)
-if ~exist('ChanNames', 'var')
+function signalviewer(Signal, TimeOrSampleRate, ChanNames, EventTimeStamps, ica_W, ica_A)
+if ~exist('ChanNames', 'var') || isempty(ChanNames)
     nchan = size(Signal,2);
     npad = floor(log10(nchan))+1;
     if numel(TimeOrSampleRate) > 1 && size(Signal,2) == length(TimeOrSampleRate)
@@ -26,6 +32,15 @@ end
 
 % Remove channels that are completely flat
 tmp = nanstd(Signal,[],1);
+if exist('ica_W', 'var') && exist('ica_A', 'var') && ~isempty(ica_W) && ~isempty(ica_A)
+    if size(ica_W,2) == size(Signal,2) && size(ica_A,1) == size(Signal,2)
+        ica_W = ica_W(:,tmp>0);
+        ica_A = ica_A(tmp>0,:);
+    end
+else
+    ica_W = [];
+    ica_A = [];
+end
 Signal = Signal(:,tmp>0);
 ChanNames = ChanNames(tmp>0);
 
@@ -49,7 +64,6 @@ FilterChunkSec = 100;
 FilterBusy = 0;
 ICA_Initialized = 0;
 ica_sig = [];
-ica_A = [];
 icachans = {};
 
 Nch = length(ChanNames(selchan));
@@ -324,7 +338,7 @@ h_chansel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', '
 
 h_icasel_title = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.525 0.020 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps');
 h_icasel_list = uicontrol(gcf, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.96 0.12 0.030, 0.400]);
-h_icasel_confirm = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.10 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Run ICA');
+h_icasel_confirm = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.10 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Start ICA');
 h_icasel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.08 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Reset');
 
 h_axesfont_inc = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.05 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A+');
@@ -439,7 +453,7 @@ filter_update();
                         fprintf('a');
                     end
                 elseif Alt && ~EventEnable
-                    if XLim(2) > max(EventTimes) && XLim(2) < Time(end)
+                    if XLim(2) < Time(end)
                         f_panright(hObject, 5.0);
                     end
                 elseif Shift
@@ -787,6 +801,7 @@ filter_update();
                     FilterOrder = ceil(FilterOrder / 2);
                     [Signal3c, FilterInfo] = freqfilter(Signal3b.^2, Fs, [evf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/evf*Fs);
                 end
+                %Signal3c = Signal3c.^0.5;
             else
                 Signal3c = Signal3b;
             end            
@@ -1165,6 +1180,13 @@ filter_update();
     end
 
     function f_icasel_confirm(hObject, eventdata)
+        if size(Signal,2) ~= size(ica_W,2) || size(Signal,2) ~= size(ica_A,1)
+            set(h_icasel_confirm, 'Enable', 'off', 'String', 'No ICA');
+            set(h_icasel_reset, 'Enable', 'off');
+            return;
+        end
+        
+        
         if FilterBusy
             return;
         end
@@ -1172,10 +1194,10 @@ filter_update();
             FilterBusy = 1;
             set(h_icasel_confirm, 'Enable', 'off', 'String', 'Wait');
             set(h_bigtext, 'Visible', 'on', 'String', 'Calculating ICA...'); drawnow;
-            [ica_sig, ica_A, ~] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
+            ica_sig = ica_W * Signal.';
             mica = size(ica_A,2);
             selica = mica;
-            icachans = string_to_cell(num2str(1:mica, 'IC%i '), ' ');
+            icachans = string_to_cell(num2str(1:mica, 'ic%i '), ' ');
             set(h_icasel_list, 'String', icachans);
             set(h_icasel_list, 'Value', 1:mica);
             set(h_icasel_confirm, 'String', 'Confirm', 'Enable', 'on');

@@ -1,4 +1,4 @@
-function Hash = DataHash(Data, Opt)
+function Hash = datahash(Data, Opt)
 % DATAHASH - Checksum for Matlab array of any type
 % This function creates a hash value for an input of any type. The type and
 % dimensions of the input are considered as default, such that UINT8([0,0]) and
@@ -340,14 +340,33 @@ end
 
 
 function SplitUpdate(flatdata, Engine)
-%Po: Split data stream into 64MB pieces to stay in Java heap space limit
-for i = 0:67108864:length(flatdata)-1
-    if i + 67108864 <= length(flatdata)
-        Engine.update(flatdata(i+(1:67108864)));
-    else
-        Engine.update(flatdata(i+1:end));
+%Po: Split data stream into smaller pieces to stay in Java heap space limit
+s = 32*1024^2;
+c = 0;
+L = length(flatdata);
+while 1
+    if c == L || s == 0
+        break
+    end
+    if c + s > L
+        s = L - c;
+    end
+    try
+        Engine.update(flatdata(c +(1:s)));
+        c = c + s;
+    catch
+        s = ceil(s/2);
     end
 end
+
+
+% for i = 0:SplitBytes:length(flatdata)-1
+%     if i + SplitBytes <= length(flatdata)
+%         Engine.update(flatdata(i+(1:SplitBytes)));
+%     else
+%         Engine.update(flatdata(i+1:end));
+%     end
+% end
 
 
 
