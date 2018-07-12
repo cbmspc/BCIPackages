@@ -278,7 +278,7 @@ end
 HighPassFilter.state = 0;
 HighPassFilter.cutoff = 1;
 LowPassFilter.state = 0;
-LowPassFilter.cutoff = 30;
+LowPassFilter.cutoff = floor(Fs/2-1);
 EnvelopeFilter.state = 0;
 EnvelopeFilter.cutoff = 2;
 NotchFilter.state = 0;
