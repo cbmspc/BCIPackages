@@ -2,7 +2,7 @@
 % standard placement system
 %
 
-function [SurfHand, FlatXYCoords_active, ElecNames_active] = eeg_topoplot2 (values, ChanNames, Opts)
+function [SurfHand, FlatXYCoords_active, ElecNames_active, SurfData] = eeg_topoplot2 (values, ChanNames, Opts)
 SWnocontour = 1;
 SWnosurf = 0;
 SWnocolorbar = 0;
@@ -10,6 +10,8 @@ NumContourLevels = 10;
 OnlyShowElectrodes = ChanNames;
 FontSize = 16;
 FontName = 'VariableWidth';
+Npts = 512;
+axes_hand = [];
 
 if length(ChanNames) > 128
     FontSize = 6;
@@ -44,6 +46,13 @@ if exist('Opts', 'var') && isstruct(Opts)
             SWnosurf = 0;
         end
     end
+    if isfield(Opts, 'nocolorbar')
+        if Opts.nocolorbar
+            SWnocolorbar = 1;
+        else
+            SWnocolorbar = 0;
+        end
+    end
     if isfield(Opts, 'numcontourlevels') && ~isempty(Opts.numcontourlevels)
         NumContourLevels = Opts.numcontourlevels;
     end
@@ -52,6 +61,15 @@ if exist('Opts', 'var') && isstruct(Opts)
     end
     if isfield(Opts, 'fontname') && ~isempty(Opts.fontname)
         FontName = Opts.fontname;
+    end
+    if isfield(Opts, 'npts') && ~isempty(Opts.npts)
+        Npts = Opts.npts;
+    end
+    if isfield(Opts, 'axes_hand') && ~isempty(Opts.axes_hand) && ishandle(Opts.axes_hand)
+        axes_hand = Opts.axes_hand;
+        axes(axes_hand);
+    else
+        axes_hand = [];
     end
 end
 
@@ -86,7 +104,6 @@ ProjGridCoord = FlatXYCoords;
 ProjGridCoord = ProjGridCoord(~isnan(data),:);
 data = data(~isnan(data),:);
 
-Npts = 512;
 txi = linspace(min(ProjGridCoord(:,1)),max(ProjGridCoord(:,1)),Npts);
 tyi = linspace(min(ProjGridCoord(:,2)),max(ProjGridCoord(:,2)),Npts);
 [xi,yi] = meshgrid(txi,tyi);
@@ -103,10 +120,17 @@ set(gca,'DataAspectRatio',[1 1 1]);
 radius = -min(min(FlatXYCoords));
 drawcirc(gca, [0 0], radius, 2);
 
-SurfHand = surf(xi, yi, zi, 'EdgeColor', 'none');
-[~, ContourHand] = contour(xi, yi, zi, NumContourLevels, 'LineWidth', 2);
+if ~isempty(axes_hand)
+    SurfHand = surf(axes_hand, xi, yi, zi, 'EdgeColor', 'none');
+    [~, ContourHand] = contour(axes_hand, xi, yi, zi, NumContourLevels, 'LineWidth', 2);
+else
+    SurfHand = surf(xi, yi, zi, 'EdgeColor', 'none');
+    [~, ContourHand] = contour(xi, yi, zi, NumContourLevels, 'LineWidth', 2);
+end
 
-
+SurfData.xi = xi;
+SurfData.yi = yi;
+SurfData.zi = zi;
 
 if SWnocontour
     set(ContourHand, 'Visible', 'off');
