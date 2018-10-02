@@ -24,6 +24,7 @@ ChanNames = {};
 Nchan = [];
 TimeRange = [];
 TimeNames = {};
+LabelNames = {};
 thres = [];
 FileName = [];
 SWzscore = 0;
@@ -156,6 +157,10 @@ for i = 1:2:length(varargin)
         case 'TIMERANGE'
             if ~isempty(varargin{i+1})
                 TimeRange = varargin{i+1};
+            end
+        case 'LABELNAMES'
+            if ~isempty(varargin{i+1})
+                LabelNames = varargin{i+1};
             end
         case 'NCHAN'
             if ~isempty(varargin{i+1})
@@ -363,6 +368,17 @@ if NeedToSpecTimeNames
         end
     end
 end
+
+
+LabelIDs = unique(TrainLabels(:).');
+if isempty(LabelNames)
+    LabelNames = string_to_cell(num2str(LabelIDs), ' ');
+end
+LabelIDtoNameMap(:,2) = LabelNames(:);
+for i = 1:length(LabelIDs)
+    LabelIDtoNameMap{i,1} = LabelIDs(i);
+end
+
 
 if SWlogscale
     
@@ -712,7 +728,9 @@ for pr = 1:PR
             end
         end
         if exist('LABELSPEC','var')
-            fprintf(FPID, 'Included %i classes: %s\n', length(LABELSPEC), regexprep(num2str(LABELSPEC(:).'),' +', ', '));
+            [~, ~, ib] = intersect(LABELSPEC, LabelIDs);
+            fprintf(FPID, 'Included %i classes: %s\n', length(LABELSPEC), cell_to_string(LabelNames(ib), ', '));
+            %fprintf(FPID, 'Included %i classes: %s\n', length(LABELSPEC), regexprep(num2str(LABELSPEC(:).'),' +', ', '));
         end
         fprintf(FPID, 'Included %i test trials: %s\n', length(TestCandidates), get_contig_groups_string(TestCandidates));
         if ~iscell(DRPARM)
@@ -1041,7 +1059,8 @@ if ~isempty(Nchan)
     end
     for s = 1:length(trfmat)
         Fmat{s} = reshape(trfmat{s}(:,1),Nchan,[]);
-        Classname{s} = num2str(classes(s));
+        %Classname{s} = num2str(classes(s));
+        Classname{s} = LabelNames{classes(s) == LabelIDs};
     end
     impact = zeros(length(Fmat),Nchan);
     for s = 1:length(Fmat)
@@ -1107,9 +1126,9 @@ if ~isempty(Nchan)
             end
         else
             if ~isempty(FileName)
-                [FilterImage, TimePoints] = generate_filter_image(Fmat,Classname,FmatNchan,[],thres,FmatChanNames,TimeNames,FileName,ClassifierDesc,SWsortchans,CommentTextCell,NOPLOT);
+                [FilterImage, TimePoints] = generate_filter_image(Fmat,Classname,FmatNchan,[],thres,FmatChanNames,TimeNames,FileName,ClassifierDesc,SWsortchans,CommentTextCell,NOPLOT,[]);
             else
-                [FilterImage, TimePoints] = generate_filter_image(Fmat,Classname,FmatNchan,[],thres,FmatChanNames,TimeNames,[],ClassifierDesc,SWsortchans,CommentTextCell,NOPLOT);
+                [FilterImage, TimePoints] = generate_filter_image(Fmat,Classname,FmatNchan,[],thres,FmatChanNames,TimeNames,[],ClassifierDesc,SWsortchans,CommentTextCell,NOPLOT,[]);
             end
             if ~NOPLOT
                 gcfpos = [100    50   760   700];

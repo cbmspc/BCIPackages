@@ -191,7 +191,7 @@ chansep = 100;
 
 
 screensize = get(groot,'Screensize');
-figure(40301);
+figure;
 clf
 set(gcf, 'ToolBar', 'none', 'MenuBar', 'none');
 hold on

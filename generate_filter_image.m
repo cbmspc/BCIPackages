@@ -1,6 +1,6 @@
 %
 
-function [FilterImage, XTickLabel] = generate_filter_image (TrainData, TrainLabels, Nchan, Nm, threshold, ChanNames, TimeNames, FileName, ClassifierDesc, SWsortchans, CommentTextCell, SWnoplot)
+function [FilterImage, XTickLabel] = generate_filter_image (TrainData, TrainLabels, Nchan, Nm, threshold, ChanNames, TimeNames, FileName, ClassifierDesc, SWsortchans, CommentTextCell, SWnoplot, FigPos)
 % Nm = number of final dimensions
 % threshold = number of standard deviations
 % ChanNames = cell array of channel names
@@ -19,6 +19,10 @@ end
 
 if length(ChanNames) ~= Nchan
     SWsortchans = 0;
+end
+
+if ~exist('FigPos', 'var') || length(FigPos) ~= 4
+    FigPos = [];
 end
 
 if ~isempty(who('ChanNames')) && ~isempty(ChanNames)
@@ -238,7 +242,7 @@ for m = 1:Nm
             set(gca,'YTick',(1:1:Nchan),'YTickLabel',ChanNames(1:1:Nchan));
             %set(gca,'FontSize',min([16,floor(48/sqrt(Nchan))]));
         end
-        set(gca,'FontSize',max(6,min([10,floor(48/max(sqrt(Nchan),2*sqrt(size(BF{m,s},2))))])));
+        set(gca,'FontSize',max(4,min([10,floor(48/max(sqrt(Nchan),2*sqrt(size(BF{m,s},2))))])));
         %set(gca, 'FontSize', 10, 'FontName', 'Consolas');
 
         optext1 = '';
@@ -284,6 +288,15 @@ if length(FilterImage) == 1
     FilterImage = G;
 end
 
+if ~isempty(FigPos)
+    for m = 1:Nm
+        if ishandle(fighand(m))
+            set(fighand(m), 'Position', FigPos);
+            pause(0.1);
+        end
+    end
+end
+
 if ~isempty(who('FileName')) && ~isempty(FileName)
     Ne = length(dir([FileName ' (m=*)*.png']));
     Fsuffix = '';
@@ -291,12 +304,10 @@ if ~isempty(who('FileName')) && ~isempty(FileName)
         Fsuffix = [' [' num2str(Ne+1) ']'];
     end
     for m = 1:Nm
-        saveas(m, [FileName ' (m=' num2str(m) ')' Fsuffix], 'fig');
-        if ispc
-           print(m,'-dpng',[FileName ' (m=' num2str(m) ')' Fsuffix]);
-        %else
-           %saveas(m, [FileName ' (m=' num2str(m) ')' Fsuffix], 'fig');
-        end
+        saveas(m, [FileName ' (m=' num2str(m) ')' Fsuffix '.fig'], 'fig');
+        %if ispc
+        %   print(m,'-dpng',[FileName ' (m=' num2str(m) ')' Fsuffix '.png']);
+        %end
     end
 end
 

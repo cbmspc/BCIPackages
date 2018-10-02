@@ -345,10 +345,10 @@ for Dataset = 1:Ndataset
             end
             if ~isfinite(Fcutoff(Dataset,1))
                 %Fcutoff(Dataset,1) = 0.035; %#ok<AGROW>
-                Fcutoff(Dataset,1) = 0.01; %#ok<AGROW>
+                Fcutoff(Dataset,1) = 0; %#ok<AGROW>
             end
             if ~isfinite(Fcutoff(Dataset,2))
-                Fcutoff(Dataset,2) = 35; %#ok<AGROW>
+                Fcutoff(Dataset,2) = 0; %#ok<AGROW>
             end
             
             

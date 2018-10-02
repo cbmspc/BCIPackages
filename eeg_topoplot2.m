@@ -2,13 +2,13 @@
 % standard placement system
 %
 
-function [SurfHand, FlatXYCoords_active, ElecNames_active, SurfData] = eeg_topoplot2 (values, ChanNames, Opts)
+function [SurfHand, FlatXYCoords_active, ElecNames_active, SurfData, ContourHand] = eeg_topoplot2 (values, ChanNames, Opts)
 SWnocontour = 1;
 SWnosurf = 0;
 SWnocolorbar = 0;
 NumContourLevels = 10;
 OnlyShowElectrodes = ChanNames;
-FontSize = 16;
+FontSize = 11;
 FontName = 'VariableWidth';
 Npts = 512;
 axes_hand = [];
