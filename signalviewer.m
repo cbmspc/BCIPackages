@@ -31,6 +31,7 @@ viewhand_ica_A = ceil(rand*1000000000);
 viewhand_ica_W = ceil(rand*1000000000);
 viewhand_psd = ceil(rand*1000000000);
 selected_plothand = -1;
+FineSnapScale = 10;
 
 % Remove channels that are completely flat
 n = size(Signal,1);
@@ -477,7 +478,7 @@ autofit();
                         f_panleft(hObject, 5.0);
                     end
                 elseif Shift
-                    f_panleft(hObject, 0.20);
+                    f_panleft(hObject, 0.10);
                 else
                     f_panleft(hObject, []);
                 end
@@ -500,7 +501,7 @@ autofit();
                         f_panright(hObject, 5.0);
                     end
                 elseif Shift
-                    f_panright(hObject, 0.20);
+                    f_panright(hObject, 0.10);
                 else
                     f_panright(hObject, []);
                 end
@@ -1155,25 +1156,30 @@ autofit();
         end
         
         
-        if XRange >= 1
-            XLim(1) = floor(XLim(1));
-        elseif XRange >= 0.1
-            XLim(1) = floor(XLim(1)*10)/10;
-        elseif XRange >= 0.01
-            XLim(1) = floor(XLim(1)*100)/100;
-        elseif XRange >= 0.001
-            XLim(1) = floor(XLim(1)*1000)/1000;
-        elseif XRange >= 0.0001
-            XLim(1) = floor(XLim(1)*10000)/10000;
-        elseif XRange >= 0.00001
-            XLim(1) = floor(XLim(1)*100000)/100000;
-        elseif XRange >= 0.000001
-            XLim(1) = floor(XLim(1)*1000000)/1000000;
-        end
+        XLim = round_xlim(XLim, XRange);
         XLim(2) = XLim(1) + XRange;
         set(gca, 'XLim', XLim, 'YLim', YLim);
         filter_render();
         redraw();
+    end
+
+
+    function XLim = round_xlim(XLim, XRange)
+        if XRange >= 1
+            XLim(1) = floor(XLim(1)*FineSnapScale)/FineSnapScale;
+        elseif XRange >= 0.1
+            XLim(1) = floor(XLim(1)*10*FineSnapScale)/10/FineSnapScale;
+        elseif XRange >= 0.01
+            XLim(1) = floor(XLim(1)*100*FineSnapScale)/100/FineSnapScale;
+        elseif XRange >= 0.001
+            XLim(1) = floor(XLim(1)*1000*FineSnapScale)/1000/FineSnapScale;
+        elseif XRange >= 0.0001
+            XLim(1) = floor(XLim(1)*10000*FineSnapScale)/10000/FineSnapScale;
+        elseif XRange >= 0.00001
+            XLim(1) = floor(XLim(1)*100000*FineSnapScale)/100000/FineSnapScale;
+        elseif XRange >= 0.000001
+            XLim(1) = floor(XLim(1)*1000000*FineSnapScale)/1000000/FineSnapScale;
+        end
     end
 
     function resnap_zoom()
@@ -1192,21 +1198,7 @@ autofit();
         YRange = ceil(YRange/chansep)*chansep;
         YLim(1) = YLim(2) - YRange;
 
-        if XRange >= 1
-            XLim(1) = floor(XLim(1));
-        elseif XRange >= 0.1
-            XLim(1) = floor(XLim(1)*10)/10;
-        elseif XRange >= 0.01
-            XLim(1) = floor(XLim(1)*100)/100;
-        elseif XRange >= 0.001
-            XLim(1) = floor(XLim(1)*1000)/1000;
-        elseif XRange >= 0.0001
-            XLim(1) = floor(XLim(1)*10000)/10000;
-        elseif XRange >= 0.00001
-            XLim(1) = floor(XLim(1)*100000)/100000;
-        elseif XRange >= 0.000001
-            XLim(1) = floor(XLim(1)*1000000)/1000000;
-        end
+        XLim = round_xlim(XLim, XRange);
         XLim(2) = XLim(1) + XRange;
         
         set(gca, 'XLim', XLim, 'YLim', YLim);
@@ -1376,7 +1368,10 @@ autofit();
                 set(0, 'CurrentFigure', viewhand_psd);
                 set(gca, 'FontSize', 16);
                 Signal_psd_source = tmp;
-                pwelch(Signal_psd_source, [], [], [], Fs);
+                [pxx, fxx] = pwelch(Signal_psd_source, [], [], [], Fs);
+                plot(fxx, 10*log10(pxx));
+                xlabel('Frequency (Hz)');
+                ylabel('PSD (dB/Hz)');
                 fc1 = HighPassFilter.cutoff;
                 fc2 = LowPassFilter.cutoff;
                 if ~HighPassFilter.state

@@ -6,10 +6,10 @@ if size(packed,1) == 1
 end
 
 for ch = size(packed,2):-1:1
-    N = typecast(packed(1:4,ch), 'uint32');
+    N = double(typecast(packed(1:4,ch), 'uint32'));
     N8 = ceil(N/8)*8;
-    FMIN = typecast(packed(5:8,ch), 'single');
-    FDYN = typecast(packed(9:12,ch), 'single');
+    FMIN = double(typecast(packed(5:8,ch), 'single'));
+    FDYN = double(typecast(packed(9:12,ch), 'single'));
     BMAP8 = packed(13:12+N8/8,ch).';
     payload = packed(13+N8/8:end,ch).';
     signal(:,ch) = dctdecompress_1(payload, BMAP8, FMIN, FDYN, N);

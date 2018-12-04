@@ -8,7 +8,7 @@
 
 function segpow = convert_timeseriesdata_to_segmentedpowervalues (data, Fs, frange, trange, tsegsize)
 filtorder = 4;
-
+filtname = 'buttercausal';
 
 tstart = trange(1);
 tend = trange(2);
@@ -31,15 +31,15 @@ for band = 1:size(frange,1)
     if fb(1) && fb(2)
         filtparm = [frange(band,1:2) filtorder];
         filttype = 'pass';
-        banddata = freqfilter(data, Fs, filtparm, filttype, 'butter');
+        banddata = freqfilter(data, Fs, filtparm, filttype, filtname);
     elseif fb(1) && ~fb(2)
         filtparm = [frange(band,1) filtorder];
         filttype = 'high';
-        banddata = freqfilter(data, Fs, filtparm, filttype, 'butter');
+        banddata = freqfilter(data, Fs, filtparm, filttype, filtname);
     elseif ~fb(1) && fb(2)
         filtparm = [frange(band,2) filtorder];
         filttype = 'low';
-        banddata = freqfilter(data, Fs, filtparm, filttype, 'butter');
+        banddata = freqfilter(data, Fs, filtparm, filttype, filtname);
     else
         banddata = data;
     end
