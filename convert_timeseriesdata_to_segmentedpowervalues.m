@@ -17,7 +17,48 @@ if tend > size(data,1)/Fs
     tend = size(data,1)/Fs;
 end
 
+data = detrend(data, 'constant');
+
 for band = 1:size(frange,1)
+    
+
+
+    
+%     % Segment then filter
+%     nseg = floor((tend-tstart)/tsegsize);
+%     for seg = 1:nseg
+%         ta = tstart + (seg-1)*tsegsize;
+%         tb = ta + tsegsize;
+%         ka = round(ta*Fs+1);
+%         kb = round(tb*Fs);
+%         segdata = data(ka:kb,:);
+%         
+%         fb = [1 1];
+%         if frange(band,1) <= 0
+%             fb(1) = 0;
+%         end
+%         if frange(band,2) >= Fs/2
+%             fb(2) = 0;
+%         end
+%         if fb(1) && fb(2)
+%             filtparm = [frange(band,1:2) filtorder];
+%             filttype = 'pass';
+%             segbanddata = freqfilter(segdata, Fs, filtparm, filttype, filtname);
+%         elseif fb(1) && ~fb(2)
+%             filtparm = [frange(band,1) filtorder];
+%             filttype = 'high';
+%             segbanddata = freqfilter(segdata, Fs, filtparm, filttype, filtname);
+%         elseif ~fb(1) && fb(2)
+%             filtparm = [frange(band,2) filtorder];
+%             filttype = 'low';
+%             segbanddata = freqfilter(segdata, Fs, filtparm, filttype, filtname);
+%         else
+%             segbanddata = segdata;
+%         end
+%         segpow(:,band,seg) = mean(segbanddata.^2,1) / (frange(band,2)-frange(band,1));
+%     end
+
+    
     
     
     % Filter
