@@ -75,14 +75,6 @@ if isempty(ChanNames)
     error('There is nothing to plot. Either the input is an empty matrix or all channels are completely flat.');
 end
 
-AnnotatedChanNames_start = ChanNames;
-AnnotatedChanNames_postnotch = ChanNames;
-AnnotatedChanNames_postfilter = ChanNames;
-
-for ch = 1:length(ChanNames)
-    AnnotatedChanNames_start{ch} = [ChanNames{ch} ' '];
-end
-
 
 %[ChanNames,ix] = sort(ChanNames);
 %Signal = Signal(:,ix);
@@ -189,7 +181,7 @@ hold on
 set(gcf,'Position',screensize);
 YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
 XLim = [0 10];
-set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(AnnotatedChanNames_postfilter(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', AxesFontName, 'FontSize', AxesFontSize); %#ok<*NBRAK>
+set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', AxesFontName, 'FontSize', AxesFontSize); %#ok<*NBRAK>
 
 t1 = 1;
 t2 = 2;
@@ -486,7 +478,7 @@ autofit();
                         f_panleft(hObject, 5.0);
                     end
                 elseif Shift
-                    f_panleft(hObject, 1/11);
+                    f_panleft(hObject, 0.10);
                 else
                     f_panleft(hObject, []);
                 end
@@ -509,7 +501,7 @@ autofit();
                         f_panright(hObject, 5.0);
                     end
                 elseif Shift
-                    f_panright(hObject, 1/9);
+                    f_panright(hObject, 0.10);
                 else
                     f_panright(hObject, []);
                 end
@@ -708,30 +700,22 @@ autofit();
             end
             warning('off', 'signal:filtfilt:ParseSOS');
             warning('off', 'signal:filtfilt:ParseB');
-            %for ch = size(Signal_postica,2):-1:1
-            for ch = selchan
+            for ch = size(Signal_postica,2):-1:1
                 set(h_bigtext, 'Visible', 'on', 'String', ['Applying notch filter (' num2str(ch) ' chans to go)']); drawnow;
                 %Signal_postnotch(:,ch) = freqfilter(Signal_postica(:,ch), Fs, [PowerLineFrequency+[-2 2], NotchOrder], 'stop', 'butter', 1*Fs);
                 Signal_postnotch(:,ch) = Signal_postica(:,ch);
                 for h = 1:length(Hd)
                     Signal_postnotch(:,ch) = filtfilt(Hd{h}.sosMatrix,Hd{h}.ScaleValues,Signal_postnotch(:,ch));
                 end
-                AnnotatedChanNames_postnotch{ch} = [AnnotatedChanNames_start{ch} ''];
-            end
-            for ch = setdiff(1:size(Signal_postica,2),selchan)
-                Signal_postnotch(:,ch) = Signal_postica(:,ch);
-                AnnotatedChanNames_postnotch{ch} = AnnotatedChanNames_start{ch};
             end
             set(h_bigtext, 'Visible', 'on', 'String', ['Finishing notch filter...']); drawnow;
             set(h_notch_state, 'String', 'ON');
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', '');
         else
-            Signal_postnotch(selchan) = Signal_postica(selchan);
-            AnnotatedChanNames_postnotch(selchan) = AnnotatedChanNames_start(selchan);
+            Signal_postnotch = Signal_postica;
             set(h_notch_state, 'String', 'OFF');
         end
-        redraw_yticklabel();
     end
 
 
@@ -805,13 +789,11 @@ autofit();
             FilterOrder = MaxFilterOrder;
             filter_render();
         else
-            Signal_postfilter(selchan) = Signal_postnotch(selchan);
-            AnnotatedChanNames_postfilter(selchan) = AnnotatedChanNames_postnotch(selchan);
+            Signal_postfilter = Signal_postnotch;
             SigChunkRendered(:) = 1;
         end
         
         redraw();
-        redraw_yticklabel();
     end
 
 
@@ -849,11 +831,9 @@ autofit();
             %ti2 = find(Time<=e2,1,'last');
             
             if HighPassFilter.state
-                %for ch = size(Signal_postnotch,2):-1:1
-                for ch = selchan
+                for ch = size(Signal_postnotch,2):-1:1
                     set(h_bigtext, 'Visible', 'on', 'String', ['Applying high-pass filter (' num2str(ch) ' chans to go)']); drawnow;
                     [Signal3a(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [hpf FilterOrder], 'high', 'butter', FilterReflectMult*FilterOrder/hpf*Fs);
-                    AnnotatedChanNames_postHPfilter{ch} = [AnnotatedChanNames_postnotch{ch} 'H' num2str(hpf)];
                     while any(FilterInfo.ButterUnstable)
                         if FilterOrder <= 1
                             Signal3a(:,ch) = Signal_postnotch(:,ch);
@@ -864,31 +844,22 @@ autofit();
                         end
                         FilterOrder = ceil(FilterOrder / 2);
                         [Signal3a(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [hpf FilterOrder], 'high', 'butter', FilterReflectMult*FilterOrder/hpf*Fs);
-                        AnnotatedChanNames_postHPfilter{ch} = [AnnotatedChanNames_postnotch{ch} 'H' num2str(hpf)];
                     end
                     if ~HighPassFilter.state
-                        Signal3a(:,selchan) = Signal_postnotch(:,selchan);
-                        AnnotatedChanNames_postHPfilter(selchan) = AnnotatedChanNames_postnotch(selchan);
+                        Signal3a = Signal_postnotch;
                         break
                     end
                 end
-                for ch = setdiff(1:size(Signal_postnotch,2),selchan)
-                    Signal3a(:,ch) = Signal_postnotch(:,ch);
-                    AnnotatedChanNames_postHPfilter{ch} = AnnotatedChanNames_postnotch{ch};
-                end
             else
-                Signal3a(:,selchan) = Signal_postnotch(:,selchan);
-                AnnotatedChanNames_postHPfilter(selchan) = AnnotatedChanNames_postnotch(selchan);
+                Signal3a = Signal_postnotch;
             end
             
             SigBandwidth = Fs/2;
             
             if LowPassFilter.state
-                %for ch = size(Signal_postnotch,2):-1:1
-                for ch = selchan
+                for ch = size(Signal_postnotch,2):-1:1
                     set(h_bigtext, 'Visible', 'on', 'String', ['Applying low-pass filter (' num2str(ch) ' chans to go)']); drawnow;
                     [Signal3b(:,ch), FilterInfo] = freqfilter(Signal3a(:,ch), Fs, [lpf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/lpf*Fs);
-                    AnnotatedChanNames_postLPfilter{ch} = [AnnotatedChanNames_postHPfilter{ch} 'L' num2str(lpf)];
                     while any(FilterInfo.ButterUnstable)
                         if FilterOrder <= 1
                             Signal3b(:,ch) = Signal3a(:,ch);
@@ -899,32 +870,23 @@ autofit();
                         end
                         FilterOrder = ceil(FilterOrder / 2);
                         [Signal3b(:,ch), FilterInfo] = freqfilter(Signal3a(:,ch), Fs, [lpf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/lpf*Fs);
-                        AnnotatedChanNames_postLPfilter{ch} = [AnnotatedChanNames_postHPfilter{ch} 'L' num2str(lpf)];
                     end
                     if ~LowPassFilter.state
-                        Signal3b(:,selchan) = Signal3a(:,selchan);
-                        AnnotatedChanNames_postLPfilter(selchan) = AnnotatedChanNames_postHPfilter(selchan);
+                        Signal3b = Signal3a;
                         break
                     end
-                end
-                for ch = setdiff(1:size(Signal3a,2),selchan)
-                    Signal3b(:,ch) = Signal3a(:,ch);
-                    AnnotatedChanNames_postLPfilter{ch} = AnnotatedChanNames_postHPfilter{ch};
                 end
                 if LowPassFilter.state
                     SigBandwidth = lpf;
                 end
             else
-                Signal3b(:,selchan) = Signal3a(:,selchan);
-                AnnotatedChanNames_postLPfilter(selchan) = AnnotatedChanNames_postHPfilter(selchan);
+                Signal3b = Signal3a;
             end
             
             if EnvelopeFilter.state
-                %for ch = size(Signal_postnotch,2):-1:1
-                for ch = selchan
+                for ch = size(Signal_postnotch,2):-1:1
                     set(h_bigtext, 'Visible', 'on', 'String', ['Applying envelope filter (' num2str(ch) ' chans to go)']); drawnow;
                     [Signal_postfilter(:,ch), FilterInfo] = freqfilter(Signal3b(:,ch).^2, Fs, [evf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/evf*Fs);
-                    AnnotatedChanNames_postfilter{ch} = [AnnotatedChanNames_postLPfilter{ch} 'EV'];
                     while any(FilterInfo.ButterUnstable)
                         if FilterOrder <= 1
                             Signal_postfilter(:,ch) = Signal3b(:,ch);
@@ -935,24 +897,17 @@ autofit();
                         end
                         FilterOrder = ceil(FilterOrder / 2);
                         [Signal_postfilter(:,ch), FilterInfo] = freqfilter(Signal3b(:,ch).^2, Fs, [evf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/evf*Fs);
-                        AnnotatedChanNames_postfilter{ch} = ['E' num2str(evf) '*' AnnotatedChanNames_postLPfilter{ch}];
                     end
                     if ~EnvelopeFilter.state
-                        Signal_postfilter(:,selchan) = Signal3b(:,selchan);
-                        AnnotatedChanNames_postfilter(selchan) = AnnotatedChanNames_postLPfilter(selchan);
+                        Signal_postfilter = Signal3b;
                         break
                     end
-                end
-                for ch = setdiff(1:size(Signal3b,2),selchan)
-                    Signal_postfilter(:,ch) = Signal3b(:,ch);
-                    AnnotatedChanNames_postfilter{ch} = AnnotatedChanNames_postLPfilter{ch};
                 end
                 if EnvelopeFilter.state
                     SigBandwidth = min(SigBandwidth,evf);
                 end
             else
-                Signal_postfilter(:,selchan) = Signal3b(:,selchan);
-                AnnotatedChanNames_postfilter(selchan) = AnnotatedChanNames_postLPfilter(selchan);
+                Signal_postfilter = Signal3b;
             end            
             
             
@@ -1148,7 +1103,7 @@ autofit();
         %set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
         YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        redraw_yticklabel();
+        set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1173,15 +1128,11 @@ autofit();
         %set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
         YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        redraw_yticklabel();
+        set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
         %redraw();
-    end
-
-    function redraw_yticklabel()
-        set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(AnnotatedChanNames_postfilter(selchan)), 'YLim', YLim);
     end
 
     function resnap_pan()
@@ -1386,7 +1337,7 @@ autofit();
     function f_chansel_confirm(hObject, eventdata)
         selchan = get(h_chansel_list, 'Value');
         Nsch = length(selchan);
-        set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(AnnotatedChanNames_postfilter(selchan)));
+        set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)));
         redraw();
     end
 
@@ -1573,7 +1524,7 @@ autofit();
             xlabel('Sources');
             ylabel('Channels');
             set(viewhand_ica_A_ax, 'YTick', 1:size(ica_A,1));
-            set(viewhand_ica_A_ax, 'YTickLabel', AnnotatedChanNames_postfilter);
+            set(viewhand_ica_A_ax, 'YTickLabel', ChanNames);
             set(viewhand_ica_A_ax, 'XTick', 1:size(ica_A,2));
         else
             figure(viewhand_ica_A);
