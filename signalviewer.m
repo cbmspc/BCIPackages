@@ -31,7 +31,10 @@ viewhand_ica_A = ceil(rand*1000000000);
 viewhand_ica_W = ceil(rand*1000000000);
 viewhand_psd = ceil(rand*1000000000);
 selected_plothand = -1;
+selected_timepoint = -1;
+previously_selected_timepoint = -2;
 FineSnapScale = 10;
+selected_cursortype = 0;
 
 % Remove channels that are completely flat
 n = size(Signal,1);
@@ -189,8 +192,15 @@ Time = (0:Ntp-1)/Fs;
 Time_min = 0;
 Time_max = (Ntp-1)/Fs;
 
+cursorlinehand = plot([0 0], [0 0], '-', 'LineWidth', 2, 'Color', [0.8 0.8 0.8]);
 for ch = Nsch:-1:1
+    plotpip1hand(ch) = plot(0, 0, '+', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
+    plotpip2hand(ch) = plot(0, 0, '+', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
+    plotpip3hand(ch) = plot(0, 0, '+', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
     plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - nanmean(Signal(t1:t2,selchan(ch))) - chansep*ch);
+    plottext1hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontSize', AxesFontSize);
+    plottext2hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontSize', AxesFontSize);
+    plottext3hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontSize', AxesFontSize);
     set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
     set(plothand(ch), 'ButtonDownFcn', @f_plothand_buttondown);
     setappdata(plothand(ch), 'chanind', selchan(ch));
@@ -1331,6 +1341,10 @@ autofit();
             set(eventtexthand(l), 'Visible', 'on');
             set(eventtexthand(~l), 'Visible', 'off');
         end
+        
+        
+        update_cursorline();
+        
     end
 
 
@@ -1353,6 +1367,104 @@ autofit();
             figure(viewhand_psd);
         end
     end
+
+
+    function update_cursorline(sel_type)
+        
+        if ~exist('sel_type','var') || isempty(sel_type)
+            sel_type = selected_cursortype;
+        end
+        
+        set([cursorlinehand plottext1hand plottext2hand plottext3hand plotpip1hand plotpip2hand plotpip3hand], 'Visible', 'off');
+
+        if sel_type == 0
+            return
+        end
+        
+        
+        selected_cursortype = sel_type;
+        
+        
+        yl = get(gca, 'YLim');
+        set(cursorlinehand, 'YData', yl, 'XData', selected_timepoint*[1 1], 'Visible', 'on');
+        
+        ypoint = [];
+        ylocmin = [];
+        xlocmin = [];
+        ylocmax = [];
+        xlocmax = [];
+        xindmin = [];
+        xindmax = [];
+        
+        for ch = Nsch:-1:1
+            if get(plothand(ch), 'Visible')
+                % y values of the exact x point
+                
+                YDATA = get(plothand(ch), 'YData');
+                
+                
+                ypoint(ch) = interp1(Time, Signal_postfilter(:,selchan(ch)), selected_timepoint);
+                
+                % Locally search for min and max in each channel
+                lookcenter = find(Time >= selected_timepoint, 1, 'first');
+                loclookcenter = find(Time(t1:BLIM:t2) >= selected_timepoint, 1, 'first');
+                
+                if isempty(loclookcenter) || loclookcenter == 1
+                    return
+                end
+                
+                lookradius = ceil((t2 - t1) * 0.005);
+                
+                tmpunit = 'µV';
+                if ZscoreFilter.state
+                    tmpunit = 'sd';
+                elseif EnvelopeFilter.state
+                    tmpunit = 'µV²';
+                end
+                
+                xr = diff(get(gca, 'XLim'));
+                
+                if sel_type == 1
+                    ypointdisplayed(ch) = YDATA(loclookcenter);
+                    set(plotpip1hand(ch), 'XData', selected_timepoint, 'YData', ypointdisplayed(ch), 'Visible', 'on');
+                    set(plottext1hand(ch), 'String', sprintf('\\leftarrow Cursor %.4gs, %.4g%s',selected_timepoint,ypoint(ch),tmpunit), 'Position', [selected_timepoint + xr/100, ypointdisplayed(ch), 0], 'Visible', 'on');
+                elseif sel_type == 2
+                    if lookcenter - lookradius < 1 || lookcenter + lookradius > Ntp
+                        return
+                    end
+                    tmp = Signal_postfilter(lookcenter-lookradius:lookcenter+lookradius,selchan(ch));
+                    [ylocmin(ch), ind] = min(tmp);
+                    xindmin(ch) = ind - 1 + loclookcenter - lookradius;
+                    xlocmin(ch) = Time(t1-1+xindmin(ch));
+                    if xindmin(ch) < 1 || xindmin(ch) > length(YDATA)
+                        continue
+                    end
+                    set(plotpip2hand(ch), 'XData', xlocmin(ch), 'YData', YDATA(xindmin(ch)), 'Visible', 'on');
+                    set(plottext2hand(ch), 'String', sprintf('\\leftarrow Local Min %.4gs, %.4g%s',xlocmin(ch), ylocmin(ch),tmpunit), 'Position', [xlocmin(ch) + xr/100, YDATA(xindmin(ch)), 0], 'Visible', 'on');
+                elseif sel_type == 3
+                    if lookcenter - lookradius < 1 || lookcenter + lookradius > Ntp
+                        return
+                    end
+                    tmp = Signal_postfilter(lookcenter-lookradius:lookcenter+lookradius,selchan(ch));
+                    [ylocmax(ch), ind] = max(tmp);
+                    xindmax(ch) = ind - 1 + loclookcenter - lookradius;
+                    xlocmax(ch) = Time(t1-1+xindmax(ch));
+                    if xindmax(ch) < 1 || xindmax(ch) > length(YDATA)
+                        continue
+                    end
+                    set(plotpip3hand(ch), 'XData', xlocmax(ch), 'YData', YDATA(xindmax(ch)), 'Visible', 'on');
+                    set(plottext3hand(ch), 'String', sprintf('\\leftarrow Local Max %.4gs, %.4g%s',xlocmax(ch), ylocmax(ch),tmpunit), 'Position', [xlocmax(ch) + xr/100, YDATA(xindmax(ch)), 0], 'Visible', 'on');
+                end
+                
+            end
+        end
+        
+        
+        
+    end
+
+
+
 
     function update_psd()
         if ishandle(viewhand_psd)
@@ -1557,6 +1669,7 @@ autofit();
     function f_axesfont_inc(hObject, eventdata)
         AxesFontSize = AxesFontSize + 1;
         set(gca, 'FontSize', AxesFontSize);
+        set([plottext1hand plottext2hand plottext3hand], 'FontSize', AxesFontSize);
     end
 
     function f_axesfont_dec(hObject, eventdata)
@@ -1564,6 +1677,7 @@ autofit();
             AxesFontSize = AxesFontSize - 1;
         end
         set(gca, 'FontSize', AxesFontSize);
+        set([plottext1hand plottext2hand plottext3hand], 'FontSize', AxesFontSize);
     end
 
     function f_windowhsize_inc(hObject, eventdata)
@@ -1583,6 +1697,23 @@ autofit();
     function f_plothand_buttondown(hObject, eventdata)
         selected_plothand = hObject;
         update_psd();
+        acp = get(gca, 'CurrentPoint');
+        selected_timepoint = acp(1);
+        if selected_timepoint == previously_selected_timepoint
+            previously_selected_timepoint = selected_timepoint - 2;
+            update_cursorline(0);
+            return;
+        else
+            previously_selected_timepoint = selected_timepoint;
+        end
+        switch get(gcf,'SelectionType')
+            case 'normal'
+                update_cursorline(1);
+            case 'alt'
+                update_cursorline(2);
+            case 'extend'
+                update_cursorline(3);
+        end
     end
 
     function f_main_close(hObject, eventdata, handles)
@@ -1638,6 +1769,10 @@ autofit();
 
 end
 
+
+function C = lightercolor(C)
+C = 1-((1 - C)/4);
+end
 
 function B = rearrange_top_bottom(A)
 n = size(A,1);
