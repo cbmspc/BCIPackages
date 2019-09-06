@@ -41,7 +41,8 @@ TTYoutput = zeros(NumFinalPoints,Nc);
 
 for c = 1:Nc
     Y = fft(y(:,c),FFTFS);
-    PY = Y .* conj(Y) / FFTFS;
+    %PY = Y .* conj(Y) / FFTFS;
+    PY = 2*abs(Y/FFTFS);
     TY = atan2(imag(Y),real(Y));
 
     f = Fs * (0:FFTFS/2) / FFTFS;
@@ -65,9 +66,9 @@ for c = 1:Nc
             otherwise
                 semilogy(fp,PPYp);
         end
-        title(['PSD (' num2str(c) ')']);
-        xlabel('Frequency (Hz)');
-        ylabel('Power');
+        title(['FFTPLOT (' num2str(c) ')']);
+        xlabel('f (Hz)');
+        ylabel('|P(f)|');
     end
 end
 

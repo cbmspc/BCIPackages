@@ -62,8 +62,7 @@
 % Flipped:         (Array of same size as the number of data sets, each
 %                   element describing whether to flip the signal on the
 %                   corresponding data set)
-%                   0 = Let the program decide whether to flip a signal
-%                   upside down
+%                   0 = Will not flip signal
 %                  -1 = Will not flip signal
 %                   1 = Will always flip signal
 %
@@ -383,7 +382,7 @@ for Dataset = 1:Ndataset
         fprintf('Signal mean is less than median.\n');
     end
     mustF = Flipped(Dataset) == 1;
-    mustnotF = Flipped(Dataset) == -1;
+    mustnotF = Flipped(Dataset) == -1 | Flipped(Dataset) == 0;
     if isF && mustnotF && SWinfo >= 1
         fprintf('Flipping signal is disallowed.\n');
     end

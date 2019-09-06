@@ -1,13 +1,18 @@
 % 1) Runs a band-pass filter on a continuous uncut time series data
 % 2) Segment the filtered data into equal sized segments within the
-%    specified time range
+%    specified time range   
+% (1 and 2 simulate a filter bank that does not reset)
 % 3) Calculate the power within each segment. There is one power value per
 %    channel per segment
 % 4) Output format: chan x band x segment
 % Note: All segments have equal size. Possible gap between last and tend.
 
-function segpow = convert_timeseriesdata_to_segmentedpowervalues (data, Fs, frange, trange, tsegsize)
-filtorder = 4;
+function segpow = convert_timeseriesdata_to_segmentedpowervalues (data, Fs, frange, trange, tsegsize, filtorder)
+
+if ~exist('filtorder','var') || isempty(filtorder)
+    filtorder = 4;
+end
+
 filtname = 'buttercausal';
 
 tstart = trange(1);
@@ -60,7 +65,7 @@ for band = 1:size(frange,1)
 
     
     
-    
+    % Filter then segment
     % Filter
     fb = [1 1];
     if frange(band,1) <= 0
