@@ -10,7 +10,31 @@
 
 function fighand = signalviewer(Signal, SampleRate, ChanNames, EventTimeStamps, ica_W, ica_A)
 %t_program_start = tic;
+
+if iscell(Signal)
+    if exist('EventTimeStamps','var') && isnumeric(EventTimeStamps)
+        CellEvents = EventTimeStamps;
+    else
+        CellEvents = 1:length(Signal);
+    end
+    EventTimeStamps = zeros(length(Signal),3);
+    tmp = 0;
+    for i = 1:size(EventTimeStamps,1)
+        EventTimeStamps(i,:) = [tmp, tmp + size(Signal{i},1) / SampleRate, CellEvents(i)];
+        tmp = tmp + size(Signal{i},1) / SampleRate;
+    end
+    Signal = cat(1,Signal{:});
+end
+
+Signal = double(Signal);
+
 if ~exist('ChanNames', 'var') || isempty(ChanNames)
+    if size(Signal,1) == 1 && size(Signal,2) > 1
+        Signal = Signal.';
+    elseif size(Signal,2) >= SampleRate && size(Signal,1) < SampleRate / 2
+        Signal = Signal.';
+    end
+    
     nchan = size(Signal,2);
     npad = floor(log10(nchan))+1;
     ChanNames = string_to_cell(num2str(1:nchan,['ch%0' num2str(npad) 'i,']),',');
@@ -88,7 +112,7 @@ Signal_postica = Signal;
 Signal_postnotch = Signal;
 Signal_postfilter = Signal;
 Signal4 = Signal(:,1);
-Signal_psd_source = Signal(:,1);
+Signal_psd_source = Signal(:,1) * 0;
 
 % If a signal is known to be bandlimited due to low-pass and/or envelope
 % filter, reduce the number of points to plot to speed up
@@ -1512,6 +1536,7 @@ autofit();
                 channame = getappdata(selected_plothand, 'channame');
                 chanind = getappdata(selected_plothand, 'chanind');
                 tmp = Signal_postfilter(t1:t2,chanind);
+                tmp = tmp(isfinite(tmp));
                 if size(Signal_psd_source,1) == size(tmp,1) && size(Signal_psd_source,2) == size(tmp,2) && norm(Signal_psd_source - tmp) == 0
                     % These are the same signal.
                     return

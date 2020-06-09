@@ -65,5 +65,9 @@ Montage.acticap128_1 = [ChansGreen,ChansYellow,ChansRed,ChansWhite].';
 MontageDesc.acticap128_1 = 'ActiCap128_1';
 NexusNumS.acticap128_1 = 14;
 
+Montage.waveguard = string_to_cell('Cz, Fp1, Fpz, Fp2, F7, F3, Fz, F4, F8, FC5, FC1, FC2, FC6, M1, T7, C3, C4, T8, M2, CP5, CP1, CP2, CP6, P7, P3, Pz, P4, P8, POz, O1, Oz, O2, TRIG_1, NC, AF7, AF3, NC, AF4, AF8, F5, F1, F2, F6, FC3, NC, FC4, C5, C1, C2, C6, CP3, CPz, CP4, P5, P1, P2, P6, PO3, PO4, FT7, FT8, TP7, TP8, PO7, PO8, TRIG_2, DIAG', ', ').';
+MontageDesc.waveguard = 'waveguard';
+NexusNumS.waveguard = 15;
+
 NexusNumS.userdefined = 8;
 

@@ -14,7 +14,7 @@ FEFUN = {'aida','aida','aida','lda'};
 FEPARM = {3,2,1,1};
 CFUN = {'',''};
 CNAME = {'quadratic','linear'};
-PRIOR = {'equal','empirical'};
+PRIOR = {'empirical'};
 CPARM = {[],[]};
 SWsilent = 0;
 sdfactor = 1;
@@ -41,6 +41,24 @@ FPID = 1;
 TimePoints = [];
 FilterImage = {};
 SWcompactfilter = 0;
+
+if (~exist('TrainLabels', 'var') || isempty(TrainLabels)) && iscell(TrainData)
+    Nclass = numel(TrainData);
+    tmpTrainLabels = [];
+    for c = 1:Nclass
+        if size(TrainData{c},3) > 1
+            n = size(TrainData{c},3);
+            d = 3;
+        else
+            n = size(TrainData{c},1);
+            d = 1;
+        end
+        tmpTrainLabels = [tmpTrainLabels; ones(n,1)*(c-1)];
+    end
+    TrainData = cat(d,TrainData{:});
+    TrainLabels = tmpTrainLabels;
+    clear tmpTrainLabels
+end
 
 TrainLabels = TrainLabels(:);
 
