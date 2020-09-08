@@ -8,7 +8,7 @@
 %   Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
 %   If ica matrices are not specified, FastICA is used
 
-function fighand = signalviewer(Signal, SampleRate, ChanNames, EventTimeStamps, ica_W, ica_A)
+function fighand = signalviewer(Signal, SampleRate, ChanNames, EventTimeStamps, ica_W, ica_A, FooterMessage)
 %t_program_start = tic;
 
 if iscell(Signal)
@@ -48,6 +48,10 @@ Fs = SampleRate;
 if ~exist('ica_W', 'var') || ~exist('ica_A', 'var')
     ica_W = [];
     ica_A = [];
+end
+
+if ~exist('FooterMessage', 'var')
+    FooterMessage = '';
 end
 
 viewhand_ica_sig = ceil(rand*1000000000);
@@ -398,6 +402,8 @@ h_chansel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', '
 
 h_cursor_enable = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.08 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Cursor', 'FontUnits', 'normalized');
 h_cursor_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.08 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
+h_signal_export = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export Sig', 'FontUnits', 'normalized');
+
 
 h_icasel_title = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.525 0.020 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps', 'FontUnits', 'normalized'); %#ok<NASGU>
 h_icasel_list = uicontrol(gcf, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.96 0.12 0.030, 0.400], 'FontUnits', 'normalized');
@@ -406,18 +412,33 @@ h_icasel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'P
 h_icasel_view_sources = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'S', 'FontUnits', 'normalized');
 h_icasel_view_mixmat = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A', 'FontUnits', 'normalized');
 h_icasel_view_sepmat = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W', 'FontUnits', 'normalized');
+h_icasel_view_export = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export ICA', 'FontUnits', 'normalized');
 
-h_axesfont_inc = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.05 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A+', 'FontUnits', 'normalized');
-h_axesfont_dec = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.93 0.05 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A-', 'FontUnits', 'normalized');
-h_windowhsize_inc = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.95 0.05 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W+', 'FontUnits', 'normalized');
-h_windowhsize_dec = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.05 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W-', 'FontUnits', 'normalized');
+h_axesfont_inc = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A+', 'FontUnits', 'normalized');
+h_axesfont_dec = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.93 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A-', 'FontUnits', 'normalized');
+h_windowhsize_inc = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.95 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W+', 'FontUnits', 'normalized');
+h_windowhsize_dec = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W-', 'FontUnits', 'normalized');
 
-h_xspan_text = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.025 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 't range [0,12345]', 'FontUnits', 'normalized');
+h_xspan_text = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.025 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'full t range [0,12345]', 'FontUnits', 'normalized');
+
+h_xspan_edittext1intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.01 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(1) =', 'FontUnits', 'normalized');
+h_xspan_edit1 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.04 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
+h_xspan_edittext1unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.07 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized');
+
+h_xspan_edittext2intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.83 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized');
+h_xspan_edit2 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.86 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
+h_xspan_edittext2unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.89 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized');
+
+h_footer_message = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.025 0.70 0.015], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized');
+if isempty(FooterMessage)
+    set(h_footer_message, 'Visible', 'off');
+end
 
 set(h_icasel_reset, 'Enable', 'off');
 set(h_icasel_view_sources, 'Enable', 'off');
 set(h_icasel_view_mixmat, 'Enable', 'off');
 set(h_icasel_view_sepmat, 'Enable', 'off');
+set(h_icasel_view_export, 'Enable', 'off');
 set(h_chansel_list, 'String', ChanNames);
 set(h_chansel_list, 'Value', selchan);
 
@@ -431,6 +452,9 @@ set(h_panup, 'Callback', @f_panup);
 set(h_pandown, 'Callback', @f_pandown);
 set(h_sepup, 'Callback', @f_sepup);
 set(h_sepdown, 'Callback', @f_sepdown);
+
+set(h_xspan_edit1, 'Callback', @f_xspan_edit1);
+set(h_xspan_edit2, 'Callback', @f_xspan_edit2);
 
 set(h_hold_switch, 'Callback', @f_hold_switch);
 
@@ -454,7 +478,9 @@ set(h_icasel_reset, 'Callback', @f_icasel_reset);
 set(h_icasel_view_sources, 'Callback', @f_icasel_view_sources);
 set(h_icasel_view_mixmat, 'Callback', @f_icasel_view_mixmat);
 set(h_icasel_view_sepmat, 'Callback', @f_icasel_view_sepmat);
+set(h_icasel_view_export, 'Callback', @f_icasel_view_export);
 set(h_cursor_enable, 'Callback', @f_cursor_enable);
+set(h_signal_export, 'Callback', @f_signal_export);
 set(h_axesfont_inc, 'Callback', @f_axesfont_inc);
 set(h_axesfont_dec, 'Callback', @f_axesfont_dec);
 set(h_windowhsize_inc, 'Callback', @f_windowhsize_inc);
@@ -467,9 +493,18 @@ notch_update();
 filter_update();
 %set(h_bigtext, 'Visible', 'off', 'String', '');
 
-set(h_xspan_text, 'String', ['t range [' num2str(round(min(Time))) ', ' num2str(round(max(Time))) '] s']);
+set(h_xspan_text, 'String', ['full t range [' num2str(round(min(Time))) ', ' num2str(round(max(Time))) '] s']);
 
 autofit();
+
+try
+    pause(0.00001);
+    oldWarningState = warning('off', 'MATLAB:ui:javacomponent:FunctionToBeRemoved');
+    frame_h = get(handle(fighand),'JavaFrame');
+    set(frame_h,'Maximized',1);
+    warning(oldWarningState);
+end
+
 
 
     function f_fig_keypress(hObject, eventdata)
@@ -1128,6 +1163,40 @@ autofit();
         MovementBusy = 0;
     end
 
+
+    function f_xspan_edit1(hObject, eventdata)
+        if FilterBusy || MovementBusy
+            set(h_xspan_edit1, 'String', XLim(1));
+            return;
+        end
+        v = str2double(get(h_xspan_edit1, 'String'));
+        if isfinite(v) && imag(v) == 0 && v < XLim(2)
+            XLim(1) = v;
+        end
+        set(gca, 'XLim', XLim);
+        MovementBusy = 1;
+        resnap_pan();
+        MovementBusy = 0;
+    end
+
+
+
+    function f_xspan_edit2(hObject, eventdata)
+        if FilterBusy || MovementBusy
+            set(h_xspan_edit2, 'String', XLim(2));
+            return;
+        end
+        v = str2double(get(h_xspan_edit2, 'String'));
+        if isfinite(v) && imag(v) == 0 && v > XLim(1)
+            XLim(2) = v;
+        end
+        set(gca, 'XLim', XLim);
+        MovementBusy = 1;
+        resnap_pan();
+        MovementBusy = 0;
+    end
+
+
     function f_sepup(hObject, eventdata)
         if FilterBusy || MovementBusy
             return;
@@ -1202,6 +1271,8 @@ autofit();
         XLim = round_xlim(XLim, XRange);
         XLim(2) = XLim(1) + XRange;
         set(gca, 'XLim', XLim, 'YLim', YLim);
+        set(h_xspan_edit1, 'String', num2str(XLim(1)));
+        set(h_xspan_edit2, 'String', num2str(XLim(2)));
         filter_render();
         redraw();
     end
@@ -1245,6 +1316,8 @@ autofit();
         XLim(2) = XLim(1) + XRange;
         
         set(gca, 'XLim', XLim, 'YLim', YLim);
+        set(h_xspan_edit1, 'String', num2str(XLim(1)));
+        set(h_xspan_edit2, 'String', num2str(XLim(2)));
         filter_render();
         redraw();
     end
@@ -1623,6 +1696,7 @@ autofit();
                 set(h_icasel_view_sources, 'Enable', 'off');
                 set(h_icasel_view_mixmat, 'Enable', 'off');
                 set(h_icasel_view_sepmat, 'Enable', 'off');
+                set(h_icasel_view_export, 'Enable', 'off');
                 return;
             end
             set(h_bigtext, 'Visible', 'off', 'String', ''); drawnow;
@@ -1634,6 +1708,7 @@ autofit();
             set(h_icasel_view_sources, 'Enable', 'off');
             set(h_icasel_view_mixmat, 'Enable', 'off');
             set(h_icasel_view_sepmat, 'Enable', 'off');
+            set(h_icasel_view_export, 'Enable', 'off');
             return;
         end
         
@@ -1652,6 +1727,7 @@ autofit();
             set(h_icasel_view_sources, 'Enable', 'on');
             set(h_icasel_view_mixmat, 'Enable', 'on');
             set(h_icasel_view_sepmat, 'Enable', 'on');
+            set(h_icasel_view_export, 'Enable', 'on');
             ICA_Initialized = 1;
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', ''); drawnow;
@@ -1698,7 +1774,7 @@ autofit();
         if ~ishandle(viewhand_ica_sig)
             npad2 = floor(log10(size(ica_sig,1)))+1;
             ic_names = string_to_cell(num2str(1:size(ica_sig,1),['ic%0' num2str(npad2) 'i,']),',');
-            viewhand_ica_sig = signalviewer(ica_sig.', Fs, ic_names);
+            viewhand_ica_sig = signalviewer(ica_sig.', Fs, ic_names, [], [], [], 'This figure window displays the ICA sources. Close this window to return to the original time signals.');
         else
             figure(viewhand_ica_sig);
         end
@@ -1746,6 +1822,26 @@ autofit();
         else
             figure(viewhand_ica_W);
         end
+    end
+
+
+    function f_icasel_view_export(hObject, eventdata)
+        if FilterBusy
+            return;
+        end
+        assignin('caller', 'signalviewer_ica_A', ica_A);
+        assignin('caller', 'signalviewer_ica_W', ica_W);
+        assignin('caller', 'signalviewer_ica_sig', ica_sig);
+        assignin('caller', 'signalviewer_ica_export_timestamp', now);
+    end
+
+
+    function f_signal_export(hObject, eventdata)
+        assignin('caller', 'signalviewer_Signal', Signal);
+        assignin('caller', 'signalviewer_Signal_postica', Signal_postica);
+        assignin('caller', 'signalviewer_Signal_postnotch', Signal_postnotch);
+        assignin('caller', 'signalviewer_Signal_postfilter', Signal_postfilter);
+        assignin('caller', 'signalviewer_signal_export_timestamp', now);
     end
 
 
