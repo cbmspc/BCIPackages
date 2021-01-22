@@ -66,24 +66,28 @@ selected_cursortype = 0;
 CursorEnable = 0;
 
 % Remove channels that are completely flat
-n = size(Signal,1);
-if n > 491520
-    % Sample only these many points in 4 areas
-    chnc = true(1,size(Signal,2));
-    b = floor(n/4)*(0:3)' * [1 1] + ones(4,1)*[1 122880];
-    for ch = 1:size(Signal,2) %#ok<*FXUP>
-        if chnc(ch)
-            for i = 1:size(b,1)
-                chnc(ch) = chnc(ch) & nanstd(Signal(b(i,1):b(i,2),ch),[],1) == 0;
-                if ~chnc(ch)
-                    break
-                end
-            end
-        end
-    end
-else
-    chnc = nanstd(Signal,[],1) == 0;
-end
+%n = size(Signal,1);
+% if n > 491520
+%     % Sample only these many points in 4 areas
+%     chnc = true(1,size(Signal,2));
+%     b = floor(n/4)*(0:3)' * [1 1] + ones(4,1)*[1 122880];
+%     for ch = 1:size(Signal,2) %#ok<*FXUP>
+%         if chnc(ch)
+%             for i = 1:size(b,1)
+%                 chnc(ch) = chnc(ch) & nanstd(Signal(b(i,1):b(i,2),ch),[],1) == 0;
+%                 if ~chnc(ch)
+%                     break
+%                 end
+%             end
+%         end
+%     end
+% else
+%     chnc = nanstd(Signal,[],1) == 0;
+% end
+
+chnc = nanmax(Signal) - nanmin(Signal) == 0;
+
+
 if exist('ica_W', 'var') && exist('ica_A', 'var') && ~isempty(ica_W) && ~isempty(ica_A)
     if size(ica_W,2) == size(Signal,2) && size(ica_A,1) == size(Signal,2)
         ica_W = ica_W(:,~chnc);
@@ -96,6 +100,9 @@ end
 Signal = Signal(:,~chnc);
 ChanNames = ChanNames(~chnc);
 
+
+% Fix NaNs if any
+Signal = fix_nans_for_filtering(Signal);
 
 
 
@@ -151,7 +158,7 @@ Nsch = length(ChanNames(selchan));
 Ntp = size(Signal,1);
 
 PermittedXZoomRanges   = [0.001 0.005 0.01 0.05 0.1 0.5 1 2 5 10 20 30 60 120 300 600 1200 1800 3600:3600:6*3600 8*3600 12*3600 24*3600 7*24*3600];
-PermittedXZoomRanges = PermittedXZoomRanges(PermittedXZoomRanges > 16/Fs);
+PermittedXZoomRanges = PermittedXZoomRanges(PermittedXZoomRanges > 1/Fs);
 PermittedChanSepRanges = [1e-6 2e-6 5e-6 1e-5 2e-5 5e-5 1e-4 2e-4 5e-4 .001 .002 .005 .01 .02 .05 .1 .2 .5 1 2 5 10 20 50 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000 1000000 2000000 5000000 10000000];
 XTickSpacingsAndUnits = {
     1e-6    1e-6    'us'
@@ -428,6 +435,15 @@ h_xspan_edittext1unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', '
 h_xspan_edittext2intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.83 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized');
 h_xspan_edit2 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.86 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
 h_xspan_edittext2unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.89 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized');
+
+% h_yspan_edittext1intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.41 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Selected channel YMin =', 'FontUnits', 'normalized');
+% h_yspan_edit1 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.44 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
+% h_yspan_edittext1unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.47 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized');
+% 
+% h_yspan_edittext2intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.50 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Selected channel YMax =', 'FontUnits', 'normalized');
+% h_yspan_edit2 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.53 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
+% h_yspan_edittext2unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.56 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized');
+
 
 h_footer_message = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.025 0.70 0.015], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized');
 if isempty(FooterMessage)
@@ -836,7 +852,7 @@ end
         lpf = str2double(get(h_lpf_cutoff, 'String'));
         evf = str2double(get(h_evf_cutoff, 'String'));
         
-        if hpf <= 0.01
+        if hpf <= Fs/10000 % Not likely to be stable
             HighPassFilter.state = 0;
             set(h_hpf_state, 'String', 'OFF');
         end
@@ -1890,8 +1906,10 @@ end
             case 'normal'
                 update_cursorline(1);
             case 'alt'
+                % Local min (hold Ctrl)
                 update_cursorline(2);
             case 'extend'
+                % Local max (hold Shift)
                 update_cursorline(3);
         end
     end
@@ -1917,7 +1935,8 @@ end
     end
 
     function autofit()
-        tmpr = 1+Fs:size(Signal_postfilter,1)-Fs+1;
+        Fs_int = round(Fs);
+        tmpr = 1+Fs_int:size(Signal_postfilter,1)-Fs_int+1;
         if isempty(tmpr)
             tmpr = 1:size(Signal_postfilter,1);
         end
@@ -2025,3 +2044,65 @@ end
     end
 end
 
+
+
+function y = fix_nans_for_filtering(y)
+% 20180514 Remove NaNs before processing
+ny = isnan(y);
+
+if nnz(ny) > 0
+    y = bridge_nans(y, 'linear', '');
+    
+    % If any NaNs still exist at either ends, reflect each channel's data
+    for ch = 1:size(y,2)
+        
+        if ~any(isfinite(y(:,ch)))
+            continue
+        end
+        
+        
+        nyc = isnan(y(:,ch));
+        if any(nyc)
+            cgnan = get_contig_groups(find(~isfinite(y(:,ch))));
+            cgfin = get_contig_groups(find(isfinite(y(:,ch))));
+            cgfin = cgfin{1};
+            tmp = y(cgfin(1):cgfin(end),ch);
+            
+            if nyc(1)
+                % NaN at start
+                cgnan1 = cgnan{1};
+                nn = cgnan1(end)-cgnan1(1)+1;
+                nm = ceil(nn / length(tmp));
+                ytmp = [];
+                for j = 1:nm
+                    if mod(j,2) == 1
+                        ytmp = [-flipud(tmp(2:end)); ytmp];
+                    else
+                        ytmp = [tmp(1:end-1); ytmp];
+                    end
+                end
+                y(cgnan1(1):cgnan1(end),ch) = ytmp(end-nn+1:end);
+            end
+            
+            if nyc(end)
+                % NaN at end
+                cgnan2 = cgnan{end};
+                nn = cgnan2(end)-cgnan2(1)+1;
+                nm = ceil(nn / length(tmp));
+                ytmp = [];
+                for j = 1:nm
+                    if mod(j,2) == 1
+                        ytmp = [ytmp; -flipud(tmp(1:end-1))];
+                    else
+                        ytmp = [ytmp; tmp(2:end)];
+                    end
+                end
+                y(cgnan2(1):cgnan2(end),ch) = ytmp(1:nn);
+            end
+            
+            
+        end
+    end
+end
+
+end
