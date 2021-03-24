@@ -405,7 +405,8 @@ h_fastdraw_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Posit
 h_chansel_title = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized'); %#ok<NASGU>
 h_chansel_list = uicontrol(gcf, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.92 0.12 0.040, 0.400], 'FontUnits', 'normalized');
 h_chansel_confirm = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plot', 'FontUnits', 'normalized');
-h_chansel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized');
+h_chansel_auto = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Auto', 'FontUnits', 'normalized');
+h_chansel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.945 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'Visible', 'off');
 
 h_cursor_enable = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.08 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Cursor', 'FontUnits', 'normalized');
 h_cursor_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.08 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
@@ -495,6 +496,7 @@ set(h_icasel_view_sources, 'Callback', @f_icasel_view_sources);
 set(h_icasel_view_mixmat, 'Callback', @f_icasel_view_mixmat);
 set(h_icasel_view_sepmat, 'Callback', @f_icasel_view_sepmat);
 set(h_icasel_view_export, 'Callback', @f_icasel_view_export);
+set(h_chansel_auto, 'Callback', @f_chansel_auto);
 set(h_cursor_enable, 'Callback', @f_cursor_enable);
 set(h_signal_export, 'Callback', @f_signal_export);
 set(h_axesfont_inc, 'Callback', @f_axesfont_inc);
@@ -1470,6 +1472,15 @@ end
     end
 
 
+    function f_chansel_auto(hObject, eventdata)
+        try
+            cids = GetChannelsWithSimilarStdev(Signal_postfilter);
+            set(h_chansel_list, 'Value', cids);
+            f_chansel_confirm([], []);
+        catch
+        end
+    end
+
     function f_cursor_enable(hObject, eventdata)
         if CursorEnable
             CursorEnable = 0;
@@ -1848,6 +1859,7 @@ end
         assignin('caller', 'signalviewer_ica_A', ica_A);
         assignin('caller', 'signalviewer_ica_W', ica_W);
         assignin('caller', 'signalviewer_ica_sig', ica_sig);
+        assignin('caller', 'signalviewer_selica', selica);
         assignin('caller', 'signalviewer_ica_export_timestamp', now);
     end
 
@@ -1857,6 +1869,7 @@ end
         assignin('caller', 'signalviewer_Signal_postica', Signal_postica);
         assignin('caller', 'signalviewer_Signal_postnotch', Signal_postnotch);
         assignin('caller', 'signalviewer_Signal_postfilter', Signal_postfilter);
+        assignin('caller', 'signalviewer_selchan', selchan);
         assignin('caller', 'signalviewer_signal_export_timestamp', now);
     end
 
@@ -2106,3 +2119,15 @@ if nnz(ny) > 0
 end
 
 end
+
+
+
+function chanidx = GetChannelsWithSimilarStdev(signal)
+s = std(signal);
+[h, c] = hist(s);
+[~, i] = max(h);
+l1 = s < c(i) + (c(2)-c(1))/2;
+l2 = s > c(i) - (c(2)-c(1))/2;
+chanidx = find(l1 & l2);
+end
+

@@ -68,14 +68,14 @@ for c = 1:Nclass
     Data_b(c,:) = sqrt(NtrialA(c) / Nobs) * (sampmu{c} - sampmuall);
 end
 
-W_b = dataproc_func_princomp(Data_b);
+W_b = dataproc_func_princomp(Data_b);  % eigen vectors
 
 % Calculate principal subspace basis
 
 DRmatC = cell(1,Nclass);
 for c = 1:Nclass
     try
-        DRmatC{c} = orth([coeffrC{c} W_b]);
+        DRmatC{c} = orth([coeffrC{c} W_b]); % outputs orthonormal basis 
     catch %#ok<CTCH>
         DRmatC{c} = zeros(size(coeffrC{c},1),0);
     end
