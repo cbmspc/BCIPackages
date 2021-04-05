@@ -11,9 +11,21 @@
 function fighand = signalviewer(Signal, SampleRate, ChanNames, EventTimeStamps, ica_W, ica_A, FooterMessage)
 %t_program_start = tic;
 
+
+if ~iscell(Signal) && size(Signal,3) > 1
+    % Assume ch x time x trial
+    tmp = cell(size(Signal,3));
+    for i = 1:size(Signal,3)
+        tmp{i} = Signal(:,:,i).';
+    end
+    Signal = tmp;
+end
+
 if iscell(Signal)
+    UserSuppliedEventNames = 0;
     if exist('EventTimeStamps','var') && isnumeric(EventTimeStamps)
         CellEvents = EventTimeStamps;
+        UserSuppliedEventNames = 1;
     else
         CellEvents = 1:length(Signal);
     end
@@ -23,16 +35,24 @@ if iscell(Signal)
         EventTimeStamps(i,:) = [tmp, tmp + size(Signal{i},1) / SampleRate, CellEvents(i)];
         tmp = tmp + size(Signal{i},1) / SampleRate;
     end
+    if ~UserSuppliedEventNames
+        EventTimeStamps = EventTimeStamps(:,1);
+    end
     Signal = cat(1,Signal{:});
 end
 
+
+
 Signal = double(Signal);
+
 
 if ~exist('ChanNames', 'var') || isempty(ChanNames)
     if size(Signal,1) == 1 && size(Signal,2) > 1
-        Signal = Signal.';
+        %Signal = Signal.';
+        Signal = permute(Signal,[2 1 3 4 5 6 7 8 9]);
     elseif size(Signal,2) >= SampleRate && size(Signal,1) < SampleRate / 2
-        Signal = Signal.';
+        %Signal = Signal.';
+        Signal = permute(Signal,[2 1 3 4 5 6 7 8 9]);
     end
     
     nchan = size(Signal,2);
@@ -41,7 +61,7 @@ if ~exist('ChanNames', 'var') || isempty(ChanNames)
 end
 ChanNames = ChanNames(:).';
 if size(Signal,1) == length(ChanNames) && size(Signal,2) ~= length(ChanNames)
-    Signal = Signal.';
+    Signal = permute(Signal,[2 1 3 4 5 6 7 8 9]);
 end
 Fs = SampleRate;
 
@@ -58,6 +78,7 @@ viewhand_ica_sig = ceil(rand*1000000000);
 viewhand_ica_A = ceil(rand*1000000000);
 viewhand_ica_W = ceil(rand*1000000000);
 viewhand_psd = ceil(rand*1000000000);
+viewhand_psd_axe = -1;
 selected_plothand = -1;
 selected_timepoint = -1;
 previously_selected_timepoint = -2;
@@ -201,7 +222,8 @@ Kolor = Kolor(tmp,:);
 Nkolor = size(Kolor,1);
 
 EventKolor = [0.75 0.75 0];
-EventFontSize = 20;
+EventFontSize = 14;
+EventFontWeight = 'bold';
 
 AxesFontName = 'Consolas';
 AxesFontSize = 10;
@@ -214,14 +236,15 @@ chansep = 100;
 screensize = get(groot,'Screensize');
 fighand = figure;
 clf
-set(gcf, 'ToolBar', 'none', 'MenuBar', 'none');
+set(fighand, 'ToolBar', 'none', 'MenuBar', 'none');
 set(fighand, 'CloseRequestFcn', @f_main_close);
 set(fighand, 'Name', ['Signal Viewer: ' num2str(size(Signal,2)) ' channels, ' num2str(size(Signal,1)/Fs) ' seconds record duration, ' num2str(Fs) ' Hz sample rate']);
 hold on
-set(gcf,'Position',screensize);
+set(fighand,'Position',screensize);
 YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
 XLim = [0 10];
 set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', AxesFontName, 'FontSize', AxesFontSize); %#ok<*NBRAK>
+axehand = get(fighand,'CurrentAxes');
 
 t1 = 1;
 t2 = 2;
@@ -247,8 +270,8 @@ if ~isempty(plothand)
     selected_plothand = plothand(1);
 end
 
-set(gca, 'FontUnits', 'normalized');
-AxesFontSize = get(gca, 'FontSize');
+set(axehand, 'FontUnits', 'normalized');
+AxesFontSize = get(axehand, 'FontSize');
 
 tmax = max(Time);
 SigChunkRendered = false(ceil(tmax / FilterChunkSec),1);
@@ -320,7 +343,7 @@ if EventEnable
     NYPos = length(YPos);
     for i = size(EventTimeStamps,1):-1:1
         eventplothand(i) = plot( EventTimeStamps{i,1}*[1 1], [-10000000*(Nsch+1), 10000000], '-', 'Color', EventKolor ); %#ok<NASGU>
-        eventtexthand(i) = text( EventTimeStamps{i,1}, YPos(mod(i-1,NYPos)+1), EventTimeStamps{i,2}, 'FontSize', EventFontSize);
+        eventtexthand(i) = text( EventTimeStamps{i,1}, YPos(mod(i-1,NYPos)+1), EventTimeStamps{i,2}, 'FontSize', EventFontSize, 'FontWeight', EventFontWeight);
     end
     set(eventtexthand(i), 'Visible', 'off');
 end
@@ -340,113 +363,113 @@ ZscoreFilter.multiplier = 100;
 ZscoreFilter.off_chansep = chansep;
 ZscoreFilter.on_chansep = chansep;
 
-h_hugetext = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.35 0.5 0.25 0.08], 'String', 'BIG TEXT', 'FontSize', 48, 'Visible', 'off', 'BackgroundColor', [0 0 0], 'ForegroundColor', [1 1 1], 'FontUnits', 'normalized');
-h_bigtext = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.25 0.5 0.45 0.05], 'String', 'BIG TEXT', 'FontSize', 28, 'Visible', 'off', 'FontUnits', 'normalized');
+h_hugetext = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.35 0.5 0.25 0.08], 'String', 'BIG TEXT', 'FontSize', 48, 'Visible', 'off', 'BackgroundColor', [0 0 0], 'ForegroundColor', [1 1 1], 'FontUnits', 'normalized');
+h_bigtext = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.25 0.5 0.45 0.05], 'String', 'BIG TEXT', 'FontSize', 28, 'Visible', 'off', 'FontUnits', 'normalized');
 
-h_xoomtitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.96 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Horizontal Zoom', 'FontUnits', 'normalized'); %#ok<NASGU>
-h_xzoomout = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.94 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized');
-h_xzoomlevel = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.94 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '10 s', 'FontUnits', 'normalized');
-h_xzoomin = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.94 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized');
+h_xoomtitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.96 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Horizontal Zoom', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_xzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.94 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized');
+h_xzoomlevel = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.94 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '10 s', 'FontUnits', 'normalized');
+h_xzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.94 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized');
 
-h_yoomtitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.91 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Vertical Zoom', 'FontUnits', 'normalized'); %#ok<NASGU>
-h_yzoomout = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.89 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized');
-h_yzoomlevel = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.89 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '64 ch', 'FontUnits', 'normalized');
-h_yzoomin = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.89 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized');
+h_yoomtitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.91 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Vertical Zoom', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_yzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.89 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized');
+h_yzoomlevel = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.89 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '64 ch', 'FontUnits', 'normalized');
+h_yzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.89 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized');
 
-h_sensititle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.86 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Sensitivity', 'FontUnits', 'normalized'); %#ok<NASGU>
-h_sepup = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.84 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized');
-h_sensitivity = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.84 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '100 uV', 'FontUnits', 'normalized');
-h_sepdown = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.84 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized');
+h_sensititle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.86 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Sensitivity', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_sepup = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.84 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized');
+h_sensitivity = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.84 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '100 uV', 'FontUnits', 'normalized');
+h_sepdown = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.84 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized');
 
-h_pantitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.81 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pan', 'FontUnits', 'normalized'); %#ok<NASGU>
-h_panleft = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '<', 'FontUnits', 'normalized');
-h_panright = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '>', 'FontUnits', 'normalized');
-h_panup = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.78 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '^', 'FontUnits', 'normalized');
-h_pandown = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'v', 'FontUnits', 'normalized');
+h_pantitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.81 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pan', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_panleft = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '<', 'FontUnits', 'normalized');
+h_panright = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '>', 'FontUnits', 'normalized');
+h_panup = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.78 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '^', 'FontUnits', 'normalized');
+h_pandown = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'v', 'FontUnits', 'normalized');
 
-h_hold_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.72 0.045 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pause Plotting', 'FontUnits', 'normalized');
-h_hold_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.965 0.72 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
+h_hold_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.72 0.045 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pause Plotting', 'FontUnits', 'normalized');
+h_hold_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.965 0.72 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
 
-h_psd_plot = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.70 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'PSD', 'FontUnits', 'normalized');
-h_autofit = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.70 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fit', 'FontUnits', 'normalized');
-
-
-h_passfilttitle = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.68 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Filters', 'FontUnits', 'normalized'); %#ok<NASGU>
-
-h_notch_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Notch', 'FontUnits', 'normalized');
-h_notch_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.937 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
-h_notch_order = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.954 0.66 0.010 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.order), 'FontUnits', 'normalized');
-h_notch_orderunit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.964 0.66 0.010 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ord', 'FontUnits', 'normalized'); %#ok<NASGU>
-h_notch_qfactor = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.975 0.66 0.010 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.qfactor), 'FontUnits', 'normalized');
-h_notch_qfactorunit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.985 0.66 0.005 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Q', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_psd_plot = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.70 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'PSD', 'FontUnits', 'normalized');
+h_autofit = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.70 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fit', 'FontUnits', 'normalized');
 
 
-h_hpf_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HP', 'FontUnits', 'normalized');
-h_hpf_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.64 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
-h_hpf_cutoff = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.64 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(HighPassFilter.cutoff), 'FontUnits', 'normalized');
-h_hpf_unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_passfilttitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.68 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Filters', 'FontUnits', 'normalized'); %#ok<NASGU>
 
-h_lpf_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.62 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'LP', 'FontUnits', 'normalized');
-h_lpf_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.62 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
-h_lpf_cutoff = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.62 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(LowPassFilter.cutoff), 'FontUnits', 'normalized');
-h_lpf_unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.62 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized'); %#ok<NASGU>
-
-h_evf_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.60 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ENV', 'FontUnits', 'normalized');
-h_evf_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.60 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
-h_evf_cutoff = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.60 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(EnvelopeFilter.cutoff), 'FontUnits', 'normalized');
-h_evf_unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.60 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized'); %#ok<NASGU>
-
-h_zscore_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.58 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized');
-h_zscore_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
-
-h_fastdraw_switch = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.58 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized');
-h_fastdraw_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.98 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ON', 'FontUnits', 'normalized');
-
-h_chansel_title = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized'); %#ok<NASGU>
-h_chansel_list = uicontrol(gcf, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.92 0.12 0.040, 0.400], 'FontUnits', 'normalized');
-h_chansel_confirm = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plot', 'FontUnits', 'normalized');
-h_chansel_auto = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Auto', 'FontUnits', 'normalized');
-h_chansel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.945 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'Visible', 'off');
-
-h_cursor_enable = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.08 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Cursor', 'FontUnits', 'normalized');
-h_cursor_state = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.08 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
-h_signal_export = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export Sig', 'FontUnits', 'normalized');
+h_notch_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Notch', 'FontUnits', 'normalized');
+h_notch_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.937 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
+h_notch_order = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.954 0.66 0.010 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.order), 'FontUnits', 'normalized');
+h_notch_orderunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.964 0.66 0.010 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ord', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_notch_qfactor = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.975 0.66 0.010 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.qfactor), 'FontUnits', 'normalized');
+h_notch_qfactorunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.985 0.66 0.005 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Q', 'FontUnits', 'normalized'); %#ok<NASGU>
 
 
-h_icasel_title = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.525 0.020 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps', 'FontUnits', 'normalized'); %#ok<NASGU>
-h_icasel_list = uicontrol(gcf, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.96 0.12 0.030, 0.400], 'FontUnits', 'normalized');
-h_icasel_confirm = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Start', 'FontUnits', 'normalized');
-h_icasel_reset = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized');
-h_icasel_view_sources = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'S', 'FontUnits', 'normalized');
-h_icasel_view_mixmat = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A', 'FontUnits', 'normalized');
-h_icasel_view_sepmat = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W', 'FontUnits', 'normalized');
-h_icasel_view_export = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export ICA', 'FontUnits', 'normalized');
+h_hpf_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HP', 'FontUnits', 'normalized');
+h_hpf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.64 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
+h_hpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.64 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(HighPassFilter.cutoff), 'FontUnits', 'normalized');
+h_hpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized'); %#ok<NASGU>
 
-h_axesfont_inc = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A+', 'FontUnits', 'normalized');
-h_axesfont_dec = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.93 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A-', 'FontUnits', 'normalized');
-h_windowhsize_inc = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.95 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W+', 'FontUnits', 'normalized');
-h_windowhsize_dec = uicontrol(gcf, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W-', 'FontUnits', 'normalized');
+h_lpf_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.62 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'LP', 'FontUnits', 'normalized');
+h_lpf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.62 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
+h_lpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.62 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(LowPassFilter.cutoff), 'FontUnits', 'normalized');
+h_lpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.62 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized'); %#ok<NASGU>
 
-h_xspan_text = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.025 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'full t range [0,12345]', 'FontUnits', 'normalized');
+h_evf_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.60 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ENV', 'FontUnits', 'normalized');
+h_evf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.60 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
+h_evf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.60 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(EnvelopeFilter.cutoff), 'FontUnits', 'normalized');
+h_evf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.60 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized'); %#ok<NASGU>
 
-h_xspan_edittext1intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.01 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(1) =', 'FontUnits', 'normalized');
-h_xspan_edit1 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.04 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
-h_xspan_edittext1unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.07 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized');
+h_zscore_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.58 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized');
+h_zscore_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'OFF', 'FontUnits', 'normalized');
 
-h_xspan_edittext2intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.83 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized');
-h_xspan_edit2 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.86 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
-h_xspan_edittext2unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.89 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized');
+h_fastdraw_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.58 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized');
+h_fastdraw_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.98 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ON', 'FontUnits', 'normalized');
 
-% h_yspan_edittext1intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.41 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Selected channel YMin =', 'FontUnits', 'normalized');
-% h_yspan_edit1 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.44 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
-% h_yspan_edittext1unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.47 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized');
+h_chansel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_chansel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.92 0.12 0.040, 0.400], 'FontUnits', 'normalized');
+h_chansel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plot', 'FontUnits', 'normalized');
+h_chansel_auto = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Auto', 'FontUnits', 'normalized');
+h_chansel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.945 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'Visible', 'off');
+
+h_cursor_enable = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'I', 'FontUnits', 'normalized', 'FontName', 'Times New Roman');
+h_cursor_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.95 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'off', 'FontUnits', 'normalized');
+h_signal_export = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export Sig', 'FontUnits', 'normalized');
+
+
+h_icasel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.525 0.020 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps', 'FontUnits', 'normalized'); %#ok<NASGU>
+h_icasel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.96 0.12 0.030, 0.400], 'FontUnits', 'normalized');
+h_icasel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Start', 'FontUnits', 'normalized');
+h_icasel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized');
+h_icasel_view_sources = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'S', 'FontUnits', 'normalized');
+h_icasel_view_mixmat = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A', 'FontUnits', 'normalized');
+h_icasel_view_sepmat = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W', 'FontUnits', 'normalized');
+h_icasel_view_export = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export ICA', 'FontUnits', 'normalized');
+
+h_axesfont_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A+', 'FontUnits', 'normalized');
+h_axesfont_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.93 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A-', 'FontUnits', 'normalized');
+h_windowhsize_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.95 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W+', 'FontUnits', 'normalized');
+h_windowhsize_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W-', 'FontUnits', 'normalized');
+
+h_xspan_text = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.025 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'full t range [0,12345]', 'FontUnits', 'normalized');
+
+h_xspan_edittext1intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.01 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(1) =', 'FontUnits', 'normalized');
+h_xspan_edit1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.04 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
+h_xspan_edittext1unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.07 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized');
+
+h_xspan_edittext2intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.83 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized');
+h_xspan_edit2 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.86 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
+h_xspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.89 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized');
+
+% h_yspan_edittext1intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.41 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Selected channel YMin =', 'FontUnits', 'normalized');
+% h_yspan_edit1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.44 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
+% h_yspan_edittext1unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.47 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized');
 % 
-% h_yspan_edittext2intro = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.50 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Selected channel YMax =', 'FontUnits', 'normalized');
-% h_yspan_edit2 = uicontrol(gcf, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.53 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
-% h_yspan_edittext2unit = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.56 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized');
+% h_yspan_edittext2intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.50 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Selected channel YMax =', 'FontUnits', 'normalized');
+% h_yspan_edit2 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.53 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
+% h_yspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.56 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized');
 
 
-h_footer_message = uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.025 0.70 0.015], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized');
+h_footer_message = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.025 0.70 0.015], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized');
 if isempty(FooterMessage)
     set(h_footer_message, 'Visible', 'off');
 end
@@ -503,8 +526,8 @@ set(h_axesfont_inc, 'Callback', @f_axesfont_inc);
 set(h_axesfont_dec, 'Callback', @f_axesfont_dec);
 set(h_windowhsize_inc, 'Callback', @f_windowhsize_inc);
 set(h_windowhsize_dec, 'Callback', @f_windowhsize_dec);
-set(gcf, 'KeyPressFcn', @f_fig_keypress);
-set(gcf,'Position',screensize);
+set(fighand, 'KeyPressFcn', @f_fig_keypress);
+set(fighand,'Position',screensize);
 
 
 notch_update();
@@ -553,7 +576,7 @@ end
                     end
                     XRange = XLim(2)-XLim(1);
                     XLim = gotosec + [-1 1]*XRange/2;
-                    set(gca, 'XLim', XLim);
+                    set(axehand, 'XLim', XLim);
                     resnap_pan();
                 end
             case 'leftarrow'
@@ -590,7 +613,7 @@ end
                         resnap_pan();
                     elseif XLim(2) > max(EventTimes) && XLim(2) < Time_max
                         f_panright(hObject, 5.0);
-                        fprintf('a');
+                        %fprintf('a');
                     end
                 elseif Alt && ~EventEnable
                     if XLim(2) < Time_max
@@ -1067,7 +1090,7 @@ end
             XRange = PermittedXZoomRanges(in);
         end
         XLim(2) = XLim(1) + XRange;
-        set(gca, 'XLim', XLim);
+        set(axehand, 'XLim', XLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1090,7 +1113,7 @@ end
         end
         
         XLim(2) = XLim(1) + XRange;
-        set(gca, 'XLim', XLim);
+        set(axehand, 'XLim', XLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1103,7 +1126,7 @@ end
         YRange = YLim(2)-YLim(1);
         YRange = YRange / 2;
         YLim(1) = YLim(2) - YRange;
-        set(gca, 'YLim', YLim);
+        set(axehand, 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1117,7 +1140,7 @@ end
         %YCenter = (YLim(1)+YLim(2))/2;
         YRange = YRange * 2;
         YLim(1) = YLim(2) - YRange;
-        set(gca, 'YLim', YLim);
+        set(axehand, 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1134,7 +1157,7 @@ end
         end
         XRange = XLim(2)-XLim(1);
         XLim = XLim - XRange*panfrac;
-        set(gca, 'XLim', XLim);
+        set(axehand, 'XLim', XLim);
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
@@ -1151,7 +1174,7 @@ end
         end        
         XRange = XLim(2)-XLim(1);
         XLim = XLim + XRange*panfrac;
-        set(gca, 'XLim', XLim);
+        set(axehand, 'XLim', XLim);
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
@@ -1163,7 +1186,7 @@ end
         end
         YRange = YLim(2)-YLim(1);
         YLim = YLim + YRange;
-        set(gca, 'YLim', YLim);
+        set(axehand, 'YLim', YLim);
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
@@ -1175,7 +1198,7 @@ end
         end
         YRange = YLim(2)-YLim(1);
         YLim = YLim - YRange;
-        set(gca, 'YLim', YLim);
+        set(axehand, 'YLim', YLim);
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
@@ -1191,7 +1214,7 @@ end
         if isfinite(v) && imag(v) == 0 && v < XLim(2)
             XLim(1) = v;
         end
-        set(gca, 'XLim', XLim);
+        set(axehand, 'XLim', XLim);
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
@@ -1208,7 +1231,7 @@ end
         if isfinite(v) && imag(v) == 0 && v > XLim(1)
             XLim(2) = v;
         end
-        set(gca, 'XLim', XLim);
+        set(axehand, 'XLim', XLim);
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
@@ -1230,10 +1253,10 @@ end
             chansep = PermittedChanSepRanges(in);
         end
         %YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
-        %set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
+        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
         YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1255,10 +1278,10 @@ end
             chansep = PermittedChanSepRanges(in);
         end
         %YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
-        %set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
+        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
         YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1288,11 +1311,12 @@ end
         
         XLim = round_xlim(XLim, XRange);
         XLim(2) = XLim(1) + XRange;
-        set(gca, 'XLim', XLim, 'YLim', YLim);
+        set(axehand, 'XLim', XLim, 'YLim', YLim);
         set(h_xspan_edit1, 'String', num2str(XLim(1)));
         set(h_xspan_edit2, 'String', num2str(XLim(2)));
         filter_render();
         redraw();
+        
     end
 
 
@@ -1333,14 +1357,16 @@ end
         XLim = round_xlim(XLim, XRange);
         XLim(2) = XLim(1) + XRange;
         
-        set(gca, 'XLim', XLim, 'YLim', YLim);
+        set(axehand, 'XLim', XLim, 'YLim', YLim);
         set(h_xspan_edit1, 'String', num2str(XLim(1)));
         set(h_xspan_edit2, 'String', num2str(XLim(2)));
         filter_render();
         redraw();
+
     end
 
     function redraw()
+        %fprintf('0001 axehand xlim %g %g\n', get(axehand, 'XLim'));
         t1 = find(Time<=XLim(1),1,'last');
         t2 = find(Time>=XLim(2),1,'first');
         if isempty(t1)
@@ -1393,7 +1419,7 @@ end
 
             
             if toc(tdrawupdate) > 0.2
-                set(gca, 'YColor', BusyYColor);
+                set(axehand, 'YColor', BusyYColor);
                 drawnow
                 tdrawupdate = tic;
             end
@@ -1404,9 +1430,9 @@ end
         end
         
         if PlotHold
-            set(gca, 'YColor', InactiveYColor);
+            set(axehand, 'YColor', InactiveYColor);
         else
-            set(gca, 'YColor', DefaultYColor);
+            set(axehand, 'YColor', DefaultYColor);
         end
         
         [~,in] = min(abs((Time(t2)-Time(t1))./XTickSpacings - 20));
@@ -1417,7 +1443,7 @@ end
         for i = 1:length(tms)
             tmslabel{i} = sprintf('%g%s', tms(i)/XTickSpacingsAndUnits{in,2}, XTickSpacingsAndUnits{in,3});
         end
-        set(gca, 'XTick', tms, 'XTickLabel', tmslabel);
+        set(axehand, 'XTick', tms, 'XTickLabel', tmslabel);
         
         if EventEnable
             %YPos = [mean(YLim)+diff(YLim)/8     mean(YLim)    mean(YLim)-diff(YLim)/8];
@@ -1484,11 +1510,11 @@ end
     function f_cursor_enable(hObject, eventdata)
         if CursorEnable
             CursorEnable = 0;
-            set(h_cursor_state, 'String', 'OFF');
+            set(h_cursor_state, 'String', 'off');
             update_cursorline();
         else
             CursorEnable = 1;
-            set(h_cursor_state, 'String', 'ON');
+            set(h_cursor_state, 'String', 'on');
         end
     end
 
@@ -1496,7 +1522,7 @@ end
     function f_chansel_confirm(hObject, eventdata)
         selchan = get(h_chansel_list, 'Value');
         Nsch = length(selchan);
-        set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)));
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)));
         redraw();
     end
 
@@ -1507,6 +1533,8 @@ end
     function f_psd_plot(hObject, eventdata)
         if ~ishandle(viewhand_psd)
             viewhand_psd = figure;
+            viewhand_psd_axe = axes('parent',viewhand_psd);
+            set(viewhand_psd, 'KeyPressFcn', @f_fig_keypress);
             update_psd();
         else
             figure(viewhand_psd);
@@ -1535,7 +1563,7 @@ end
         selected_cursortype = sel_type;
         
         
-        yl = get(gca, 'YLim');
+        yl = get(axehand, 'YLim');
         set(cursorlinehand, 'YData', yl, 'XData', selected_timepoint*[1 1], 'Visible', 'on');
         
         ypoint = [];
@@ -1586,7 +1614,7 @@ end
                     tmpunit = 'µV²';
                 end
                 
-                xr = diff(get(gca, 'XLim'));
+                xr = diff(get(axehand, 'XLim'));
                 
                 if sel_type == 1
                     ypointdisplayed(ch) = YDATA_fullres(loclookcenter);
@@ -1641,9 +1669,10 @@ end
                     % These are the same signal.
                     return
                 end
-                tmp1 = gcf;
+                tmp1 = fighand;
                 set(0, 'CurrentFigure', viewhand_psd);
-                set(gca, 'FontSize', 16);
+                
+                set(viewhand_psd_axe, 'FontSize', 16);
                 Signal_psd_source = tmp;
                 [pxx, fxx] = pwelch(Signal_psd_source, [], [], [], Fs);
                 plot(fxx, 10*log10(pxx));
@@ -1685,7 +1714,7 @@ end
                 end
                 
                 try  %#ok<*TRYNC>
-                    set(gca, 'XLim', [fc1 fc2]);
+                    set(viewhand_psd_axe, 'XLim', [fc1 fc2]);
                 end
                 title(['Welch PSD in ' channame ', ' num2str(Time(t1))  '-' num2str(Time(t2)) ' s']);
                 set(viewhand_psd, 'Name', ['PSD in ' channame ' from ' num2str(Time(t1)) ' to ' num2str(Time(t2)) ' s ' tmp_filttext]);
@@ -1876,7 +1905,7 @@ end
 
     function f_axesfont_inc(hObject, eventdata)
         AxesFontSize = AxesFontSize + .001;
-        set(gca, 'FontSize', AxesFontSize);
+        set(axehand, 'FontSize', AxesFontSize);
         set([plottext1hand plottext2hand plottext3hand], 'FontSize', AxesFontSize);
     end
 
@@ -1884,14 +1913,14 @@ end
         if AxesFontSize > .002
             AxesFontSize = AxesFontSize - .001;
         end
-        set(gca, 'FontSize', AxesFontSize);
+        set(axehand, 'FontSize', AxesFontSize);
         set([plottext1hand plottext2hand plottext3hand], 'FontSize', AxesFontSize);
     end
 
     function f_windowhsize_inc(hObject, eventdata)
         %AxesPosition = [0.0500    0.0600    0.86    0.93];
         AxesPosition = AxesPosition + [-0.01 0 0.01 0];
-        set(gca, 'Position', AxesPosition);
+        set(axehand, 'Position', AxesPosition);
     end
 
     function f_windowhsize_dec(hObject, eventdata)
@@ -1899,14 +1928,14 @@ end
         if AxesPosition(3) > 0
             AxesPosition = AxesPosition - [-0.01 0 0.01 0];
         end
-        set(gca, 'Position', AxesPosition);
+        set(axehand, 'Position', AxesPosition);
     end
 
     function f_plothand_buttondown(hObject, eventdata)
         selected_plothand = hObject;
         update_psd();
         
-        acp = get(gca, 'CurrentPoint');
+        acp = get(axehand, 'CurrentPoint');
         selected_timepoint = acp(1);
         if selected_timepoint == previously_selected_timepoint
             previously_selected_timepoint = selected_timepoint - 2;
@@ -1915,7 +1944,7 @@ end
         else
             previously_selected_timepoint = selected_timepoint;
         end
-        switch get(gcf,'SelectionType')
+        switch get(fighand,'SelectionType')
             case 'normal'
                 update_cursorline(1);
             case 'alt'
