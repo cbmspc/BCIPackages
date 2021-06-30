@@ -2,13 +2,31 @@
 % samples per second
 %
 % Optional input arguments:
-%   EventTimeStamps should be a Nx2 cell {1.2345, 'Abc'; 4.5, 'Def'} with first column in seconds, and 2nd column a string
-%   ica_W = ICA separating matrix with orientation (Nsource x Nchan), i.e. ica_W * Signal.' = Source.'
-%   ica_A = ICA mixing matrix with orientation (Nchan x Nsource), i.e. ica_A * Source.' = Signal.'
-%   Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
-%   If ica matrices are not specified, FastICA is used
+% First, create a struct called opts. Every field is optional.
+%
+%   opts.EventTimeStamps should be a Nx2 cell {1.2345, 'Abc'; 4.5, 'Def'} with first column in seconds, and 2nd column a string
+%
+%   opts.ica_W = ICA separating matrix with orientation (Nsource x Nchan), i.e. ica_W * Signal.' = Source.'
+%   opts.ica_A = ICA mixing matrix with orientation (Nchan x Nsource), i.e. ica_A * Source.' = Signal.'
+%    Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
+%    If ica matrices are not specified, FastICA is used
+%
+%   opts.FooterMessage = 'footer messaage'
+%
+%   opts.notch = 60
+%   If specified, turns on the notch filter at the specified powerline frequency (and harmonics)
+%
+%   opts.bandpass = [1 35]
+%   If specified, turns on both high pass and low pass filters at the specified corner frequencies
+%
+%   opts.highpass = 1
+%   If specified, turns on high pass filter at the specified corner frequency. This field is ignored if bandpass is specified.
+%
+%   opts.lowpass = 30
+%   If specified, turns on low pass filter at the specified corner frequency. This field is ignored if bandpass is specified.
+%
 
-function fighand = signalviewer(Signal, SampleRate, ChanNames, EventTimeStamps, ica_W, ica_A, FooterMessage)
+function fighand = signalviewer(Signal, SampleRate, ChanNames, opts, argin5, argin6, argin7)
 %t_program_start = tic;
 try
     mfnp = mfilename('fullpath');
@@ -31,6 +49,54 @@ if ~iscell(Signal) && size(Signal,3) > 1
     end
     Signal = tmp;
 end
+
+
+if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
+    if isfield(opts, 'EventTimeStamps')
+        EventTimeStamps = opts.EventTimeStamps;
+    elseif isfield(opts, 'eventtimestamps')
+        EventTimeStamps = opts.eventtimestamps;
+    else
+        EventTimeStamps = [];
+    end
+    if isfield(opts, 'ica_W')
+        ica_W = opts.ica_W;
+    elseif isfield(opts, 'ica_w')
+        ica_W = opts.ica_w;
+    else
+        ica_W = [];
+    end
+    if isfield(opts, 'ica_A')
+        ica_A = opts.ica_A;
+    elseif isfield(opts, 'ica_a')
+        ica_A = opts.ica_a;
+    else
+        ica_A = [];
+    end
+    if isfield(opts, 'FooterMessage')
+        FooterMessage = opts.FooterMessage;
+    elseif isfield(opts, 'footermessage')
+        FooterMessage = opts.footermessage;
+    else
+        FooterMessage = '';
+    end
+elseif nargin >= 4
+    % Old callers still use the 4th input argument as EventTimeStamps
+    
+    if exist('opts', 'var') && ~isstruct(opts)
+        EventTimeStamps = opts;
+    end
+    if exist('argin5', 'var')
+        ica_W = argin5;
+    end
+    if exist('argin6', 'var')
+        ica_A = argin6;
+    end
+    if exist('argin7', 'var')
+        FooterMessage = argin7;
+    end
+end
+
 
 if iscell(Signal)
     UserSuppliedEventNames = 0;
@@ -83,6 +149,10 @@ end
 
 if ~exist('FooterMessage', 'var')
     FooterMessage = '';
+end
+
+if ~exist('opts', 'var') || ~isstruct(opts)
+    opts = struct;
 end
 
 viewhand_ica_sig = ceil(rand*1000000000);
@@ -560,6 +630,34 @@ try
 end
 
 
+if isfield(opts, 'notch')
+    if ~isempty(opts.notch) && opts.notch > 0
+        if opts.notch >= 40 && opts.notch <= 300
+            PowerLineFrequency = opts.notch;
+        end
+        f_notch_switch(fighand, []);
+    end
+end
+if isfield(opts, 'bandpass')
+    if numel(opts.bandpass) == 2 && opts.bandpass(1) > 0 && opts.bandpass(2) < Fs/2 && opts.bandpass(1) < opts.bandpass(2)
+        set(h_hpf_cutoff, 'String', num2str(opts.bandpass(1)));
+        set(h_lpf_cutoff, 'String', num2str(opts.bandpass(2)));
+        f_bpf_switch(fighand, []);
+    end
+else
+    if isfield(opts, 'highpass')
+        if numel(opts.highpass) == 1 && opts.highpass(1) > 0 && opts.highpass(1) < Fs/2
+            set(h_hpf_cutoff, 'String', num2str(opts.highpass(1)));
+            f_hpf_switch(fighand, []);
+        end
+    end
+    if isfield(opts, 'lowpass')
+        if numel(opts.lowpass) == 1 && opts.lowpass(1) > 0 && opts.lowpass(1) < Fs/2
+            set(h_lpf_cutoff, 'String', num2str(opts.lowpass(1)));
+            f_lpf_switch(fighand, []);
+        end
+    end
+end
 
     function f_fig_keypress(hObject, eventdata)
         Key = eventdata.Key;
@@ -714,6 +812,18 @@ end
             set(h_lpf_state, 'String', 'OFF');
         end
         
+        filter_update();
+        enable_filter_switches();
+    end
+
+    function f_bpf_switch(hObject, eventdata)
+        % This is not a real switch but rather lets a batch script update
+        % two filters at the same time
+        disable_filter_switches();
+        HighPassFilter.state = 1;
+        set(h_hpf_state, 'String', 'ON');
+        LowPassFilter.state = 1;
+        set(h_lpf_state, 'String', 'ON');
         filter_update();
         enable_filter_switches();
     end

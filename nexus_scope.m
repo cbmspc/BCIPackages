@@ -17,8 +17,23 @@ SWautospeed = 1;
 % The following switches are only used for display:
 SWcar = 0; % common average referencing
 SWfilter = 0; % band pass frequency filter
-Fcutoff = SampleRate/4; % Filter cutoff (Hz) for low pass filter
-Fcutoffhigh = 0.5; % Filter cutoff (Hz) for high pass filter
+HPF_Order = 2; % was 2.
+LPF_Order = 8; % was 2.
+SWnotch = 0; % power line notch filter
+PowerLineFrequency = 60.00; % power line frequency in Hz
+NotchFilter.order = 4; % Must be even
+NotchFilter.qfactor = 10;
+Funda = PowerLineFrequency;
+for h = floor(SampleRate/2/Funda):-1:1
+    % Create one for each harmonic
+    d = fdesign.notch('N,F0,Q',NotchFilter.order,Funda*h/(SampleRate/2),NotchFilter.qfactor*h);
+    notchHd{h} = design(d);
+end
+clear d h
+SWnohardwaremode = 0; % No hardware mode (for viewing the scope window only)
+fakecounter = 0;
+Fcutoff = 30; % Filter cutoff (Hz) for low pass filter
+Fcutoffhigh = 1; % Filter cutoff (Hz) for high pass filter
 SWenvelope = 0; % Power envelope switch
 Fenvelope = 1.5; % Enveloping filter
 SWautoscale = 1; % auto-scale
@@ -26,7 +41,7 @@ SWovervoltagewarning = 1; % over-voltage warning
 CSWmediandisp = [1 0];
 SWzscore = 0;
 AutoNumericChanNames = 0;  % When greater than 1, automatically swap between channel names and plug numbers every AutoNumericChanNames seconds.
-SWmaximize = 0; % Maximize window on load.
+SWmaximize = 1; % Maximize window on load.
 
 AcqDuration = 10.0; % Do not change This is the acquisition buffer size
 globalscale = 1;
@@ -153,6 +168,7 @@ WaitFontColor = [0 1 1];
 SavedFontColor = [0.3 0.3 1];
 WarningNotRecordedString = 'NOT RECORDED';
 WarningTriggerLostString = 'TRIGGER LOST';
+WarningNoHardwareString = ['No connection to amplifiers.' 10 'Displayed signals are simulated.' 10 'NOT REAL DATA'];
 WarningBatteryLowString = 'LOW BATTERY';
 WarningDeviceErrorString = ['DEVICE ERROR' 10 'NO DATA RECEIVED'];
 WarningNotRecordedColor1 = [1.0 0 0];
@@ -167,6 +183,7 @@ Warned.NotRecorded = 0;
 Warned.TriggerLost = 0;
 Warned.LowBattery = 0;
 Warned.DeviceError = 0;
+Warned.NoHardware = 0;
 Warned.BufferFull = 0;
 WarningBufferFullString = 'BUFFER ALMOST FULL';
 WarnBufferFullBeforeSec = 120.000;
@@ -204,7 +221,8 @@ AngryLineColor = 0.7*AngryFontColor;
 
 % Provide recording buffer using memory mapped file. 
 % 63 minutes takes about 4 GiB at 2048 Hz
-BufferDurationSec = floor(63*60*2048/SampleRate);
+%BufferDurationSec = floor(63*60*2048/SampleRate);
+BufferDurationSec = 63*60;
 
 
 NexusChanNamesFileName = [getcccdatadir() filesep 'intermediate' filesep 'NexusChanNames.mat'];
@@ -314,9 +332,19 @@ end
 try
     nexus_init(Nchan);
 catch exception
-    disp(['Error: Error initialzing. ' exception.message]);
-    error('Error: Error initializing.');
-    return
+    SWnohardwaremode = 1;
+    FakeChanNames = {'3Hz', '7Hz', '11Hz', '17Hz', '23Hz', '31Hz', '75Hz', '90Hz', '100Hz', '110Hz', ...
+        '3HzN1', '7HzN1', '11HzN1', '17HzN1', '23HzN1', '31HzN1', '75HzN1', '90HzN1', '100HzN1', '110HzN1', ...
+        '3HzN2', '7HzN2', '11HzN2', '17HzN2', '23HzN2', '31HzN2', '75HzN2', '90HzN2', '100HzN2', '110HzN2', ...
+        '3HzN3', '7HzN3', '11HzN3', '17HzN3', '23HzN3', '31HzN3', '75HzN3', '90HzN3', '100HzN3', '110HzN3', ...
+        '3HzSquare', '7HzSquare', '11HzSquare', '17HzSquare', '23HzSquare', '31HzSquare', '75HzSquare', '90HzSquare', '100HzSquare', '110HzSquare'};
+    OriginalChanNames(1:length(FakeChanNames)) = FakeChanNames;
+    ChanNames = OriginalChanNames;
+    disp('Error: Error initializing (the command "nexus_init" did not work).');
+    disp(['The error message was: ' exception.message]);
+    disp('The scope is continuing to load without a connection to the amplifiers.');
+    %error('Error: Error initializing.');
+    %return
 end
 
 try
@@ -380,8 +408,6 @@ WarnData.NotRecorded.HorizontalAlignment = 'center';
 WarnData.NotRecorded.VerticalAlignment = 'middle';
 WarnData.NotRecorded.FontName = 'Arial Narrow';
 
-
-
 WarnData.TriggerLost.String = WarningTriggerLostString;
 WarnData.TriggerLost.FontSize = WarningNotRecordedFontSize;
 WarnData.TriggerLost.Color1 = WarningNotRecordedColor1;
@@ -417,6 +443,19 @@ WarnData.DeviceError.FontWeight = 'bold';
 WarnData.DeviceError.HorizontalAlignment = 'center';
 WarnData.DeviceError.VerticalAlignment = 'middle';
 WarnData.DeviceError.FontName = 'Arial Narrow';
+
+WarnData.NoHardware.String = WarningNoHardwareString;
+WarnData.NoHardware.FontSize = WarningNotRecordedFontSize;
+WarnData.NoHardware.Color1 = WarningNotRecordedColor1;
+WarnData.NoHardware.Color2 = WarningNotRecordedColor1;
+WarnData.NoHardware.BackgroundColor = BattLowBackgroundColor;
+WarnData.NoHardware.EdgeColor = BattLowEdgeColor;
+WarnData.NoHardware.LineWidth = BattLowLineWidth;
+WarnData.NoHardware.FontWeight = 'bold';
+WarnData.NoHardware.HorizontalAlignment = 'center';
+WarnData.NoHardware.VerticalAlignment = 'middle';
+WarnData.NoHardware.FontName = 'Arial Narrow';
+
 
 WarnData.BufferFull.String = WarningBufferFullString;
 WarnData.BufferFull.FontSize = WarningNotRecordedFontSize;
@@ -621,12 +660,13 @@ scopecontrol.noplot = uicontrol(scopecontrol.panel, 'Style', 'checkbox', 'String
 scopecontrol.car = uicontrol(scopecontrol.panel, 'Style', 'checkbox', 'String', 'Common Average Reference');
 scopecontrol.numericchannames = uicontrol(scopecontrol.panel, 'Style', 'checkbox', 'String', 'Num Chan', 'Callback', @scopecontrol_numeric_channames);
 
-scopecontrol.filter = uicontrol(scopecontrol.panel, 'Style', 'checkbox', 'String', 'Filter');
+scopecontrol.filter = uicontrol(scopecontrol.panel, 'Style', 'checkbox', 'String', 'Bandpass');
 scopecontrol.filterhighpasstext = uicontrol(scopecontrol.panel, 'Style', 'text', 'String', 'HPF:');
 scopecontrol.filterhighpass = uicontrol(scopecontrol.panel, 'Style', 'edit', 'String', num2str(Fcutoffhigh));
 scopecontrol.filterlowpasstext = uicontrol(scopecontrol.panel, 'Style', 'text', 'String', 'LPF:');
 scopecontrol.filterlowpass = uicontrol(scopecontrol.panel, 'Style', 'edit', 'String', num2str(Fcutoff));
-scopecontrol.filtertext = uicontrol(scopecontrol.panel, 'Style', 'text', 'String', 'Filters (in Hz) only affect displayed traces.');
+scopecontrol.filtertext = uicontrol(scopecontrol.panel, 'Style', 'text', 'String', 'Filters only affect displayed traces.');
+scopecontrol.notchfilter = uicontrol(scopecontrol.panel, 'Style', 'checkbox', 'String', 'Notch');
 
 scopecontrol.envelope = uicontrol(scopecontrol.panel, 'Style', 'checkbox', 'String', 'Envelope');
 scopecontrol.envelopelowpasstext = uicontrol(scopecontrol.panel, 'Style', 'text', 'String', 'ENV:');
@@ -681,7 +721,8 @@ panelitems = {
     scopecontrol.noplot 7.5 0 0.45
     scopecontrol.numericchannames 7.5 0.45 0.45
     scopecontrol.car 9 0 0.9
-    scopecontrol.filter 10.5 0 0.45
+    scopecontrol.filter 10.5 0 0.33
+    scopecontrol.notchfilter 10.5 0.35 0.27
     scopecontrol.filterhighpasstext 11.5 0 0.13
     scopecontrol.filterhighpass 11.5 0.13 0.15
     scopecontrol.filterlowpasstext 11.5 0.3 0.13
@@ -708,6 +749,8 @@ for i = 1:size(panelitems,1)
     end
 end
 
+set(scopecontrol.notchfilter, 'Visible', 'off');
+
 %keyboard
 
 if ~SWplot
@@ -718,6 +761,9 @@ if SWcar
 end
 if SWfilter
     set(scopecontrol.filter, 'Value', 1);
+end
+if SWnotch
+    set(scopecontrol.notchfilter, 'Value', 1);
 end
 if SWautoscale
     set(scopecontrol.autoscale, 'Value', 1);
@@ -745,6 +791,8 @@ ows = ones(1,Windowsize);
 %if SWfilter
 Zf_initial = zeros(length(setdiff(1:Nchan,METAchan)),nlookback).';
 Zf = Zf_initial;
+Zf_notch_initial = zeros(length(setdiff(1:Nchan,METAchan)),max(length(notchHd{1}.sosMatrix(1,:)), length(notchHd{1}.ScaleValues))-1).';
+notchZf = Zf_notch_initial;
 %end
 Zf_env_initial = zeros(length(setdiff(1:Nchan,METAchan)),nlookback_env).';
 Zf_env = Zf_env_initial;
@@ -775,7 +823,8 @@ while retry
     mmfilename = [SavePathName filesep 'nexus_scope_mmf_' num2str(retry) '.dat'];
     retry = retry + 1;
 end
-fprintf('Initializing memory mapped file.\n');
+estimatedsize = 8*4 + 8*(Nchan+1)*BufferDurationSec*SampleRate + 2*1*BufferDurationSec*SampleRate;
+fprintf('Creating a temp file for memory mapped file (%g MiB) to buffer %g seconds at %g Hz sample rate...\n', estimatedsize/1048576, BufferDurationSec, SampleRate);
 fwrite(fid, zeros(1,2), 'double');
 fwrite(fid, zeros(1,1), 'double');
 fwrite(fid, zeros(1,1), 'double');
@@ -798,7 +847,7 @@ rawdata = [];
 rawevent = [];
 fprintf('Memory mapped file: %s \n',mmfilename);
 
-if nargout >= 2
+if nargout >= 2 && ~SWnohardwaremode
     SWrecord = 1;
     RecordStart = 1;
     segmentsuid = datestr(now,'yyyymmdd-HHMMSS-FFF');
@@ -813,19 +862,24 @@ set(thwarning, 'Visible', 'off');
 drawnow
 
 
-try
-    nexus_start(SampleRate, AcqDuration); %20121126 changed from 2.0 sec
-catch exception
-    disp(['Error: Error starting data acquisition. ' exception.message '. Most likely, you will need to restart MATLAB.']);
-    disp('     (1) Check if the amplifiers are turned on');
-    disp('     (2) Change batteries if they are running low (if you use batteries)');
-    disp('     (3) Check if SynFi or FUSBI is plugged in on both ends (USB and fiber)');
-    disp('     (4) Save your work if necessary, restart MATLAB, and try again');
-    if ishandle(fighand)
-        close(fighand);
+if ~SWnohardwaremode
+    try
+        nexus_start(SampleRate, AcqDuration); %20121126 changed from 2.0 sec
+    catch exception
+        SWnohardwaremode = 1;
+        disp('Error: Error starting data acquisition (the command "nexus_start" did not work).');
+        disp(['The error message from the command was: ' exception.message]);
+        disp('The scope is continuing to load without a connection to the amplifiers.');
+        %disp('     (1) Check if the amplifiers are turned on');
+        %disp('     (2) Change batteries if they are running low (if you use batteries)');
+        %disp('     (3) Check if SynFi or FUSBI is plugged in on both ends (USB and fiber)');
+        %disp('     (4) Save your work if necessary, restart MATLAB, and try again');
+        %if ishandle(fighand)
+        %    close(fighand);
+        %end
+        rawdata(1) = NaN;
+        %return
     end
-    rawdata(1) = NaN;
-    return
 end
 CursorPosition = 0;
 RecordedSamples = 0;
@@ -860,7 +914,11 @@ for i = 1:intmax
     Timer.acqstart = clock;
     %20121025: Acquire more than requested amount, then trim
     %rawchunk = nexus_getdata(SampleRate,RefreshPeriod,Nchan);
-    rawsafechunk = nexus_getdata(SampleRate,RefreshPeriod+FetchExtraSec,Nchan,[],1);
+    if ~SWnohardwaremode
+        rawsafechunk = nexus_getdata(SampleRate,RefreshPeriod+FetchExtraSec,Nchan,[],1);
+    else
+        rawsafechunk = fakenexus_getsimulateddata(SampleRate,RefreshPeriod+FetchExtraSec,Nchan,[],1);
+    end
     tmp = find(rawsafechunk(STATUSchan(1),:),1,'last');
     if isempty(tmp)
         tmp = 0;
@@ -905,6 +963,15 @@ for i = 1:intmax
     %else
     
     filteredvoltchunk = rawvoltchunk;
+    
+    % notch 20210609 - does not work yet
+    if SWnotch
+        %for h = 1:floor(SampleRate/2/Funda)
+            %[filteredvoltchunk(setdiff(1:Nchan,METAchan),:), notchZf] = filter(notchHd{h}.sosMatrix(1,:), notchHd{h}.ScaleValues, filteredvoltchunk(setdiff(1:Nchan,METAchan),:), notchZf, 2);
+        %end
+    end
+    
+    
     
     % car / filter
     
@@ -1251,6 +1318,13 @@ for i = 1:intmax
         end
     end
     
+    if SWnohardwaremode
+        if ~Warned.NoHardware
+            Warned.NoHardware = 1;
+        end
+    end
+    
+    
     if any(BattLowWarn)
         if ~Warned.LowBattery
             %set(thwarninglowbattery, 'Visible', 'on');
@@ -1271,7 +1345,7 @@ for i = 1:intmax
         DeviceErrorWarn = FailedToStart;
     end
     
-    if any(DeviceErrorWarn)
+    if any(DeviceErrorWarn) && ~SWnohardwaremode
         if ~Warned.DeviceError
             WarningCount.DeviceError = WarningCount.DeviceError + 1;
             if WarningCount.DeviceError >= Deltasize
@@ -1367,7 +1441,7 @@ for i = 1:intmax
         fprintf('[%10.0f ms] Recording stopped. Display window disappeared.\n',etime(clock,Timer.loopstart)*1000);
         break
     end
-    if ~SWrecord && get(scopecontrol.startrecording, 'Value')
+    if ~SWrecord && get(scopecontrol.startrecording, 'Value') && ~SWnohardwaremode
         Timer.lastactivity = clock;
         SWrecord = 1;
         Warned.NotRecorded = 0;
@@ -1393,6 +1467,8 @@ for i = 1:intmax
         set(scopecontrol.startrecording, 'Enable', 'off');
         drawnow
         nexus_savesegment(mmfilename, mmfobj, RecordStart, STATUSchan, SegmentSaveUNC, SampleRate, ChanNames);
+    elseif get(scopecontrol.startrecording, 'Value') && SWnohardwaremode
+        set(scopecontrol.startrecording, 'Value', 0);
     end
     
     if get(scopecontrol.paneltoggle, 'Value') && strcmp(get(scopecontrol.panel, 'Visible'), 'off')
@@ -1430,6 +1506,15 @@ for i = 1:intmax
             CSWmediandisp(1) = 1;
         end
     end
+    
+    if ~SWnotch && get(scopecontrol.notchfilter, 'Value')
+        Timer.lastactivity = clock;
+        SWnotch = 1;
+    elseif SWnotch && ~get(scopecontrol.notchfilter, 'Value')
+        Timer.lastactivity = clock;
+        SWnotch = 0;
+    end
+
     
     if SWfilter
         tmp_1 = str2double(get(scopecontrol.filterhighpass, 'String'));
@@ -1493,6 +1578,7 @@ for i = 1:intmax
         Timer.lastactivity = clock;
         SWplot = 1;
         Zf = Zf_initial;
+        notchZf = Zf_notch_initial;
         Zf_env = Zf_env_initial;
     end
     
@@ -1561,8 +1647,8 @@ for i = 1:intmax
         elseif RestartNexusConfirm == 1
             RestartNexusConfirm = 0;
             set(scopecontrol.restartnexus, 'Enable', 'off', 'String', RestartNexusButton.actiontext);
-            if ~SWrecord
-                restart_nexus (Nchan, SampleRate, AcqDuration);
+            if ~SWrecord && ~SWnohardwaremode
+                restart_nexus(Nchan, SampleRate, AcqDuration);
                 scopecontrol.restartnexus_touched = clock;
             end
         end
@@ -1621,7 +1707,9 @@ if SWrecord
     end
 end
 
-nexus_exit();
+if ~SWnohardwaremode
+    nexus_exit();
+end
 
 fprintf('Memory mapped file: %s \n',mmfilename);
 
@@ -1822,6 +1910,7 @@ rawdata = rawdata(1:end-1,:);
         NRwarning = '';
         TRIGstatus = '';
         FIwarning = '';
+        NOTCHwarning = '';
         CAwarning = '';
         GCcount = '';
         if ~SWrecord
@@ -1831,6 +1920,9 @@ rawdata = rawdata(1:end-1,:);
         end
         if SWfilter
             FIwarning = ['(BPF ' num2str(Fcutoffhigh,'%.2f') '-' num2str(Fcutoff,'%.2f') 'Hz)'];
+        end
+        if SWnotch
+            NOTCHwarning = ['(NOTCH ' num2str(PowerLineFrequency,'%.2f') 'Hz)'];
         end
         if SWcar
             CAwarning = '(CAR)';
@@ -1855,7 +1947,7 @@ rawdata = rawdata(1:end-1,:);
             UNITname = 'Zscores';
         end
         
-        TitleStr = ['Expm time: ' LoopElapTimeStr '; ' 'Scale: ' num2str(DISPfullmedian*globalscale*UNITfactor) ' ' UNITname ' ' GCcount FIwarning CAwarning NRwarning TRIGstatus];
+        TitleStr = ['Expm time: ' LoopElapTimeStr '; ' 'Scale: ' num2str(DISPfullmedian*globalscale*UNITfactor) ' ' UNITname ' ' GCcount FIwarning NOTCHwarning CAwarning NRwarning TRIGstatus];
         if ~strcmp(TitleStr,PrevTitleStr)
             if min(ishandle(titlehand)) && ishandle(fighand)
                 set(titlehand,'String',TitleStr);
@@ -1943,14 +2035,14 @@ rawdata = rawdata(1:end-1,:);
         FiltcoefA = 1;
         
         if Fcutoffhigh > 0
-            [FB2,FA2] = butter(2,Fcutoffhigh/(SampleRate/2),'high');
+            [FB2,FA2] = butter(HPF_Order,Fcutoffhigh/(SampleRate/2),'high');
             FiltcoefB = conv(FiltcoefB,FB2);
             FiltcoefA = conv(FiltcoefA,FA2);
         end
         
         tmp = Fcutoff/(SampleRate/2);
         if tmp < 1
-            [FB2,FA2] = butter(2,tmp,'low');
+            [FB2,FA2] = butter(LPF_Order,tmp,'low');
             FiltcoefB = conv(FiltcoefB,FB2);
             FiltcoefA = conv(FiltcoefA,FA2);
         end
@@ -2090,6 +2182,84 @@ rawdata = rawdata(1:end-1,:);
         end
     end
 
-
+    function fakedata = fakenexus_getsimulateddata (AcqSamplRateHz, AcqTimeSeconds, NumChannels, libnames, ForwardFetch)
+        fakedata = zeros(NumChannels, AcqSamplRateHz*AcqTimeSeconds);
+        tt = (0:AcqSamplRateHz*AcqTimeSeconds-1)/AcqSamplRateHz;
+        %mainAmp = 10;
+        mainAmp = mod(now*86400,60);
+        reo = regexp(FakeChanNames, '^(\d+)Hz$', 'tokens', 'once');
+        reoN1 = regexp(FakeChanNames, '^(\d+)HzN1$', 'tokens', 'once');
+        reoN2 = regexp(FakeChanNames, '^(\d+)HzN2$', 'tokens', 'once');
+        reoN3 = regexp(FakeChanNames, '^(\d+)HzN3$', 'tokens', 'once');
+        reoN4 = regexp(FakeChanNames, '^(\d+)HzN4$', 'tokens', 'once');
+        reoN5 = regexp(FakeChanNames, '^(\d+)HzN5$', 'tokens', 'once');
+        reoN6 = regexp(FakeChanNames, '^(\d+)HzN6$', 'tokens', 'once');
+        reoN7 = regexp(FakeChanNames, '^(\d+)HzN7$', 'tokens', 'once');
+        reoSquare = regexp(FakeChanNames, '^(\d+)HzSquare$', 'tokens', 'once');
+        targetHz = zeros(length(FakeChanNames),1);
+        for ich = 1:length(FakeChanNames)
+            if ~isempty(reo{ich})
+                targetHz(ich) = str2double(reo{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = mainAmp * sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+            elseif ~isempty(reoN1{ich})
+                targetHz(ich) = str2double(reoN1{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = mainAmp * sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+                realHzN = PowerLineFrequency * (1+randn/1000);
+                fakedata(ich,:) = fakedata(ich,:) + 1 * sin(2*pi*tt*realHzN) .* (1+randn(1,length(tt))/100); % add power line noise
+            elseif ~isempty(reoN2{ich})
+                targetHz(ich) = str2double(reoN2{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = mainAmp * sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+                realHzN = PowerLineFrequency * (1+randn/1000);
+                fakedata(ich,:) = fakedata(ich,:) + 10 * sin(2*pi*tt*realHzN) .* (1+randn(1,length(tt))/100); % add power line noise
+            elseif ~isempty(reoN3{ich})
+                targetHz(ich) = str2double(reoN3{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = mainAmp * sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+                realHzN = PowerLineFrequency * (1+randn/1000);
+                fakedata(ich,:) = fakedata(ich,:) + 100 * sin(2*pi*tt*realHzN) .* (1+randn(1,length(tt))/100); % add power line noise
+            elseif ~isempty(reoN4{ich})
+                targetHz(ich) = str2double(reoN4{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = mainAmp * sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+                realHzN = PowerLineFrequency * (1+randn/1000);
+                fakedata(ich,:) = fakedata(ich,:) + 1000 * sin(2*pi*tt*realHzN) .* (1+randn(1,length(tt))/100); % add power line noise
+            elseif ~isempty(reoN5{ich})
+                targetHz(ich) = str2double(reoN5{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = mainAmp * sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+                realHzN = PowerLineFrequency * (1+randn/1000);
+                fakedata(ich,:) = fakedata(ich,:) + 10000 * sin(2*pi*tt*realHzN) .* (1+randn(1,length(tt))/100); % add power line noise
+            elseif ~isempty(reoN6{ich})
+                targetHz(ich) = str2double(reoN6{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = mainAmp * sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+                realHzN = PowerLineFrequency * (1+randn/1000);
+                fakedata(ich,:) = fakedata(ich,:) + 100000 * sin(2*pi*tt*realHzN) .* (1+randn(1,length(tt))/100); % add power line noise
+            elseif ~isempty(reoN7{ich})
+                targetHz(ich) = str2double(reoN7{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = mainAmp * sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+                realHzN = PowerLineFrequency * (1+randn/1000);
+                fakedata(ich,:) = fakedata(ich,:) + 1000000 * sin(2*pi*tt*realHzN) .* (1+randn(1,length(tt))/100); % add power line noise
+            elseif ~isempty(reoSquare{ich})
+                targetHz(ich) = str2double(reoSquare{ich}{1});
+                realHz = targetHz(ich) * (1+randn/100);
+                fakedata(ich,:) = sin(2*pi*tt*realHz) .* (1+randn(1,length(tt))/100);
+                fakedata(ich,fakedata(ich,:)<0) = -mainAmp;
+                fakedata(ich,fakedata(ich,:)>0) = mainAmp;
+            end
+        end
+        
+        fakedata(STATUSchan,:) = 2;
+        fakedata(DIAGchan,:) = fakecounter + (1:AcqSamplRateHz*AcqTimeSeconds);
+        if ~ForwardFetch
+            pause(AcqTimeSeconds);
+        else
+            pause(AcqTimeSeconds/10);
+        end
+    end
 
 end
