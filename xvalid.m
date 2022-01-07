@@ -374,7 +374,18 @@ if ~iscell(TimeNames)
     if ischar(TimeNames)
         TimeNames = string_to_cell(TimeNames, ', ');
     elseif isnumeric(TimeNames)
-        TimeNames = string_to_cell(num2str(TimeNames(:).'),' ');
+        %2021-11-03
+        if size(TimeNames,2) == 2 && size(TimeNames,1) == Ntime
+            tmp2 = cell(Ntime,1);
+            for i = 1:size(TimeNames,1)
+                tmp = sprintf('%.3g–%.3g', TimeNames(i,1), TimeNames(i,2));
+                tmp2{i} = tmp;
+            end
+            TimeNames = tmp2;
+            clear tmp tmp2
+        else
+            TimeNames = string_to_cell(num2str(TimeNames(:).'),' ');
+        end
     end
 end
 
@@ -1124,7 +1135,7 @@ if ~isempty(Nchan)
             if isempty(Identifier)
                 Identifier = 'NaN';
             end
-            CommentTextCell(c) = {['ID=' Identifier ', ' tmp_CmtZscored 'P[all]=' tmp_pcor ', P[' Classname{c} ']=' tmp_pcondiag{c} ', n=' num2str(tmp_Ntrial(c)) ', nch=' num2str(FmatNchan)]};
+            CommentTextCell(c) = {['ID=' Identifier ', ' tmp_CmtZscored 'P[all]=' tmp_pcor ', P[' Classname{c} ']=' tmp_pcondiag{c} ', n_' num2str(c-1) '=' num2str(tmp_Ntrial(c)) ', nch=' num2str(FmatNchan)]};
         end
         
         if SWcompactfilter

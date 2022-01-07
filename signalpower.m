@@ -9,7 +9,9 @@ Min_NFFT = Fs/min(diff(frange,[],2));
 L = size(signal,1);
 if ~exist('NFFT','var') || isempty(NFFT) || ~isnumeric(NFFT)
     %NFFT = 2^nextpow2(max(L,Min_NFFT));
-    NFFT = 8*2^nextpow2(Min_NFFT);
+    %NFFT = 8*2^nextpow2(Min_NFFT);
+    % 2021-11-02 increase NFFT by a margin of two to avoid missing a bin
+    NFFT = 16*2^nextpow2(Min_NFFT);
 end
 X = fft(signal,NFFT,1);
 d = Fs/NFFT;

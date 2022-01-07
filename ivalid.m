@@ -13,6 +13,8 @@ SWsilent = 0;
 sdfactor = 1;
 COLUMN = 2;
 FPID = 1;
+SWlogscale = 0;
+BALANCED = 1;
 
 TrainLabels = TrainLabels(:);
 TestLabels = TestLabels(:);
@@ -26,7 +28,12 @@ for i = 1:2:length(varargin)
         case 'DRFUN'
             DRFUN = lower(varargin{i+1});
         case 'DRPARM'
-            DRPARM = lower(varargin{i+1});
+            if iscell(varargin{i+1}) && ~isempty(varargin{i+1}) && iscell(varargin{i+1}{1})
+                % 20150316 Double-wrap fix
+                DRPARM = varargin{i+1}{1};
+            else
+                DRPARM = varargin{i+1};
+            end
         case 'PRIOR'
             PRIOR = varargin{i+1};
         case 'CPARM'
@@ -45,6 +52,20 @@ for i = 1:2:length(varargin)
             OPTS = varargin{i+1};
         case 'FPRINTID'
             FPID = varargin{i+1};
+        case 'LOGSCALE'
+            if varargin{i+1} == 1
+                SWlogscale = 1;
+            elseif varargin{i+1} == 0
+                SWlogscale = 0;
+            end
+        case 'BALANCED'
+            if varargin{i+1} == 2
+                BALANCED = 2;
+            elseif varargin{i+1} == 1
+                BALANCED = 1;
+            elseif varargin{i+1} == 0
+                BALANCED = 0;
+            end
         case 'SILENT'
             if varargin{i+1} == 1
                 SWsilent = 1;
@@ -117,6 +138,7 @@ if TrainDataDim ~= TestDataDim
     error('Dimension mismatch between TrainData and TestData');
 end
 
+
 if ~isempty(who('TIMESPEC')) || ~isempty(who('CHANSPEC'))
    if size(TrainData,3) == 1 || size(TestData,3) == 1
        warning('TrainData or TestData is already reshaped. TIMESPEC and CHANSPEC are ignored!');
@@ -136,6 +158,31 @@ if ~isempty(who('TIMESPEC')) || ~isempty(who('CHANSPEC'))
        end
    end
 end
+
+
+
+if SWlogscale
+    
+    if any(TrainData(:) <= 0)
+        TrainData = eps+abs(TrainData);
+        warning('TrainData contains non-positive numbers. To compute log, it has been fixed with abs and eps.');
+    end
+    TrainData = log(TrainData);
+    if OPTS > 0
+        disp('TrainData time/freq series has been converted to natural-log scale.');
+    end
+    
+    if any(TestData(:) <= 0)
+        TestData = eps+abs(TestData);
+        warning('TestData contains non-positive numbers. To compute log, it has been fixed with abs and eps.');
+    end
+    TestData = log(TestData);
+    if OPTS > 0
+        disp('TestData time/freq series has been converted to natural-log scale.');
+    end
+end
+
+
 
 % Automatically delete data that do not have corresponding labels in the
 % other set of data (i.e., delete the odd labels)
@@ -218,7 +265,6 @@ if ~isempty(who('LABELSPEC'))
     end
 end
 
-
 if size(TrainData,3) > 1
     if OPTS > 0
         disp('Reshaping Training data...');
@@ -233,12 +279,82 @@ if size(TestData,3) > 1
     TestData = rdreshape(TestData);
 end
 
-Data = cat(1,TestData,TrainData);
-Labels = cat(1,TestLabels,TrainLabels);
-TestIdx = [1:length(TestLabels)];
 
-%[pcorrect,pconfuse] = dataproc_main_crossvalidation(Data,Labels,KFOLD,MRUN,DRFUN,DRPARM,FEFUN,FEPARM,CFUN,CNAME,PRIOR,CPARM,OPTS);
-[pcorrect,pconfuse] = dataproc_main_multiintervalidation(Data,Labels,TestIdx,DRFUN,DRPARM,FEFUN,FEPARM,CFUN,CNAME,PRIOR,CPARM,OPTS);
+% Balancing
+clear pcorrectC pconfuseC pcorrect pconfuse
+if BALANCED
+    MRUN = 10;
+    if OPTS > 0
+        disp('Randomly subsampling the TrainData so that each class has the same number of trials.');
+        disp('TestData is not subsampled. All TestData are included.');
+    end
+    classes = unique(TrainLabels);
+    Nclass = length(classes);
+    for j = Nclass:-1:1
+        NtrialTrain(j) = length(find(TrainLabels==classes(j)));
+    end
+    NtrialTrainMin = min(NtrialTrain);
+    
+    for i = 1:MRUN
+        clear TrainDataC TrainLabelsC
+        for j = Nclass:-1:1
+            % First convert to cell
+            TrainDataC{j} = TrainData(TrainLabels==classes(j),:);
+            TrainLabelsC{j} = classes(j)*ones(NtrialTrain(j),1);
+            if NtrialTrain(j) > NtrialTrainMin
+                % Subsample this class.
+                keepidx = randperm(NtrialTrain(j),NtrialTrainMin);
+                TrainDataC{j} = TrainDataC{j}(keepidx,:);
+                TrainLabelsC{j} = TrainLabelsC{j}(keepidx,:);
+            end
+        end
+        % Then unconvert from cell
+        TrainDataSub = cat(1,TrainDataC{:});
+        % All labels are also rearranged
+        TrainLabelsSub = cat(1,TrainLabelsC{:});
+        
+        Data = cat(1,TestData,TrainDataSub);
+        Labels = cat(1,TestLabels,TrainLabelsSub);
+        TestIdx = [1:length(TestLabels)];
+        
+        [pcorrectC{i},pconfuseC{i}] = dataproc_main_multiintervalidation(Data,Labels,TestIdx,DRFUN,DRPARM,FEFUN,FEPARM,CFUN,CNAME,PRIOR,CPARM,OPTS);
+    end
+        % 2021-10-20 Lazy: Combine them and forget it
+        
+        for i = 1:MRUN
+            for j = size(pcorrectC{i},1):-1:1
+                for k = size(pcorrectC{i},2):-1:1
+                    for l = size(pcorrectC{i},3):-1:1
+                        if i == 1
+                            pcorrect{j,k,l} = pcorrectC{i}{j,k,l} / MRUN;
+                            pconfuse{j,k,l} = pconfuseC{i}{j,k,l} ./ MRUN;
+                        else
+                            pcorrect{j,k,l} = pcorrect{j,k,l} + pcorrectC{i}{j,k,l} / MRUN;
+                            pconfuse{j,k,l} = pconfuse{j,k,l} + pconfuseC{i}{j,k,l} / MRUN;
+                        end
+                    end
+                end
+            end
+        end
+        
+    
+else
+    TrainDataSub = TrainData;
+    TrainLabelsSub = TrainLabels;
+    
+    Data = cat(1,TestData,TrainDataSub);
+    Labels = cat(1,TestLabels,TrainLabelsSub);
+    TestIdx = [1:length(TestLabels)];
+    
+    
+    [pcorrect,pconfuse] = dataproc_main_multiintervalidation(Data,Labels,TestIdx,DRFUN,DRPARM,FEFUN,FEPARM,CFUN,CNAME,PRIOR,CPARM,OPTS);
+
+    
+end
+
+
+
+
 
 
 
@@ -272,7 +388,7 @@ if ~SWsilent
     fprintf(FPID, 'Inter Validation Report\n');
     
     fprintf(FPID, '    Input dimension: %i\n',size(TrainData,2));
-    fprintf(FPID, 'Dimension reduction: %s (%i)\n',DRFUN,DRPARM);
+    fprintf(FPID, 'Dimension reduction: %s (%i)\n',DRFUN,DRPARM{1});
 
     fprintf(FPID, 'TRAINING\n');
     fprintf(FPID, '   Number of trials: ');

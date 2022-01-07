@@ -34,7 +34,7 @@ try
         mfnp = [mfnp '.m'];
     end
     tmp = dir(mfnp);
-    lmoddate = datestr(tmp.datenum, 'YYYY-mm-dd-HHMM');
+    lmoddate = datestr(tmp.datenum, 'YYmmdd.HHMM');
     clear tmp
 catch
     lmoddate = '';
@@ -537,7 +537,7 @@ h_xspan_edittext1intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalize
 h_xspan_edit1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.04 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');
 h_xspan_edittext1unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.07 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized');
 
-h_lmoddate = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.025 0.20 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['SignalViewer last modified ' lmoddate], 'FontUnits', 'normalized', 'FontName', 'FixedWidth', 'HorizontalAlignment', 'left');
+h_lmoddate = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.025 0.20 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['SignalViewer version: ' lmoddate], 'FontUnits', 'normalized', 'FontName', 'FixedWidth', 'HorizontalAlignment', 'left');
 
 h_xspan_edittext2intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.83 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized');
 h_xspan_edit2 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.86 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized');

@@ -171,7 +171,7 @@ drawnose(gca, radius, nosesize, 2);
 for i = 1:length(ElecNames)
     if ismember(upper(ElecNames{i}), upper(OnlyShowElectrodes))
         if FontSize > 0
-            text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+2,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontSize',FontSize,'FontName',FontName);
+            text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+0.2,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontSize',FontSize,'FontName',FontName);
         end
     end
 end

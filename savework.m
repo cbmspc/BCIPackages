@@ -4,7 +4,7 @@ tmp_savework_bytes = cat(1,tmp_savework_whos.bytes);
 fprintf('Saving your workspace (%.1f MiB) to %s :\n', sum(tmp_savework_bytes)/1024^2, getworkdir());
 tmp_savework_filelist = cell(length(tmp_savework_bytes),2);
 for tmp_savework_index = 1:length(tmp_savework_bytes)
-    if tmp_savework_bytes(tmp_savework_index) >= 64*1024^2
+    if tmp_savework_bytes(tmp_savework_index) >= 8*1024^2
         fprintf('  *Variable %s (%.1f MiB): ', tmp_savework_whos(tmp_savework_order(tmp_savework_index)).name, tmp_savework_whos(tmp_savework_order(tmp_savework_index)).bytes/1024^2);
         fprintf('Hashing.. ');
         tmp_savework_hash = sha1sum(eval(tmp_savework_whos(tmp_savework_order(tmp_savework_index)).name));
