@@ -50,6 +50,7 @@ if ~iscell(Signal) && size(Signal,3) > 1
     Signal = tmp;
 end
 
+pwelch_nfft = [];
 
 if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
     if isfield(opts, 'EventTimeStamps')
@@ -57,7 +58,7 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
     elseif isfield(opts, 'eventtimestamps')
         EventTimeStamps = opts.eventtimestamps;
     else
-        EventTimeStamps = [];
+        clear EventTimeStamps;
     end
     if isfield(opts, 'ica_W')
         ica_W = opts.ica_W;
@@ -79,6 +80,11 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
         FooterMessage = opts.footermessage;
     else
         FooterMessage = '';
+    end
+    if isfield(opts, 'pwelch_nfft')
+        pwelch_nfft = opts.pwelch_nfft;
+    else
+        pwelch_nfft = [];
     end
 elseif nargin >= 4
     % Old callers still use the 4th input argument as EventTimeStamps
@@ -187,7 +193,12 @@ CursorEnable = 0;
 %     chnc = nanstd(Signal,[],1) == 0;
 % end
 
+
+% Identify not-connected channels by signal variance
 chnc = nanmax(Signal) - nanmin(Signal) == 0;
+
+% Identify not-connected channels by zero-length channel names
+chnc = chnc | cellfun(@isempty,ChanNames);
 
 
 if exist('ica_W', 'var') && exist('ica_A', 'var') && ~isempty(ica_W) && ~isempty(ica_A)
@@ -552,7 +563,7 @@ h_xspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized
 % h_yspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.56 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized');
 
 
-h_footer_message = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.025 0.70 0.015], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized');
+h_footer_message = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.020 0.70 0.020], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontSize', 16, 'FontUnits', 'normalized');
 if isempty(FooterMessage)
     set(h_footer_message, 'Visible', 'off');
 end
@@ -1797,7 +1808,7 @@ end
                 
                 set(viewhand_psd_axe, 'FontSize', 16);
                 Signal_psd_source = tmp;
-                [pxx, fxx] = pwelch(Signal_psd_source, [], [], [], Fs);
+                [pxx, fxx] = pwelch(Signal_psd_source, [], [], pwelch_nfft, Fs);
                 plot(fxx, 10*log10(pxx));
                 xlabel('Frequency (Hz)');
                 ylabel('PSD (dB/Hz)');
@@ -1910,6 +1921,7 @@ end
             ICA_Initialized = 1;
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', ''); drawnow;
+            f_icasel_view_sources([], []);
         else
             tmp = get(h_icasel_list, 'Value');
             if length(tmp) == length(selica) && min(tmp == selica) == 1
@@ -1953,7 +1965,7 @@ end
         if ~ishandle(viewhand_ica_sig)
             npad2 = floor(log10(size(ica_sig,1)))+1;
             ic_names = string_to_cell(num2str(1:size(ica_sig,1),['ic%0' num2str(npad2) 'i,']),',');
-            viewhand_ica_sig = signalviewer(ica_sig.', Fs, ic_names, [], [], [], 'This figure window displays the ICA sources. Close this window to return to the original time signals.');
+            viewhand_ica_sig = signalviewer(ica_sig.', Fs, ic_names, [], [], [], 'This figure window displays the ICA sources. Close this window to return to the original time signals. Exclude and remix ICs in the original time signals, not in here.');
         else
             figure(viewhand_ica_sig);
         end

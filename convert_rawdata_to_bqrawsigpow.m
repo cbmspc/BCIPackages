@@ -26,7 +26,7 @@ end
 if exist('rawdata','var')
     [Nchan, Ntime, Ntrial] = size(rawdata);
 elseif exist('eegdata','var')
-    [Ntime, Nchan] = size(eegdata{1},2);
+    [Ntime, Nchan] = size(eegdata{1});
     Ntrial = length(eegdata);
 end
 
@@ -42,11 +42,17 @@ end
 signal = nan(Ntime*Ntrial,Nchan); 
 TimeRange = nan(Ntrial,2);
 
-for tr = 1:Ntrial
-    signal((tr-1)*Ntime+[1:Ntime],:) = rawdata(:,:,tr).';
-    TimeRange(tr,:) = [tr-1, tr].*Ntime/Fs;
+if exist('rawdata','var')
+    for tr = 1:Ntrial
+        signal((tr-1)*Ntime+[1:Ntime],:) = rawdata(:,:,tr).';
+        TimeRange(tr,:) = [tr-1, tr].*Ntime/Fs;
+    end
+elseif exist('eegdata','var')
+    for tr = 1:Ntrial
+        signal((tr-1)*Ntime+[1:Ntime],:) = eegdata{tr};
+        TimeRange(tr,:) = [tr-1, tr].*Ntime/Fs;
+    end
 end
-
 % Run bqsignalpower
 [rawsigpow, opts] = bqsignalpower(signal, Fs, frange, TimeRange, opts);
 
