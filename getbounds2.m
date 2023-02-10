@@ -130,8 +130,8 @@ if SWloadManualCoords > 0
         if SWinfo > 0
             disp('loaded ManualCoords from caller workspace');
             loadedManualCoords = 1;
-            ManualThreshold = max(ManualThreshold,1);
         end
+        ManualThreshold = max(ManualThreshold,1);
     catch %#ok<CTCH>
         if SWinfo > 0
             disp('cannot load ManualCoords from caller workspace');

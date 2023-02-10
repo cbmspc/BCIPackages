@@ -2,7 +2,7 @@ function [pcorrect, pconfuse] = ivalid (TrainData, TrainLabels, TestData, TestLa
 
 OPTS = 1;
 DRFUN = 'cpca';
-DRPARM = [];
+DRPARM = {[]};
 FEFUN = {'aida','aida','aida','aida','aida','lda'};
 FEPARM = {5,4,3,2,1,1};
 CFUN = {'',''};
@@ -15,6 +15,9 @@ COLUMN = 2;
 FPID = 1;
 SWlogscale = 0;
 BALANCED = 1;
+if ~iscell(DRFUN)
+    DRFUN = {DRFUN};
+end
 
 TrainLabels = TrainLabels(:);
 TestLabels = TestLabels(:);
@@ -295,6 +298,7 @@ if BALANCED
     end
     NtrialTrainMin = min(NtrialTrain);
     
+    wh = waitbar(0, 'Inter validating');
     for i = 1:MRUN
         clear TrainDataC TrainLabelsC
         for j = Nclass:-1:1
@@ -318,25 +322,37 @@ if BALANCED
         TestIdx = [1:length(TestLabels)];
         
         [pcorrectC{i},pconfuseC{i}] = dataproc_main_multiintervalidation(Data,Labels,TestIdx,DRFUN,DRPARM,FEFUN,FEPARM,CFUN,CNAME,PRIOR,CPARM,OPTS);
+        if ishandle(wh)
+            try
+                waitbar(i/MRUN, wh, sprintf('Inter validating, last Pcorrect=%-5.3f', median(median(cell2mat(pcorrectC{i})))));
+            end
+        end
     end
-        % 2021-10-20 Lazy: Combine them and forget it
-        
-        for i = 1:MRUN
-            for j = size(pcorrectC{i},1):-1:1
-                for k = size(pcorrectC{i},2):-1:1
-                    for l = size(pcorrectC{i},3):-1:1
-                        if i == 1
-                            pcorrect{j,k,l} = pcorrectC{i}{j,k,l} / MRUN;
-                            pconfuse{j,k,l} = pconfuseC{i}{j,k,l} ./ MRUN;
-                        else
-                            pcorrect{j,k,l} = pcorrect{j,k,l} + pcorrectC{i}{j,k,l} / MRUN;
-                            pconfuse{j,k,l} = pconfuse{j,k,l} + pconfuseC{i}{j,k,l} / MRUN;
-                        end
+    % 2021-10-20 Lazy: Combine them and forget it
+    
+    for i = 1:MRUN
+        for j = size(pcorrectC{i},1):-1:1
+            for k = size(pcorrectC{i},2):-1:1
+                for l = size(pcorrectC{i},3):-1:1
+                    if i == 1
+                        pcorrect{j,k,l} = pcorrectC{i}{j,k,l} / MRUN;
+                        pconfuse{j,k,l} = pconfuseC{i}{j,k,l} ./ MRUN;
+                    else
+                        pcorrect{j,k,l} = pcorrect{j,k,l} + pcorrectC{i}{j,k,l} / MRUN;
+                        pconfuse{j,k,l} = pconfuse{j,k,l} + pconfuseC{i}{j,k,l} / MRUN;
                     end
                 end
             end
         end
-        
+    end
+    
+    if ishandle(wh)
+        try
+            delete(wh);
+            drawnow
+        end
+    end
+    
     
 else
     TrainDataSub = TrainData;
@@ -388,7 +404,7 @@ if ~SWsilent
     fprintf(FPID, 'Inter Validation Report\n');
     
     fprintf(FPID, '    Input dimension: %i\n',size(TrainData,2));
-    fprintf(FPID, 'Dimension reduction: %s (%i)\n',DRFUN,DRPARM{1});
+    fprintf(FPID, 'Dimension reduction: %s (%g)\n',DRFUN{1},DRPARM{1});
 
     fprintf(FPID, 'TRAINING\n');
     fprintf(FPID, '   Number of trials: ');

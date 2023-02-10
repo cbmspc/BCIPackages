@@ -1,6 +1,6 @@
-function [rawsigpow, frange] = convert_rawdata_to_rawsigpow (rawdataOReegdata, Fs, frange)
+function [rawpxx, fxx] = convert_rawdata_to_rawpsd (rawdataOReegdata, Fs, Nfft)
 % Converts rawdata (chan x time x trial) or eegdata (cell of time x chan)
-% into rawsigpow (chan x freq x trial)
+% into pxx and fxx pair (chan x freq x trial)
 
 if isempty(rawdataOReegdata)
     error('rawdata is empty');
@@ -15,35 +15,43 @@ else
     rawdata = rawdataOReegdata;
 end
 
-if ~exist('frange','var') || isempty(frange)
-    frange = [[0:2:38];[2:2:40]]';
+if ~exist('Nfft','var') || isempty(Nfft)
+    Nfft = 1024;
 end
 
 if exist('rawdata','var')
-    [Nch tmp Ntr] = size(rawdata);
+    [Nch, ~, Ntr] = size(rawdata);
 elseif exist('eegdata','var')
     Nch = size(eegdata{1},2);
     Ntr = length(eegdata);
 end
 
-Ntp = size(frange,1);
-
-rawsigpow = nan(Nch, Ntp, Ntr);
-%fprintf(' Converting time domain signals to spectral powers .. %3i%% done', 0);
+Nfp = Nfft/2+1;
+if floor(Nfft/2) ~= Nfft/2
+    Nfp = (Nfft+1)/2;
+end
+rawpxx = nan(Nch, Nfp, Ntr);
 if Ntr > 100
-    fprintf(' Converting time domain signals to spectral powers ..');
+    fprintf(' Converting time domain signals to PSD ..');
 end
 
 % With 4 threads, parfor has 60% speed increase.
 if exist('rawdata','var')
+    [~, fxx] = pwelch(rawdata(1,:,1).', [], [], Nfft, Fs);
     parfor tr = 1:Ntr
-        rawsigpow(:,:,tr) = signalpower(rawdata(:,:,tr).', Fs, frange).';
-        %fprintf('\b\b\b\b\b\b\b\b\b%3i%% left', round(tr/Ntr*100));
+        for ch = 1:Nch
+            [pxx, ~] = pwelch(rawdata(ch,:,tr).', [], [], Nfft, Fs);
+            rawpxx(ch,:,tr) = pxx.';
+        end
+        
     end
 elseif exist('eegdata','var')
+    [~, fxx] = pwelch(eegdata{1}(:,1), [], [], Nfft, Fs);
     parfor tr = 1:Ntr
-        rawsigpow(:,:,tr) = signalpower(eegdata{tr}, Fs, frange).';
-        %fprintf('\b\b\b\b\b\b\b\b\b%3i%% left', round(tr/Ntr*100));
+        for ch = 1:Nch
+            [pxx, ~] = pwelch(eegdata{tr}(:,ch), [], [], Nfft, Fs);
+            rawpxx(ch,:,tr) = pxx.';
+        end
     end
 end
 if Ntr > 100

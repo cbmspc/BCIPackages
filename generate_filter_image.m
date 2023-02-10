@@ -242,7 +242,7 @@ for m = 1:Nm
             set(gca,'YTick',(1:1:Nchan),'YTickLabel',ChanNames(1:1:Nchan));
             %set(gca,'FontSize',min([16,floor(48/sqrt(Nchan))]));
         end
-        set(gca,'FontSize',max(4,min([10,floor(48/max(sqrt(Nchan),2*sqrt(size(BF{m,s},2))))])));
+        set(gca,'FontSize',max(5,min([10,floor(48/max(sqrt(Nchan),2*sqrt(size(BF{m,s},2))))])));
         %set(gca, 'FontSize', 10, 'FontName', 'Consolas');
 
         optext1 = '';

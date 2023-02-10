@@ -1,8 +1,8 @@
 % Dimension Reduction using Classwise Principal Component Analysis 
 % based on work done by Zoran Nenadic.
 %
-% Default cut-off criteria: Half of mean of non-zero eigenvalues or up to
-% DRparm eigenvectors (if specified). 
+% Default cut-off criteria: Mean of non-zero eigenvalues or up to DRparm
+% eigenvectors (if specified).
 %
 % Note: Final dimension size is usually DRparm plus up to the number of
 % classes due to inclusion of between class covariances
@@ -14,7 +14,7 @@
 %          Positive integer >= 1 : Number of retained eigenvectors
 %
 
-function DRmatC = dataproc_func_cpca(TrainData, TrainLabels, DRparm)
+function [DRmatC, latent] = dataproc_func_cpca(TrainData, TrainLabels, DRparm)
 
 Nobs = length(TrainLabels);
 if Nobs ~= size(TrainData,1)

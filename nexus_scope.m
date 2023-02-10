@@ -104,6 +104,10 @@ RefreshPeriodAllow = [1/8, 8];
 InactivityTimeoutSec = 3600;
 
 
+SegmentSaveFileName = '';
+CustomSegmentSaveFileName = '';
+
+
 %20100721
 if nargin > 2
     disp('Command line arguments: ');
@@ -225,7 +229,7 @@ AngryLineColor = 0.7*AngryFontColor;
 BufferDurationSec = 63*60;
 
 
-NexusChanNamesFileName = [getcccdatadir() filesep 'intermediate' filesep 'NexusChanNames.mat'];
+NexusChanNamesFileName = [getdesktopdir() filesep 'NexusChanNames.mat'];
 tmp = dir(NexusChanNamesFileName);
 if length(tmp) == 1
     NexusChanNamesFileDate = tmp.datenum;
@@ -625,6 +629,9 @@ scopecontrol.startrecording = uicontrol(fighand, 'Style','checkbox', 'String','R
 scopecontrol.startrecording_touched = clock;
 set(scopecontrol.startrecording, 'ForegroundColor', [1 0.4 0.4], 'BackgroundColor', [0 0 0]);
 set(scopecontrol.startrecording, 'Unit', 'normalized', 'Position', [0.93, 0.02, 0.10, 0.015]);
+scopecontrol.livecommandstatus = uicontrol(fighand, 'Style', 'text', 'String', 'autostart in xxxx s, for yyyy s, save as zzzzzzzzzzzzzzzzzzzz', 'FontSize', 10);
+set(scopecontrol.livecommandstatus, 'ForegroundColor', [0.6 0.6 0.6], 'BackgroundColor', [0 0 0]);
+set(scopecontrol.livecommandstatus, 'Unit', 'normalized', 'Position', [0.7, 0.022, 0.23, 0.015]);
 
 scopecontrol.paneltoggle = uicontrol(fighand, 'Style','togglebutton', 'String','CP','FontSize',8,'FontWeight','bold');
 set(scopecontrol.paneltoggle, 'ForegroundColor', [0.6 0.6 0.6], 'BackgroundColor', [0 0 0]);
@@ -806,6 +813,14 @@ end
 
 SaveFileName = ['nexusautosave-' suid '.mat'];
 SaveUNC = [SavePathName filesep SaveFileName];
+
+%20220916
+LiveCommandFileName = [SaveDir filesep 'nexus_scope_LiveCommand.txt'];
+LiveCommandFileTime = now;
+LiveCommandAutoStartSegmentRecordingDatenum = 0;
+LiveCommandAutoStopSegmentRecordingDatenum = 0;
+LiveCommandCustomSegmentSaveFileName = '';
+
 mmfilename = [SavePathName filesep 'nexus_scope_mmf_0.dat'];
 set(thwarning, 'String', 'Preparing..', 'Visible', 'on');
 drawnow
@@ -1022,7 +1037,7 @@ for i = 1:intmax
                 end
                 set(Grandkids(ch),'String',[T2 ' ' T],'Color',CC);
             end
-            fprintf('Recording stopped. Data exceeded rawdata buffer.\n');
+            fprintf('[%10.0f ms] Recording stopped. Data exceeded rawdata buffer.\n', etime(clock,Timer.loopstart)*1000);
             break
         end
         if etime(clock,LastTrigTime) > TrigLostStopWaitWarn && etime(clock,Timer.recordstart) > 60+TrigLostStopWaitWarn-TrigLostStopWait
@@ -1043,7 +1058,7 @@ for i = 1:intmax
                     end
                     set(Grandkids(ch),'String',[T2 ' ' T],'Color',CC);
                 end
-                fprintf('Recording stopped. Trigger signal lost for %g sec.\n',TrigLostStopWait);
+                fprintf('[%10.0f ms] Recording stopped. Trigger signal lost for %g sec.\n',etime(clock,Timer.loopstart)*1000, TrigLostStopWait);
                 break
             end
         elseif Warned.TriggerLost
@@ -1441,7 +1456,151 @@ for i = 1:intmax
         fprintf('[%10.0f ms] Recording stopped. Display window disappeared.\n',etime(clock,Timer.loopstart)*1000);
         break
     end
-    if ~SWrecord && get(scopecontrol.startrecording, 'Value') && ~SWnohardwaremode
+    
+    %20221219: A stop command from LiveCommandFile will always stop an
+    %ongoing recording no matter if it was initiated by LiveCommand
+    if SWrecord && exist(LiveCommandFileName, 'file')
+        lcfn_info = dir(LiveCommandFileName);
+        if lcfn_info.datenum > LiveCommandFileTime % This is a valid file and not a repeat
+            fprintf('is recording, and %g - %g = %g\n', lcfn_info.datenum, LiveCommandFileTime, lcfn_info.datenum - LiveCommandFileTime);
+            LiveCommandFileTime = lcfn_info.datenum;
+            % parse the file
+            lcfn_handle = fopen(LiveCommandFileName, 'r');
+            while ~feof(lcfn_handle)
+                lcfn_line = fgetl(lcfn_handle);
+                lcfn_token = regexp(lcfn_line, '^StopRecordingNow', 'match', 'once');
+                %Format: StopRecordingNow
+                if ~isempty(lcfn_token)
+                    %set(scopecontrol.startrecording, 'Value', 0);
+                    LiveCommandAutoStopSegmentRecordingDatenum = now;
+                    fprintf('[%10.0f ms] LiveCommand is \nstopping recording immediately!\n', etime(clock,Timer.loopstart)*1000);
+                    break;
+                end
+            end
+            fclose(lcfn_handle);
+            delete(LiveCommandFileName);
+        end
+    end
+    
+    %20220916: Check LiveCommandFile if there isn't already a queued live
+    %command that is being recorded right now
+    if ~SWrecord && exist(LiveCommandFileName, 'file') && (LiveCommandAutoStartSegmentRecordingDatenum == 0 || LiveCommandAutoStartSegmentRecordingDatenum - now > 1/86400)
+        lcfn_info = dir(LiveCommandFileName);
+        if lcfn_info.datenum > LiveCommandFileTime % This is a valid file and not a repeat
+            fprintf('not recording, but %g - %g = %g\n', lcfn_info.datenum, LiveCommandFileTime, lcfn_info.datenum - LiveCommandFileTime);
+            
+            LiveCommandFileTime = lcfn_info.datenum;
+            
+            % parse the file
+            lcfn_handle = fopen(LiveCommandFileName, 'r');
+            while ~feof(lcfn_handle)
+                lcfn_line = fgetl(lcfn_handle);
+                
+                lcfn_token = regexp(lcfn_line, '^StartRecordingNow (\S+)', 'tokens', 'once');
+                %Format: Filename (do not include path. Space is not allowed. File must not already exist.)
+                if ~isempty(lcfn_token)
+                    LiveCommandAutoStartSegmentRecordingDatenum = now + 0.1/86400;
+                    tmptime = 3600*4;
+                    if tmptime > 86400
+                        tmptime = 0;
+                    end
+                    LiveCommandAutoStopSegmentRecordingDatenum = LiveCommandAutoStartSegmentRecordingDatenum + tmptime/86400;
+                    LiveCommandCustomSegmentSaveFileName = lcfn_token{1};
+                    LiveCommandCustomSegmentSaveFileName = sanitizefilename(LiveCommandCustomSegmentSaveFileName);
+                    if ~isempty(regexp(lower(LiveCommandCustomSegmentSaveFileName), '\.mat$', 'match', 'once'))
+                        LiveCommandCustomSegmentSaveFileName = [LiveCommandCustomSegmentSaveFileName '.mat'];
+                    end
+                    if exist([SaveDir filesep LiveCommandCustomSegmentSaveFileName], 'file') || exist([SaveDir filesep LiveCommandCustomSegmentSaveFileName], 'dir')
+                        % File cannot already exist.
+                        LiveCommandAutoStartSegmentRecordingDatenum = 0;
+                        LiveCommandAutoStopSegmentRecordingDatenum = 0;
+                        LiveCommandCustomSegmentSaveFileName = '';
+                        continue;
+                    elseif LiveCommandAutoStartSegmentRecordingDatenum < now
+                        % Start time cannot be in the past.
+                        LiveCommandAutoStartSegmentRecordingDatenum = 0;
+                        LiveCommandAutoStopSegmentRecordingDatenum = 0;
+                        LiveCommandCustomSegmentSaveFileName = '';
+                        continue;
+                    elseif LiveCommandAutoStopSegmentRecordingDatenum <= LiveCommandAutoStartSegmentRecordingDatenum
+                        % Stop time cannot be before or equal to start time
+                        LiveCommandAutoStartSegmentRecordingDatenum = 0;
+                        LiveCommandAutoStopSegmentRecordingDatenum = 0;
+                        LiveCommandCustomSegmentSaveFileName = '';
+                        continue;
+                    end
+                    
+                    CustomSegmentSaveFileName = LiveCommandCustomSegmentSaveFileName;
+                    
+                    fprintf('[%10.0f ms] LiveCommand will \nstart recording at %s (in %g seconds)\nstop recording at %s (for a duration of %g seconds)\nsave in file %s\n', etime(clock,Timer.loopstart)*1000, datestr(LiveCommandAutoStartSegmentRecordingDatenum), (LiveCommandAutoStartSegmentRecordingDatenum - now)*86400, datestr(LiveCommandAutoStopSegmentRecordingDatenum), (LiveCommandAutoStopSegmentRecordingDatenum - LiveCommandAutoStartSegmentRecordingDatenum)*86400, [SaveDir filesep LiveCommandCustomSegmentSaveFileName]);
+                    break;
+                end
+                
+                
+                lcfn_token = regexp(lcfn_line, '^AutomaticSegmentRecording = (\d+) (\d+) (\S+)', 'tokens', 'once');
+                %XXXXXXXXXXXXXXXXXXX
+                %Format: AutoStartUnixTime RecordingDurationSec Filename (do not include path. Space is not allowed. File must not already exist.)
+                if ~isempty(lcfn_token)
+                    LiveCommandAutoStartSegmentRecordingDatenum = unixtime2datenum(str2double(lcfn_token{1}));
+                    tmptime = str2double(lcfn_token{2});
+                    if tmptime > 86400
+                        tmptime = 0;
+                    end
+                    LiveCommandAutoStopSegmentRecordingDatenum = LiveCommandAutoStartSegmentRecordingDatenum + tmptime/86400;
+                    LiveCommandCustomSegmentSaveFileName = lcfn_token{3};
+                    LiveCommandCustomSegmentSaveFileName = sanitizefilename(LiveCommandCustomSegmentSaveFileName);
+                    if ~isempty(regexp(lower(LiveCommandCustomSegmentSaveFileName), '\.mat$', 'match', 'once'))
+                        LiveCommandCustomSegmentSaveFileName = [LiveCommandCustomSegmentSaveFileName '.mat'];
+                    end
+                    if exist([SaveDir filesep LiveCommandCustomSegmentSaveFileName], 'file') || exist([SaveDir filesep LiveCommandCustomSegmentSaveFileName], 'dir')
+                        % File cannot already exist.
+                        LiveCommandAutoStartSegmentRecordingDatenum = 0;
+                        LiveCommandAutoStopSegmentRecordingDatenum = 0;
+                        LiveCommandCustomSegmentSaveFileName = '';
+                        continue;
+                    elseif LiveCommandAutoStartSegmentRecordingDatenum < now
+                        % Start time cannot be in the past.
+                        LiveCommandAutoStartSegmentRecordingDatenum = 0;
+                        LiveCommandAutoStopSegmentRecordingDatenum = 0;
+                        LiveCommandCustomSegmentSaveFileName = '';
+                        continue;
+                    elseif LiveCommandAutoStopSegmentRecordingDatenum <= LiveCommandAutoStartSegmentRecordingDatenum
+                        % Stop time cannot be before or equal to start time
+                        LiveCommandAutoStartSegmentRecordingDatenum = 0;
+                        LiveCommandAutoStopSegmentRecordingDatenum = 0;
+                        LiveCommandCustomSegmentSaveFileName = '';
+                        continue;
+                    end
+                    
+                    CustomSegmentSaveFileName = LiveCommandCustomSegmentSaveFileName;
+                    
+                    fprintf('[%10.0f ms] LiveCommand will \nstart recording at %s (in %g seconds)\nstop recording at %s (for a duration of %g seconds)\nsave in file %s\n', etime(clock,Timer.loopstart)*1000, datestr(LiveCommandAutoStartSegmentRecordingDatenum), (LiveCommandAutoStartSegmentRecordingDatenum - now)*86400, datestr(LiveCommandAutoStopSegmentRecordingDatenum), (LiveCommandAutoStopSegmentRecordingDatenum - LiveCommandAutoStartSegmentRecordingDatenum)*86400, [SaveDir filesep LiveCommandCustomSegmentSaveFileName]);
+                    break;
+                end
+            end
+            fclose(lcfn_handle);
+            delete(LiveCommandFileName);
+        end
+    end
+    
+    if LiveCommandAutoStartSegmentRecordingDatenum ~= 0 && LiveCommandAutoStopSegmentRecordingDatenum ~= 0
+        if LiveCommandAutoStartSegmentRecordingDatenum > now
+            set(scopecontrol.livecommandstatus, 'String', sprintf('autostart in %.1f s (%s)', (LiveCommandAutoStartSegmentRecordingDatenum - now)*86400, LiveCommandCustomSegmentSaveFileName));
+        elseif LiveCommandAutoStopSegmentRecordingDatenum > now
+            set(scopecontrol.livecommandstatus, 'String', sprintf('autostop in %.1f s (%s)', (LiveCommandAutoStopSegmentRecordingDatenum - now)*86400, SegmentSaveFileName));
+        end
+        if get(scopecontrol.startrecording, 'Value') && now >= LiveCommandAutoStopSegmentRecordingDatenum
+            fprintf('[%10.0f ms] LiveCommand automatically stopping recording\n', etime(clock,Timer.loopstart)*1000);
+            set(scopecontrol.startrecording, 'Value', 0);
+        elseif ~get(scopecontrol.startrecording, 'Value') && now >= LiveCommandAutoStartSegmentRecordingDatenum
+            fprintf('[%10.0f ms] LiveCommand automatically starting recording\n', etime(clock,Timer.loopstart)*1000);
+            set(scopecontrol.startrecording, 'Value', 1);
+        end
+    else
+        set(scopecontrol.livecommandstatus, 'String', '');
+    end
+    
+    if ~SWrecord && get(scopecontrol.startrecording, 'Value') && ~SWnohardwaremode % starting segment recording
         Timer.lastactivity = clock;
         SWrecord = 1;
         Warned.NotRecorded = 0;
@@ -1453,10 +1612,23 @@ for i = 1:intmax
         set(scopecontrol.startrecording, 'Enable', 'off');
         set(scopecontrol.restartnexus, 'Enable', 'off', 'String', RestartNexusButton.disabledtext);
         drawnow
-        segmentsuid = datestr(now,'yyyymmdd-HHMMSS-FFF');
-        SegmentSaveFileName = ['nexusautosave-' suid '_segment-' segmentsuid '.mat'];
-        SegmentSaveUNC = [SaveDir filesep SegmentSaveFileName];
-    elseif SWrecord && ~get(scopecontrol.startrecording, 'Value')
+        
+        %20220916
+        if isempty(CustomSegmentSaveFileName)
+            segmentsuid = datestr(now,'yyyymmdd-HHMMSS-FFF');
+            SegmentSaveFileName = ['nexusautosave-' suid '_segment-' segmentsuid '.mat'];
+            SegmentSaveUNC = [SaveDir filesep SegmentSaveFileName];
+        else
+            SegmentSaveFileName = CustomSegmentSaveFileName;
+            SegmentSaveUNC = [SaveDir filesep SegmentSaveFileName];
+            
+            % CustomSegmentSaveFileName can only work once. It'll need to be
+            % set again for another segment recording.
+            CustomSegmentSaveFileName = '';
+            LiveCommandCustomSegmentSaveFileName = '';
+        end
+        
+    elseif SWrecord && ~get(scopecontrol.startrecording, 'Value') % stopping segment recording
         Timer.lastactivity = clock;
         SWrecord = 0;
         Warned.NotRecorded = 1;
@@ -1467,7 +1639,10 @@ for i = 1:intmax
         set(scopecontrol.startrecording, 'Enable', 'off');
         drawnow
         nexus_savesegment(mmfilename, mmfobj, RecordStart, STATUSchan, SegmentSaveUNC, SampleRate, ChanNames);
-    elseif get(scopecontrol.startrecording, 'Value') && SWnohardwaremode
+        LiveCommandAutoStartSegmentRecordingDatenum = 0;
+        LiveCommandAutoStopSegmentRecordingDatenum = 0;
+        LiveCommandCustomSegmentSaveFileName = '';
+    elseif get(scopecontrol.startrecording, 'Value') && SWnohardwaremode % disallow segment recording due to no hardware
         set(scopecontrol.startrecording, 'Value', 0);
     end
     
@@ -2262,4 +2437,31 @@ rawdata = rawdata(1:end-1,:);
         end
     end
 
+end
+
+
+% Convert from Unixtime (always in UTC) to MATLAB's datenum (local time)
+function n = unixtime2datenum (u)
+n = (u - unixtime)/86400 + now;
+end
+
+% Convert from MATLAB's datenum (local time) to Unixtime (always in UTC)
+function u = datenum2unixtime (n)
+u = (n - now)*86400 + unixtime;
+end
+
+function t = unixtime ()
+utc_time = java.lang.System.currentTimeMillis;
+t = utc_time / 1000;
+end
+
+function outputname = sanitizefilename (inputname)
+% Remove illegal chars, space at beginning or end
+outputname = regexprep(inputname, '^\s+|\s+$|[\x00-\x1F]', '');
+
+% Remove illegal chars for filename
+outputname = regexprep(outputname, '/|\\|?|%|*|:|\||"|<|>', '');
+
+% Replace space with + sign (also de-duplicates them)
+outputname = regexprep(outputname, ' {1,}', '+');
 end

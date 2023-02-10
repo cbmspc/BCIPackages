@@ -71,11 +71,11 @@ guidata(hObject, handles);
 blankchannelmode_Callback(handles.blankchannelmode, 'init', handles);
 ampsused_Callback(handles.ampsused, 'init', handles);
 
-NexusChanNamesFile = [getcccdatadir() filesep 'intermediate' filesep 'NexusChanNames.mat'];
+NexusChanNamesFile = [getdesktopdir() filesep 'NexusChanNames.mat'];
 if exist(NexusChanNamesFile, 'file')
     tmp = load(NexusChanNamesFile, 'NexusChanNames');
+    loadallchans(tmp.NexusChanNames, handles);
 end
-loadallchans(tmp.NexusChanNames, handles);
 
 
 
@@ -576,7 +576,7 @@ switch aum
         NexusChanNames.ChanNames = NexusChanNames.nexus2;
 end
 assignin('base', 'tmp_NexusChanNames', NexusChanNames);
-save([getcccdatadir('intermediate') filesep 'NexusChanNames.mat'], 'NexusChanNames');
+save([getdesktopdir() filesep 'NexusChanNames.mat'], 'NexusChanNames');
 
 
 function editcfun(hObject, eventdata, handles)

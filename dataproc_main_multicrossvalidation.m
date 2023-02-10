@@ -448,10 +448,26 @@ NTrialstotest = length(Trialstotest);
 
 pcmax = zeros(M,1);
 
+if SWprogressoutput && SWprogressoutput < 2
+    if M == 1
+        wh = [];
+        %wh = waitbar(0, 'Leave-one-out cross validating');
+    else
+        wh = waitbar(0, 'Cross validating');
+    end
+end
+
 for m = 1:M
     if SWprogressoutput
-        fprintf('Now doing run #%3i : ',m);
+        if SWprogressoutput >= 2
+            fprintf('Now doing run #%3i : ', m);
+        end
         bksp = 0;
+        if ishandle(wh)
+            try
+                waitbar(m/M, wh);
+            end
+        end
     end
     % Do these every run
     
@@ -818,9 +834,20 @@ for m = 1:M
         if bksp
             fprintf([InstantProgressBackspace '\b']); %#ok<UNRCH>
         end
-        fprintf(' Best Pcorrect = %-5.3f (chance = %-5.3f)\n',pcmax(m),ChancePcorrect);
+        if SWprogressoutput >= 2
+            fprintf(' Best Pcorrect = %-5.3f (chance = %-5.3f)\n',pcmax(m),ChancePcorrect);
+        elseif ishandle(wh)
+            try
+                waitbar(m/M, wh, sprintf('Cross validating, last Pcorrect=%-5.3f', pcmax(m)));
+            end
+        end
     end
 end % End of a run (m)
+
+if ishandle(wh)
+    delete(wh);
+    drawnow
+end
 
 % if SWkoverride
 %     pcorrect = {[]};

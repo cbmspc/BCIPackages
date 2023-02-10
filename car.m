@@ -2,6 +2,14 @@
 % Channels with no deviation are ignored (e.g. disconnected channels)
 function [out, m] = car (in)
 
+if iscell(in)
+    for i = length(in):-1:1
+        [out(i), m(i)] = car(in{i});
+    end
+    return
+end
+
+
 if size(in,3) > 1
     % 3D matrix (ch x time x trial)
     out = in;

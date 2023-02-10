@@ -43,9 +43,9 @@ if SWheadphone
 else
     Audio.Lag = 0.03;
     Audio.Fs = 22050;
-    Audio.IdleFreq = 220;
+    Audio.IdleFreq = 150;
     Audio.IdleAmp = 0;
-    Audio.WalkFreq = 350;
+    Audio.WalkFreq = 247;
     Audio.WalkAmp = 0.750;
     Audio.IdleT = (1:Audio.Fs*(IdleDuration-Audio.Lag))/Audio.Fs;
     Audio.WalkT = (1:Audio.Fs*(WalkDuration-Audio.Lag))/Audio.Fs;

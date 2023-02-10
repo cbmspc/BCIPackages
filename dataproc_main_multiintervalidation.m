@@ -310,7 +310,7 @@ if SWprogressoutput
             end
         end
     end
-    fprintf(' Best Pcorrect = %-5.3f (chance = %-5.3f)\n',pcmax,1/Nclass);
+    %fprintf(' Best Pcorrect = %-5.3f (chance = %-5.3f)\n',pcmax,1/Nclass);
 end
 
 function V = internalfunc_forcecell (V)

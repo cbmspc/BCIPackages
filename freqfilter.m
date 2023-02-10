@@ -3,6 +3,8 @@
 % yout = freqfilter (y, Fs, Fc, Type, Method, ReflectLen)
 % 
 % y: Time domain signal (time x channel)
+%    Also accepted: cell{} (time x channel)
+%    Also accepted: rawdata (channel x time x trial)
 %
 % Fs: Sampling frequency (even number)
 %
@@ -25,6 +27,7 @@
 %       'high' = high pass, passes Fc <= f
 %       'band' = band pass, passes Fc(1) <= f <= Fc(2)
 %       'stop' = band stop, stops Fc(1) <= f <= Fc(2)
+%      'notch' = band notch, stops around Fc(1), with Order = Fc(2), Qfactor = Fc(3)
 %
 % Method:
 %      default = fft
@@ -33,6 +36,7 @@
 %                method.
 %     'butter' = uses Butterworth filter and filtfilt
 %     'buttercausal' = uses Butterworth filter and filter
+%     note: Method is ignored if Type is 'notch'
 %
 % ReflectLen:
 %      default = 0
@@ -66,10 +70,36 @@ if ~exist('ReflectLen', 'var') || isempty(ReflectLen)
     ReflectLen = 0;
 end
 
+
+% If y is in rawdata or eegdata format, process each observation separately
+if iscell(y)
+    for i = length(y):-1:1
+        [yout{i}, FilterInfo] = freqfilter_sub1 (y{i}, Fs, Fc, Type, Method, ReflectLen);
+    end
+elseif size(y,3) > 1
+    for i = size(y,3):-1:1
+        [tmp, FilterInfo] = freqfilter_sub1(y(:,:,i).', Fs, Fc, Type, Method, ReflectLen);
+        yout(:,:,i) = tmp.';
+    end
+else
+    [yout, FilterInfo] = freqfilter_sub1 (y, Fs, Fc, Type, Method, ReflectLen);
+end
+
+
+
+
+
+function [yout, FilterInfo] = freqfilter_sub1 (y, Fs, Fc, Type, Method, ReflectLen)
 % 20180516 ReflectLen
 if ReflectLen > 0
     ReflectLen = round(ReflectLen);
-    y = [nan(ReflectLen,size(y,2)); y; nan(ReflectLen,size(y,2))];
+    if ReflectLen >= size(y,1)
+        ReflectLen = size(y,1) - 1;
+    end
+    y = [ -flipud(y(1+(1:ReflectLen),:))
+           y
+          -flipud(y((size(y,1)-ReflectLen+1:size(y,1))-1,:)) ];
+    %y = [nan(ReflectLen,size(y,2)); y; nan(ReflectLen,size(y,2))];
 end
 
 
@@ -133,13 +163,18 @@ if any(ny)
     
 end
 
-switch Method
-    case 'butter'
-        [yout, FilterInfo] = butter_filter(y, Fs, Fc, Type, [], @filtfilt);
-    case 'buttercausal'
-        [yout, FilterInfo] = butter_filter(y, Fs, Fc, Type, [], @filter);
-    otherwise
-        [yout, FilterInfo] = fft_filter(y, Fs, Fc, Type);
+if strcmp(Type, 'notch')
+    % 20220601 Notch filter
+    [yout, FilterInfo] = notch_filter(y, Fs, Fc);
+else
+    switch Method
+        case 'butter'
+            [yout, FilterInfo] = butter_filter(y, Fs, Fc, Type, [], @filtfilt);
+        case 'buttercausal'
+            [yout, FilterInfo] = butter_filter(y, Fs, Fc, Type, [], @filter);
+        otherwise
+            [yout, FilterInfo] = fft_filter(y, Fs, Fc, Type);
+    end
 end
 
 % 20180514 Add NaNs back after processing
@@ -152,6 +187,42 @@ end
 if ReflectLen > 0
     yout = yout(ReflectLen+1:end-ReflectLen,:);
 end
+
+
+
+
+
+
+function [yout, FilterInfo] = notch_filter(y, Fs, Fc)
+% Normal parameters: F_notch, Order, Q_factor
+if length(Fc) >= 3
+    Fnotch = Fc(1);
+    Order = Fc(2);
+    QFactor = Fc(3);
+elseif length(Fc) == 2
+    Fnotch = Fc(1);
+    Order = Fc(2);
+    QFactor = 10;
+elseif length(Fc) == 1
+    Fnotch = Fc(1);
+    Order = 4;
+    QFactor = 10;
+else
+    Fnotch = 60;
+    Order = 4;
+    QFactor = 10;
+end
+
+d = fdesign.notch('N,F0,Q',Order,Fnotch/(Fs/2),QFactor);
+Hd = design(d);
+
+yout = filtfilt(Hd.sosMatrix,Hd.ScaleValues,y);
+
+FilterInfo = [];
+FilterInfo.FilterMethod = 'notch';
+FilterInfo.FilterCommand = 'filtfilt';
+
+
 
 
 
