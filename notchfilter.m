@@ -9,7 +9,7 @@ end
 Funda = PowerLineFrequency;
 
 fprintf('Designing notch filters.\n');
-for h = 1:floor(Fs/2/Funda)
+parfor h = 1:floor(Fs/2/Funda)
     % Create one for each harmonic
     d = fdesign.notch('N,F0,Q',Order,Funda*h/(Fs/2),QFactor*h);
     Hd{h} = design(d);

@@ -198,6 +198,8 @@ Fs = SampleRate;
 % 2022-05-24
 Fcut_minfreq = Fs/10000;
 
+averagesegmentduration = [];
+
 StitchSignalCell();
 
 
@@ -224,7 +226,7 @@ viewhand_psd_axe = -1;
 selected_plothand = -1;
 selected_timepoint = -1;
 previously_selected_timepoint = -2;
-FineSnapScale = 1;
+FineSnapScale = 100;
 selected_cursortype = 0;
 CursorEnable = 0;
 
@@ -497,7 +499,13 @@ end
 
 
 if EventEnable
-    EventTimeStamps = sortrows(EventTimeStamps);
+    try
+        EventTimeStamps = sortrows(EventTimeStamps);
+    catch
+        [B,I] = sortrows(EventTimeStamps(:,1));
+        EventTimeStamps = [B EventTimeStamps(I,2)];
+        clear B I
+    end
     EventTimes = cell2mat(EventTimeStamps(:,1));
     YPos = sort(mean(YLim)+diff(YLim)/20*([-8:2:8]), 'descend');
     NYPos = length(YPos);
@@ -1636,8 +1644,8 @@ end
                     for i2 = 1:length(lcomlist)
                         i = lcomlist(i2);
                         if blankaround_stitch_samples > 0 && blankaround_stitch_samples <= EventTimePoints(i,2)-EventTimePoints(i,1)+1
-                            tmp(EventTimePoints(i,1) + [0:blankaround_stitch_samples-1],:) = NaN;
-                            tmp(EventTimePoints(i,2) - [blankaround_stitch_samples-1:-1:0],:) = NaN;
+                            tmp(round(EventTimePoints(i,1) + [0:blankaround_stitch_samples-1]),:) = NaN;
+                            tmp(round(EventTimePoints(i,2) - [blankaround_stitch_samples-1:-1:0]),:) = NaN;
                         end
                     end
                     Signal4 = tmp(t1:BLIM:t2,:);

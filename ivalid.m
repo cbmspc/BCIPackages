@@ -298,7 +298,7 @@ if BALANCED
     end
     NtrialTrainMin = min(NtrialTrain);
     
-    wh = waitbar(0, 'Inter validating');
+    %wh = waitbar(0, 'Inter validating');
     for i = 1:MRUN
         clear TrainDataC TrainLabelsC
         for j = Nclass:-1:1
@@ -322,11 +322,11 @@ if BALANCED
         TestIdx = [1:length(TestLabels)];
         
         [pcorrectC{i},pconfuseC{i}] = dataproc_main_multiintervalidation(Data,Labels,TestIdx,DRFUN,DRPARM,FEFUN,FEPARM,CFUN,CNAME,PRIOR,CPARM,OPTS);
-        if ishandle(wh)
-            try
-                waitbar(i/MRUN, wh, sprintf('Inter validating, last Pcorrect=%-5.3f', median(median(cell2mat(pcorrectC{i})))));
-            end
-        end
+        %if ishandle(wh)
+        %    try
+        %        waitbar(i/MRUN, wh, sprintf('Inter validating, last Pcorrect=%-5.3f', median(median(cell2mat(pcorrectC{i})))));
+        %    end
+        %end
     end
     % 2021-10-20 Lazy: Combine them and forget it
     
@@ -346,12 +346,12 @@ if BALANCED
         end
     end
     
-    if ishandle(wh)
-        try
-            delete(wh);
-            drawnow
-        end
-    end
+    %if ishandle(wh)
+    %    try
+    %        delete(wh);
+    %        drawnow
+    %    end
+    %end
     
     
 else

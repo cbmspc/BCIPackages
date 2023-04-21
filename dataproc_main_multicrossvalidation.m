@@ -453,7 +453,9 @@ if SWprogressoutput && SWprogressoutput < 2
         wh = [];
         %wh = waitbar(0, 'Leave-one-out cross validating');
     else
-        wh = waitbar(0, 'Cross validating');
+        %20230403: disabled
+        wh = [];
+        %wh = waitbar(0, 'Cross validating');
     end
 end
 
