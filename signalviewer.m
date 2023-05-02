@@ -317,7 +317,7 @@ PlotHold = 0;
 PowerLineFrequency = 60;
 MaxFilterOrder = 4;
 FilterOrder = MaxFilterOrder;
-FilterReflectMult = 1;
+FilterReflectMult = 0;
 FilterChunkSec = 600;
 FilterBusy = 0;
 MovementBusy = 0;
@@ -532,8 +532,8 @@ ZscoreFilter.multiplier = 100;
 ZscoreFilter.off_chansep = chansep;
 ZscoreFilter.on_chansep = chansep;
 
-text_off = 'OFF';
-text_on = 'ON';
+%text_off = 'OFF';
+%text_on = 'ON';
 
 
 h_hugetext = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.35 0.5 0.25 0.08], 'String', 'BIG TEXT', 'FontUnits', 'normalized', 'FontSize', 0.8, 'Visible', 'off', 'BackgroundColor', [0 0 0], 'ForegroundColor', [1 1 1]);
@@ -562,8 +562,8 @@ h_panright = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'P
 h_panup = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.78 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '^', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_pandown = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'v', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_hold_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.72 0.045 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pause Plotting', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_hold_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.965 0.72 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_hold_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.72 0.045 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pause Plotting', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+%h_hold_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.965 0.72 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
 h_psd_plot = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.70 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'PSD', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_autofit = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.70 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fit', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -571,34 +571,34 @@ h_autofit = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Po
 
 h_passfilttitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.68 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Filters', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_notch_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Notch', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_notch_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.937 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_notch_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.66 0.034 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['Notch ' num2str(PowerLineFrequency) 'Hz'], 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+%h_notch_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.937 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_notch_order = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.954 0.66 0.010 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.order), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_notch_orderunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.964 0.66 0.010 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ord', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 h_notch_qfactor = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.975 0.66 0.010 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.qfactor), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_notch_qfactorunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.985 0.66 0.005 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Q', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 
 
-h_hpf_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HP', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_hpf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.64 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_hpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.64 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HighPass', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_hpf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.64 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_hpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.64 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(HighPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_hpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_lpf_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.62 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'LP', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_lpf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.62 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_lpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.62 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'LowPass', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_lpf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.62 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_lpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.62 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(LowPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_lpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.62 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_evf_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.60 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ENV', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_evf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.60 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_evf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.60 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Envelope', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_evf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.60 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_evf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.60 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(EnvelopeFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_evf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.60 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_zscore_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.58 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_zscore_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_zscore_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.58 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+%h_zscore_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_fastdraw_switch = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.58 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_fastdraw_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.98 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_on, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_fastdraw_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.96 0.58 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Value', 1);
+%h_fastdraw_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.98 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_on, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
 h_chansel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.4); %#ok<NASGU>
 h_chansel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.92 0.12 0.040, 0.400], 'FontUnits', 'pixel');
@@ -606,8 +606,8 @@ h_chansel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normaliz
 h_chansel_auto = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Auto', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_chansel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.945 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'Visible', 'off');
 
-h_cursor_enable = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'I', 'FontUnits', 'normalized', 'FontName', 'Times New Roman');
-h_cursor_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.95 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'off', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_cursor_enable = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.94 0.08 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Cursor', 'FontUnits', 'normalized', 'FontName', 'Times New Roman');
+%h_cursor_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.95 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'off', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_signal_export = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export Sig', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
 
@@ -870,12 +870,14 @@ end
 
     function f_hold_switch(hObject, eventdata) %#ok<*INUSD>
         if PlotHold
-            set(h_hold_state, 'String', text_off);
+            %set(h_hold_state, 'String', text_off);
+            set(h_hold_switch, 'Value', 0);
             PlotHold = 0;
             set(h_hugetext, 'Visible', 'off');
             redraw();
         else
-            set(h_hold_state, 'String', text_on);
+            %set(h_hold_state, 'String', text_on);
+            set(h_hold_switch, 'Value', 1);
             set(h_hugetext, 'String', 'Plotting Paused', 'Visible', 'on');
             PlotHold = 1;
         end
@@ -892,9 +894,11 @@ end
         end
         
         if HighPassFilter.state
-            set(h_hpf_state, 'String', text_on);
+            %set(h_hpf_state, 'String', text_on);
+            set(h_hpf_switch, 'Value', 1);
         else
-            set(h_hpf_state, 'String', text_off);
+            %set(h_hpf_state, 'String', text_off);
+            set(h_hpf_switch, 'Value', 0);
         end
         
         filter_update();
@@ -910,9 +914,11 @@ end
         end
         
         if LowPassFilter.state
-            set(h_lpf_state, 'String', text_on);
+            %set(h_lpf_state, 'String', text_on);
+            set(h_lpf_switch, 'Value', 1);
         else
-            set(h_lpf_state, 'String', text_off);
+            %set(h_lpf_state, 'String', text_off);
+            set(h_lpf_switch, 'Value', 0);
         end
         
         filter_update();
@@ -924,9 +930,11 @@ end
         % two filters at the same time
         disable_filter_switches();
         HighPassFilter.state = 1;
-        set(h_hpf_state, 'String', text_on);
+        %set(h_hpf_state, 'String', text_on);
+        set(h_hpf_switch, 'Value', 1);
         LowPassFilter.state = 1;
-        set(h_lpf_state, 'String', text_on);
+        %set(h_lpf_state, 'String', text_on);
+        set(h_lpf_switch, 'Value', 1);
         filter_update();
         enable_filter_switches();
     end
@@ -940,9 +948,11 @@ end
         end
         
         if EnvelopeFilter.state
-            set(h_evf_state, 'String', text_on);
+            %set(h_evf_state, 'String', text_on);
+            set(h_evf_switch, 'Value', 1);
         else
-            set(h_evf_state, 'String', text_off);
+            %set(h_evf_state, 'String', text_off);
+            set(h_evf_switch, 'Value', 0);
         end
         
         filter_update();
@@ -992,7 +1002,7 @@ end
 
     function f_notch_switch(hObject, eventdata)
         disable_filter_switches();
-        set(h_notch_state, 'String', 'Wait'); drawnow;
+        %set(h_notch_state, 'String', 'Wait'); drawnow;
         if NotchFilter.state
             NotchFilter.state = 0;
         else
@@ -1007,7 +1017,8 @@ end
         disable_filter_switches();
         ord = str2double(get(h_notch_order, 'String'));
         if isfinite(ord) && mod(ord,2) == 0 && ord >= 2 && ord <= 10
-            set(h_notch_state, 'String', 'Wait'); drawnow;
+            %set(h_notch_state, 'String', 'Wait'); 
+            drawnow;
             NotchFilter.order = ord;
             notch_update();
             filter_update();
@@ -1021,7 +1032,8 @@ end
         disable_filter_switches();
         q = str2double(get(h_notch_qfactor, 'String'));
         if isfinite(q) && q > 0
-            set(h_notch_state, 'String', 'Wait'); drawnow;
+            %set(h_notch_state, 'String', 'Wait'); 
+            drawnow;
             NotchFilter.qfactor = q;
             notch_update();
             filter_update();
@@ -1054,28 +1066,33 @@ end
                 end
             end
             set(h_bigtext, 'Visible', 'on', 'String', ['Finishing notch filter...']); drawnow;
-            set(h_notch_state, 'String', text_on);
+            %set(h_notch_state, 'String', text_on);
+            set(h_notch_switch, 'Value', 1);
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', '');
         else
             Signal_postnotch = Signal_postica;
-            set(h_notch_state, 'String', text_off);
+            %set(h_notch_state, 'String', text_off);
+            set(h_notch_switch, 'Value', 0);
         end
     end
 
 
     function f_zscore_switch(hObject, eventdata)
         set(h_zscore_switch, 'Enable', 'off');
-        set(h_zscore_state, 'String', 'Wait'); drawnow;
+        %set(h_zscore_state, 'String', 'Wait'); 
+        drawnow;
         if ZscoreFilter.state
             ZscoreFilter.on_chansep = chansep;
             ZscoreFilter.state = 0;
-            set(h_zscore_state, 'String', text_off);
+            %set(h_zscore_state, 'String', text_off);
+            set(h_zscore_switch, 'Value', 0);
             refit(ZscoreFilter.off_chansep);
         else
             ZscoreFilter.off_chansep = chansep;
             ZscoreFilter.state = 1;
-            set(h_zscore_state, 'String', text_on);
+            %set(h_zscore_state, 'String', text_on);
+            set(h_zscore_switch, 'Value', 1);
             refit(ZscoreFilter.on_chansep);
         end
         redraw();
@@ -1085,13 +1102,16 @@ end
 
     function f_fastdraw_switch(hObject, eventdata)
         set(h_fastdraw_switch, 'Enable', 'off');
-        set(h_fastdraw_state, 'String', 'Wait'); drawnow;
+        %set(h_fastdraw_state, 'String', 'Wait'); 
+        drawnow;
         if ScreenLimitedDownsampling
             ScreenLimitedDownsampling = 0;
-            set(h_fastdraw_state, 'String', text_off);
+            %set(h_fastdraw_state, 'String', text_off);
+            set(h_fastdraw_switch, 'Value', 0);
         else
             ScreenLimitedDownsampling = 1;
-            set(h_fastdraw_state, 'String', text_on);
+            %set(h_fastdraw_state, 'String', text_on);
+            set(h_fastdraw_switch, 'Value', 1);
         end
         redraw();
         set(h_fastdraw_switch, 'Enable', 'on');
@@ -1119,23 +1139,28 @@ end
         if hpf <= Fcut_minfreq % Not likely to be stable, or not even available
             HighPassFilter.state = 0;
             set(h_hpf_cutoff, 'String', num2str(ceil(Fcut_minfreq*101)/100));
-            set(h_hpf_state, 'String', text_off);
+            %set(h_hpf_state, 'String', text_off);
+            set(h_hpf_switch, 'Value', 0);
         end
         if lpf >= Fs/2
             LowPassFilter.state = 0;
             set(h_lpf_cutoff, 'String', num2str(floor(Fs/2*99)/100));
-            set(h_lpf_state, 'String', text_off);
+            %set(h_lpf_state, 'String', text_off);
+            set(h_lpf_switch, 'Value', 0);
         end
         if hpf >= lpf
             HighPassFilter.state = 0;
-            set(h_hpf_state, 'String', text_off);
+            %set(h_hpf_state, 'String', text_off);
+            set(h_hpf_switch, 'Value', 0);
             LowPassFilter.state = 0;
-            set(h_lpf_state, 'String', text_off);
+            %set(h_lpf_state, 'String', text_off);
+            set(h_lpf_switch, 'Value', 0);
         end
         if evf >= Fs/2
             EnvelopeFilter.state = 0;
             set(h_evf_cutoff, 'String', num2str(floor(Fs/2*99)/100));
-            set(h_evf_state, 'String', text_off);
+            %set(h_evf_state, 'String', text_off);
+            set(h_evf_switch, 'Value', 0);
         end
         
         if HighPassFilter.cutoff ~= hpf || LowPassFilter.cutoff ~= lpf
@@ -1176,7 +1201,7 @@ end
         if HighPassFilter.state || LowPassFilter.state || EnvelopeFilter.state
             FilterBusy = 1;
             disable_movement_switches();
-            set([h_hpf_state h_lpf_state h_evf_state], 'String', 'Wait');
+            %set([h_hpf_state h_lpf_state h_evf_state], 'String', 'Wait');
             set(h_bigtext, 'Visible', 'on', 'String', 'Preparing filters...'); 
             %redraw();
             drawnow;
@@ -1199,7 +1224,8 @@ end
                         if FilterOrder <= 1
                             Signal3a(:,ch) = Signal_postnotch(:,ch);
                             HighPassFilter.state = 0;
-                            set(h_hpf_state, 'String', text_off);
+                            %set(h_hpf_state, 'String', text_off);
+                            set(h_hpf_switch, 'Value', 0);
                             SigChunkRendered(:) = 0;
                             break
                         end
@@ -1225,7 +1251,8 @@ end
                         if FilterOrder <= 1
                             Signal3b(:,ch) = Signal3a(:,ch);
                             LowPassFilter.state = 0;
-                            set(h_lpf_state, 'String', text_off);
+                            %set(h_lpf_state, 'String', text_off);
+                            set(h_lpf_switch, 'Value', 0);
                             SigChunkRendered(:) = 0;
                             break
                         end
@@ -1252,7 +1279,8 @@ end
                         if FilterOrder <= 1
                             Signal_postfilter(:,ch) = Signal3b(:,ch);
                             EnvelopeFilter.state = 0;
-                            set(h_evf_state, 'String', text_off);
+                            %set(h_evf_state, 'String', text_off);
+                            set(h_evf_switch, 'Value', 0);
                             SigChunkRendered(:) = 0;
                             break
                         end
@@ -1287,19 +1315,25 @@ end
             enable_movement_switches();
             
             if HighPassFilter.state
-                set(h_hpf_state, 'String', text_on);
+                %set(h_hpf_state, 'String', text_on);
+                set(h_hpf_switch, 'Value', 1);
             else
-                set(h_hpf_state, 'String', text_off);
+                %set(h_hpf_state, 'String', text_off);
+                set(h_hpf_switch, 'Value', 0);
             end
             if LowPassFilter.state
-                set(h_lpf_state, 'String', text_on);
+                %set(h_lpf_state, 'String', text_on);
+                set(h_lpf_switch, 'Value', 1);
             else
-                set(h_lpf_state, 'String', text_off);
+                %set(h_lpf_state, 'String', text_off);
+                set(h_lpf_switch, 'Value', 0);
             end
             if EnvelopeFilter.state
-                set(h_evf_state, 'String', text_on);
+                %set(h_evf_state, 'String', text_on);
+                set(h_evf_switch, 'Value', 1);
             else
-                set(h_evf_state, 'String', text_off);
+                %set(h_evf_state, 'String', text_off);
+                set(h_evf_switch, 'Value', 0);
             end
         end
         
@@ -1774,11 +1808,13 @@ end
     function f_cursor_enable(hObject, eventdata)
         if CursorEnable
             CursorEnable = 0;
-            set(h_cursor_state, 'String', 'off');
+            %set(h_cursor_state, 'String', text_off);
+            set(h_cursor_enable, 'Value', 0);
             update_cursorline();
         else
             CursorEnable = 1;
-            set(h_cursor_state, 'String', 'on');
+            %set(h_cursor_state, 'String', text_on);
+            set(h_cursor_enable, 'Value', 1);
         end
     end
 
@@ -1788,6 +1824,10 @@ end
         Nsch = length(selchan);
         set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)));
         redraw();
+        %Automatically zoom out if less-than-full channels fill the screen
+        if Nsch < (YLim(2)-YLim(1))/chansep
+            f_yzoomout(hObject, eventdata);
+        end
     end
 
     function f_chansel_reset(hObject, eventdata)
