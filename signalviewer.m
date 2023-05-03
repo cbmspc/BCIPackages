@@ -530,10 +530,17 @@ NotchFilter.qfactor = 10;
 ZscoreFilter.state = 0;
 ZscoreFilter.multiplier = 100;
 ZscoreFilter.off_chansep = chansep;
-ZscoreFilter.on_chansep = chansep;
+ZscoreFilter.on_chansep = [];
 
 %text_off = 'OFF';
 %text_on = 'ON';
+fontweight_on1 = 'bold';
+fontweight_on2 = 'bold';
+fontweight_off = 'normal';
+fontcolor_on1 = [0 0.5 0];
+fontcolor_on2 = [1 0 0];
+fontcolor_off = [0 0 0];
+
 
 
 h_hugetext = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.35 0.5 0.25 0.08], 'String', 'BIG TEXT', 'FontUnits', 'normalized', 'FontSize', 0.8, 'Visible', 'off', 'BackgroundColor', [0 0 0], 'ForegroundColor', [1 1 1]);
@@ -541,35 +548,35 @@ h_bigtext = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position
 
 NormalizedControlFontSize = 0.8;
 
-h_xoomtitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.96 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Horizontal Zoom', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
-h_xzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.94 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_xzoomlevel = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.94 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '10 s', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_xzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.94 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_xoomtitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.96 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', 'Horizontal Zoom', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+h_xzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.94 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_xzoomlevel = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.94 0.04 0.02], 'BackgroundColor', [0.7 0.7 0.9], 'String', '10 s', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_xzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.975 0.94 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_yoomtitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.91 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '# chans on screen', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
-h_yzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.89 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_yzoomlevel = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.89 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '64 ch', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_yzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.89 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_yoomtitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.91 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', '# chans on screen', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+h_yzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.89 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_yzoomlevel = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.89 0.04 0.02], 'BackgroundColor', [0.7 0.7 0.9], 'String', '64 ch', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_yzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.975 0.89 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_sensititle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.86 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Y Sensitivity', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
-h_sepup = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.84 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_sensitivity = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.84 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '100 uV', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_sepdown = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.84 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_sensititle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.86 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', 'Y Sensitivity', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+h_sepup = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.84 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_sensitivity = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.84 0.04 0.02], 'BackgroundColor', [0.7 0.7 0.9], 'String', '100 uV', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_sepdown = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.975 0.84 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_pantitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.81 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pan', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
-h_panleft = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '<', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_panright = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '>', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_panup = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.78 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '^', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_pandown = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.755 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'v', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_pantitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.81 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', 'Pan', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+h_panleft = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.95 0.775 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '<', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_panright = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.775 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '>', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_panup = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.80 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', '^', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_pandown = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.775 0.020 0.025], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'v', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_hold_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.72 0.045 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pause Plotting', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-%h_hold_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.965 0.72 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_hold_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.75 0.045 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Pause Plotting', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.8);
+%h_hold_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.965 0.74 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_psd_plot = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.70 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'PSD', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_autofit = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.70 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fit', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_psd_plot = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.70 0.03 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'PSD', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.8);
+h_autofit = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.70 0.03 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Auto Fit', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5);
 
 
-h_passfilttitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.68 0.065 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Filters', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+h_passfilttitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.68 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Filters', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
 h_notch_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.66 0.034 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['Notch ' num2str(PowerLineFrequency) 'Hz'], 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 %h_notch_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.937 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -594,24 +601,24 @@ h_evf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized'
 h_evf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.60 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(EnvelopeFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_evf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.60 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_zscore_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.58 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_zscore_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.58 0.030 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 %h_zscore_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_fastdraw_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.96 0.58 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Value', 1);
+h_fastdraw_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.96 0.58 0.030 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Value', 1, 'FontWeight', fontweight_on1, 'ForegroundColor', fontcolor_on1);
 %h_fastdraw_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.98 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_on, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_chansel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.4); %#ok<NASGU>
+h_chansel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5); %#ok<NASGU>
 h_chansel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.92 0.12 0.040, 0.400], 'FontUnits', 'pixel');
 h_chansel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plot', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_chansel_auto = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Auto', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_chansel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.945 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'Visible', 'off');
 
-h_cursor_enable = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.94 0.08 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Cursor', 'FontUnits', 'normalized', 'FontName', 'Times New Roman');
+h_cursor_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.94 0.08 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Cursor', 'FontUnits', 'normalized', 'FontName', 'Times New Roman');
 %h_cursor_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.95 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'off', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_signal_export = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export Sig', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
 
-h_icasel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.525 0.020 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.4); %#ok<NASGU>
+h_icasel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5); %#ok<NASGU>
 h_icasel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.96 0.12 0.030, 0.400], 'FontUnits', 'pixel');
 h_icasel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Start', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_icasel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -699,7 +706,7 @@ set(h_icasel_view_mixmat, 'Callback', @f_icasel_view_mixmat);
 set(h_icasel_view_sepmat, 'Callback', @f_icasel_view_sepmat);
 set(h_icasel_view_export, 'Callback', @f_icasel_view_export);
 set(h_chansel_auto, 'Callback', @f_chansel_auto);
-set(h_cursor_enable, 'Callback', @f_cursor_enable);
+set(h_cursor_switch, 'Callback', @f_cursor_enable);
 set(h_signal_export, 'Callback', @f_signal_export);
 set(h_axesfont_inc, 'Callback', @f_axesfont_inc);
 set(h_axesfont_dec, 'Callback', @f_axesfont_dec);
@@ -751,6 +758,10 @@ else
         end
     end
 end
+
+%drawnow
+
+set(fighand, 'HandleVisibility', 'callback');
 
 if set_chansep_to >= 0
     autofit();
@@ -873,14 +884,14 @@ end
     function f_hold_switch(hObject, eventdata) %#ok<*INUSD>
         if PlotHold
             %set(h_hold_state, 'String', text_off);
-            set(h_hold_switch, 'Value', 0);
+            set(h_hold_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
             PlotHold = 0;
             set(h_hugetext, 'Visible', 'off');
             redraw();
             set(h_hintbar, 'String', '');
         else
             %set(h_hold_state, 'String', text_on);
-            set(h_hold_switch, 'Value', 1);
+            set(h_hold_switch, 'Value', 1, 'ForegroundColor', fontcolor_on2, 'FontWeight', fontweight_on2);
             set(h_hugetext, 'String', 'Plotting Paused', 'Visible', 'on');
             PlotHold = 1;
             set(h_hintbar, 'String', 'Plotting paused');
@@ -899,10 +910,10 @@ end
         
         if HighPassFilter.state
             %set(h_hpf_state, 'String', text_on);
-            set(h_hpf_switch, 'Value', 1);
+            set(h_hpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
         else
             %set(h_hpf_state, 'String', text_off);
-            set(h_hpf_switch, 'Value', 0);
+            set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
         
         filter_update();
@@ -920,10 +931,10 @@ end
         
         if LowPassFilter.state
             %set(h_lpf_state, 'String', text_on);
-            set(h_lpf_switch, 'Value', 1);
+            set(h_lpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
         else
             %set(h_lpf_state, 'String', text_off);
-            set(h_lpf_switch, 'Value', 0);
+            set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
         
         filter_update();
@@ -937,10 +948,10 @@ end
         disable_filter_switches();
         HighPassFilter.state = 1;
         %set(h_hpf_state, 'String', text_on);
-        set(h_hpf_switch, 'Value', 1);
+        set(h_hpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
         LowPassFilter.state = 1;
         %set(h_lpf_state, 'String', text_on);
-        set(h_lpf_switch, 'Value', 1);
+        set(h_lpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
         filter_update();
         enable_filter_switches();
         set(h_hintbar, 'String', '');
@@ -956,10 +967,10 @@ end
         
         if EnvelopeFilter.state
             %set(h_evf_state, 'String', text_on);
-            set(h_evf_switch, 'Value', 1);
+            set(h_evf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
         else
             %set(h_evf_state, 'String', text_off);
-            set(h_evf_switch, 'Value', 0);
+            set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
         
         filter_update();
@@ -1081,13 +1092,13 @@ end
             end
             set(h_bigtext, 'Visible', 'on', 'String', ['Finishing notch filter...']); drawnow;
             %set(h_notch_state, 'String', text_on);
-            set(h_notch_switch, 'Value', 1);
+            set(h_notch_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', '');
         else
             Signal_postnotch = Signal_postica;
             %set(h_notch_state, 'String', text_off);
-            set(h_notch_switch, 'Value', 0);
+            set(h_notch_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
     end
 
@@ -1100,14 +1111,18 @@ end
             ZscoreFilter.on_chansep = chansep;
             ZscoreFilter.state = 0;
             %set(h_zscore_state, 'String', text_off);
-            set(h_zscore_switch, 'Value', 0);
+            set(h_zscore_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
             refit(ZscoreFilter.off_chansep);
         else
             ZscoreFilter.off_chansep = chansep;
             ZscoreFilter.state = 1;
             %set(h_zscore_state, 'String', text_on);
-            set(h_zscore_switch, 'Value', 1);
-            refit(ZscoreFilter.on_chansep);
+            set(h_zscore_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
+            if isempty(ZscoreFilter.on_chansep)
+                autofit();
+            else
+                refit(ZscoreFilter.on_chansep);
+            end
         end
         redraw();
         set(h_zscore_switch, 'Enable', 'on');
@@ -1121,11 +1136,11 @@ end
         if ScreenLimitedDownsampling
             ScreenLimitedDownsampling = 0;
             %set(h_fastdraw_state, 'String', text_off);
-            set(h_fastdraw_switch, 'Value', 0);
+            set(h_fastdraw_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         else
             ScreenLimitedDownsampling = 1;
             %set(h_fastdraw_state, 'String', text_on);
-            set(h_fastdraw_switch, 'Value', 1);
+            set(h_fastdraw_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
         end
         redraw();
         set(h_fastdraw_switch, 'Enable', 'on');
@@ -1154,27 +1169,27 @@ end
             HighPassFilter.state = 0;
             set(h_hpf_cutoff, 'String', num2str(ceil(Fcut_minfreq*101)/100));
             %set(h_hpf_state, 'String', text_off);
-            set(h_hpf_switch, 'Value', 0);
+            set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
         if lpf >= Fs/2
             LowPassFilter.state = 0;
             set(h_lpf_cutoff, 'String', num2str(floor(Fs/2*99)/100));
             %set(h_lpf_state, 'String', text_off);
-            set(h_lpf_switch, 'Value', 0);
+            set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
         if hpf >= lpf
             HighPassFilter.state = 0;
             %set(h_hpf_state, 'String', text_off);
-            set(h_hpf_switch, 'Value', 0);
+            set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
             LowPassFilter.state = 0;
             %set(h_lpf_state, 'String', text_off);
-            set(h_lpf_switch, 'Value', 0);
+            set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
         if evf >= Fs/2
             EnvelopeFilter.state = 0;
             set(h_evf_cutoff, 'String', num2str(floor(Fs/2*99)/100));
             %set(h_evf_state, 'String', text_off);
-            set(h_evf_switch, 'Value', 0);
+            set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
         
         if HighPassFilter.cutoff ~= hpf || LowPassFilter.cutoff ~= lpf
@@ -1239,7 +1254,7 @@ end
                             Signal3a(:,ch) = Signal_postnotch(:,ch);
                             HighPassFilter.state = 0;
                             %set(h_hpf_state, 'String', text_off);
-                            set(h_hpf_switch, 'Value', 0);
+                            set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
                             SigChunkRendered(:) = 0;
                             break
                         end
@@ -1266,7 +1281,7 @@ end
                             Signal3b(:,ch) = Signal3a(:,ch);
                             LowPassFilter.state = 0;
                             %set(h_lpf_state, 'String', text_off);
-                            set(h_lpf_switch, 'Value', 0);
+                            set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
                             SigChunkRendered(:) = 0;
                             break
                         end
@@ -1294,7 +1309,7 @@ end
                             Signal_postfilter(:,ch) = Signal3b(:,ch);
                             EnvelopeFilter.state = 0;
                             %set(h_evf_state, 'String', text_off);
-                            set(h_evf_switch, 'Value', 0);
+                            set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
                             SigChunkRendered(:) = 0;
                             break
                         end
@@ -1330,24 +1345,24 @@ end
             
             if HighPassFilter.state
                 %set(h_hpf_state, 'String', text_on);
-                set(h_hpf_switch, 'Value', 1);
+                set(h_hpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
             else
                 %set(h_hpf_state, 'String', text_off);
-                set(h_hpf_switch, 'Value', 0);
+                set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
             end
             if LowPassFilter.state
                 %set(h_lpf_state, 'String', text_on);
-                set(h_lpf_switch, 'Value', 1);
+                set(h_lpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
             else
                 %set(h_lpf_state, 'String', text_off);
-                set(h_lpf_switch, 'Value', 0);
+                set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
             end
             if EnvelopeFilter.state
                 %set(h_evf_state, 'String', text_on);
-                set(h_evf_switch, 'Value', 1);
+                set(h_evf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
             else
                 %set(h_evf_state, 'String', text_off);
-                set(h_evf_switch, 'Value', 0);
+                set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
             end
         end
         
@@ -1797,12 +1812,18 @@ end
 
         
         XRange = XLim(2)-XLim(1);
-        if XRange < 60
-            set(h_xzoomlevel, 'String', sprintf('%g s', XRange));
+        if XRange < 1e-6
+            set(h_xzoomlevel, 'String', sprintf('%.3g ns', XRange*1000000000));
+        elseif XRange < 1e-3
+            set(h_xzoomlevel, 'String', sprintf('%.3g µs', XRange*1000000));
+        elseif XRange < 1
+            set(h_xzoomlevel, 'String', sprintf('%.3g ms', XRange*1000));
+        elseif XRange < 60
+            set(h_xzoomlevel, 'String', sprintf('%.3g s', XRange));
         elseif XRange < 3600
-            set(h_xzoomlevel, 'String', sprintf('%g min', XRange/60));
+            set(h_xzoomlevel, 'String', sprintf('%.3g min', XRange/60));
         else
-            set(h_xzoomlevel, 'String', sprintf('%g hr', XRange/3600));
+            set(h_xzoomlevel, 'String', sprintf('%.3g hr', XRange/3600));
         end
         
         YRange = YLim(2)-YLim(1);
@@ -1849,13 +1870,13 @@ end
         if CursorEnable
             CursorEnable = 0;
             %set(h_cursor_state, 'String', text_off);
-            set(h_cursor_enable, 'Value', 0);
+            set(h_cursor_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
             update_cursorline();
             set(h_hintbar, 'String', '');
         else
             CursorEnable = 1;
             %set(h_cursor_state, 'String', text_on);
-            set(h_cursor_enable, 'Value', 1);
+            set(h_cursor_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
             set(h_hintbar, 'String', 'Click on signal to get time/value. Hold Shift to get local max. Hold Ctrl to get local min.');
         end
     end
@@ -1887,6 +1908,7 @@ end
             set(viewhand_psd, 'KeyPressFcn', @f_fig_keypress);
             Signal_psd_source = Signal_psd_source*0;
             update_psd();
+            set(viewhand_psd, 'MenuBar', 'none', 'Toolbar', 'figure', 'HandleVisibility', 'callback');
         else
             figure(viewhand_psd);
         end
