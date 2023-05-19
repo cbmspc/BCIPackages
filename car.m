@@ -4,7 +4,7 @@ function [out, m] = car (in)
 
 if iscell(in)
     for i = length(in):-1:1
-        [out(i), m(i)] = car(in{i});
+        [out{i}, m{i}] = car(in{i});
     end
     return
 end
@@ -29,5 +29,3 @@ else
         out(:,ch) = in(:,ch) - m;
     end
 end
-
-

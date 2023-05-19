@@ -141,8 +141,16 @@ elseif nargin >= 4
     end
 end
 
+StitchedSegmentNames = {};
 SignalIsStitched = 0;
 if iscell(Signal)
+    
+    % 2023-05-19 Special rule for opts.EventTimeStamps if it is all text.
+    if iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && min(cellfun(@ischar,EventTimeStamps))
+        StitchedSegmentNames = EventTimeStamps;
+        % This will be handled later when EventTimeStamps is reformatted
+    end
+    
     UserSuppliedEventNames = 0;
     if exist('EventTimeStamps','var') && isnumeric(EventTimeStamps)
         CellEvents = EventTimeStamps;
@@ -165,7 +173,6 @@ if iscell(Signal)
     if ~UserSuppliedEventNames
         EventTimeStamps = EventTimeStamps(:,1);
     end
-    
     
     Signal = cat(1,Signal{:});
 else
@@ -201,9 +208,6 @@ Fcut_minfreq = Fs/10000;
 averagesegmentduration = [];
 
 StitchSignalCell();
-
-
-
 
 if ~exist('ica_W', 'var') || ~exist('ica_A', 'var')
     ica_W = [];
@@ -491,6 +495,13 @@ if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps)
     
 end
 
+% 2023-05-19: Reformat EventTimeStamps if StitchedSegmentNames is specified
+if ~isempty(StitchedSegmentNames)
+    if size(EventTimeStamps,1) == length(StitchedSegmentNames) && min(cellfun(@ischar,EventTimeStamps(:,2))) && numel(StitchedSegmentNames) == length(StitchedSegmentNames) && min(cellfun(@ischar,StitchedSegmentNames))
+        EventTimeStamps(:,2) = StitchedSegmentNames;
+    end
+end
+
 if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps) && iscell(EventTimeStamps) && size(EventTimeStamps,2) == 2
     EventEnable = 1;
 else
@@ -639,7 +650,7 @@ h_xspan_edit1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Posi
 h_xspan_edittext1unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.07 0.020 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 
 h_lmoddate = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.020 0.14 0.012], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['SignalViewer version: ' lmoddate], 'FontUnits', 'normalized', 'FontSize', 1.0, 'FontName', 'FixedWidth', 'HorizontalAlignment', 'left'); %#ok<NASGU>
-h_hintbar = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.25 0.020 0.57 0.018], 'BackgroundColor', [0.7 0.9 0.7], 'String', '', 'FontUnits', 'normalized', 'FontSize', 0.8, 'FontName', 'Verdana', 'HorizontalAlignment', 'left'); %#ok<NASGU>
+h_hintbar = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.25 0.020 0.57 0.018], 'BackgroundColor', [0.7 0.9 0.7], 'String', '', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana', 'HorizontalAlignment', 'left');
 
 h_xspan_edittext2intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.83 0.020 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 h_xspan_edit2 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.86 0.020 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -654,7 +665,7 @@ h_xspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized
 % h_yspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.56 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized', 'FontSize', ControlFontSize);
 
 
-h_footer_message = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.020 0.70 0.020], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized', 'FontSize', 16, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_footer_message = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.000 0.70 0.018], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana');
 if isempty(FooterMessage)
     set(h_footer_message, 'Visible', 'off');
 end
@@ -1912,7 +1923,7 @@ end
         else
             figure(viewhand_psd);
         end
-        set(h_hintbar, 'String', 'PSD updated');
+        set(h_hintbar, 'String', 'PSD updated. (Use arrow keys to scroll left/right in the PSD window.)');
     end
 
 
@@ -2121,7 +2132,7 @@ end
                     reflect_len = averagesegmentduration * Fs / 2;
                     Fcut_stitch = Fcut_minfreq;
                     FO_stitch = 2;
-                    tmp(EventTimePoints(i,1):EventTimePoints(i,2),:) = freqfilter(tmp(EventTimePoints(i,1):EventTimePoints(i,2),:), Fs, [Fcut_stitch, FO_stitch], 'high', 'butter', reflect_len);
+                    tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = freqfilter(tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), Fs, [Fcut_stitch, FO_stitch], 'high', 'butter', reflect_len);
                 end
                 
                 if ishandle(wh)
