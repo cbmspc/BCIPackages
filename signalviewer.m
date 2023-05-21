@@ -376,8 +376,9 @@ Kolor = Kolor(tmp,:);
 Nkolor = size(Kolor,1);
 
 EventKolor = [0.75 0.75 0];
-EventFontSize = 14;
-EventFontWeight = 'bold';
+EventFontName = 'Verdana';
+EventFontSize = 10;
+EventFontWeight = 'normal';
 
 AxesFontName = 'Consolas';
 AxesFontSize = 16;
@@ -518,11 +519,20 @@ if EventEnable
         clear B I
     end
     EventTimes = cell2mat(EventTimeStamps(:,1));
+    % Initial y positions for event text labels (redraw will overwrite the positions later)
     YPos = sort(mean(YLim)+diff(YLim)/20*([-8:2:8]), 'descend');
     NYPos = length(YPos);
     for i = size(EventTimeStamps,1):-1:1
         eventplothand(i) = plot( EventTimeStamps{i,1}*[1 1], [-10000000*(Nsch+1), 10000000], '-', 'Color', EventKolor ); %#ok<NASGU>
-        eventtexthand(i) = text( EventTimeStamps{i,1}, YPos(mod(i-1,NYPos)+1), EventTimeStamps{i,2}, 'FontUnits', 'pixel', 'FontSize', EventFontSize, 'FontWeight', EventFontWeight);
+        larrow = '«';
+        rarrow = '';
+        horali = 'left';
+        if EventTimeStamps{i,1} - XLim(1) > (XLim(2) - XLim(1))*0.5
+            larrow = '';
+            rarrow = '»';
+            horali = 'right';
+        end
+        eventtexthand(i) = text( EventTimeStamps{i,1}, YPos(mod(i-1,NYPos)+1), [larrow EventTimeStamps{i,2} rarrow], 'FontName', EventFontName, 'FontUnits', 'pixel', 'FontSize', EventFontSize, 'FontWeight', EventFontWeight, 'HorizontalAlignment', horali);
     end
     set(eventtexthand(i), 'Visible', 'off');
 end
@@ -564,10 +574,10 @@ h_xzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'P
 h_xzoomlevel = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.94 0.04 0.02], 'BackgroundColor', [0.7 0.7 0.9], 'String', '10 s', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 h_xzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.975 0.94 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_yoomtitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.91 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', '# chans on screen', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
-h_yzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.89 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_yzoomtitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.91 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', '# chans on screen', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+h_yzoomout = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.89 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_yzoomlevel = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.89 0.04 0.02], 'BackgroundColor', [0.7 0.7 0.9], 'String', '64 ch', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_yzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.975 0.89 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_yzoomin = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.975 0.89 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
 h_sensititle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.86 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', 'Y Sensitivity', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 h_sepup = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.84 0.015 0.02], 'BackgroundColor', [0.7 0.7 0.7], 'String', '-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -640,8 +650,10 @@ h_icasel_view_export = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'norma
 
 h_axesfont_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 h_axesfont_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.93 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_windowhsize_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.95 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_windowhsize_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_eventfont_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.945 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'E+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_eventfont_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.955 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'E-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_windowhsize_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_windowhsize_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
 h_xspan_text = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.020 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', 'full t range [0,12345]', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
@@ -668,6 +680,10 @@ h_xspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized
 h_footer_message = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.000 0.70 0.018], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana');
 if isempty(FooterMessage)
     set(h_footer_message, 'Visible', 'off');
+end
+
+if ~EventEnable
+    set([h_eventfont_inc h_eventfont_dec], 'Enable', 'off');
 end
 
 set(h_icasel_reset, 'Enable', 'off');
@@ -721,6 +737,8 @@ set(h_cursor_switch, 'Callback', @f_cursor_enable);
 set(h_signal_export, 'Callback', @f_signal_export);
 set(h_axesfont_inc, 'Callback', @f_axesfont_inc);
 set(h_axesfont_dec, 'Callback', @f_axesfont_dec);
+set(h_eventfont_inc, 'Callback', @f_eventfont_inc);
+set(h_eventfont_dec, 'Callback', @f_eventfont_dec);
 set(h_windowhsize_inc, 'Callback', @f_windowhsize_inc);
 set(h_windowhsize_dec, 'Callback', @f_windowhsize_dec);
 set(fighand, 'KeyPressFcn', @f_fig_keypress);
@@ -1811,12 +1829,31 @@ end
         
         if EventEnable
             %YPos = [mean(YLim)+diff(YLim)/8     mean(YLim)    mean(YLim)-diff(YLim)/8];
-            YPos = sort(mean(YLim)+diff(YLim)/20*([-8:2:8]), 'descend');
+            %2023-05-20: Try to set labels to avoid the Yticks
+            yt = get(axehand, 'YTick');
+            YPos = YLim(1)+(YLim(2)-YLim(1))/100*[1 2 3];
+            YPos = YPos(YPos>YLim(1) & YPos<YLim(2));
+            %YPos = stagger_odds_evens(YPos);
+            if isempty(YPos)
+                YPos = sort(mean(YLim)+diff(YLim)/20*([-8:2:8]), 'descend');
+            end
             NYPos = length(YPos);
             for i = size(EventTimeStamps,1):-1:1
+                if EventTimeStamps{i,1} < XLim(1) || EventTimeStamps{i,1} > XLim(2)
+                    continue
+                end
                 tmp = get(eventtexthand(i), 'Position');
                 tmp(2) = YPos(mod(i-1,NYPos)+1);
-                set(eventtexthand(i), 'Position', tmp);
+                larrow = '«';
+                rarrow = '';
+                horali = 'left';
+                if EventTimeStamps{i,1} - XLim(1) > (XLim(2) - XLim(1))*0.5
+                    larrow = '';
+                    rarrow = '»';
+                    horali = 'right';
+                    tmp(2) = tmp(2)+(YLim(2)-YLim(1))/100*96;
+                end
+                set(eventtexthand(i), 'Position', tmp, 'String', [larrow EventTimeStamps{i,2} rarrow], 'HorizontalAlignment', horali);
             end
             clear tmp
         end
@@ -2333,6 +2370,7 @@ end
         AxesFontSize = AxesFontSize + .001;
         set(axehand, 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
         set([plottext1hand plottext2hand plottext3hand], 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
+        set(h_hintbar, 'String', sprintf('Axes font size set to %g units', AxesFontSize));
     end
 
     function f_axesfont_dec(hObject, eventdata)
@@ -2341,12 +2379,32 @@ end
         end
         set(axehand, 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
         set([plottext1hand plottext2hand plottext3hand], 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
+        set(h_hintbar, 'String', sprintf('Axes font size set to %g units', AxesFontSize));
+    end
+
+    function f_eventfont_inc(hObject, eventdata)
+        if EventEnable
+            EventFontSize = EventFontSize + 1;
+            set(eventtexthand, 'FontSize', EventFontSize);
+            set(h_hintbar, 'String', sprintf('Event font size set to %g pixels', EventFontSize));
+        end
+    end
+
+    function f_eventfont_dec(hObject, eventdata)
+        if EventEnable
+            if EventFontSize > 2
+                EventFontSize = EventFontSize - 1;
+            end
+            set(eventtexthand, 'FontSize', EventFontSize);
+            set(h_hintbar, 'String', sprintf('Event font size set to %g pixels', EventFontSize));
+        end
     end
 
     function f_windowhsize_inc(hObject, eventdata)
         %AxesPosition = [0.0500    0.0600    0.86    0.93];
         AxesPosition = AxesPosition + [-0.01 0 0.01 0];
         set(axehand, 'Position', AxesPosition);
+        set(h_hintbar, 'String', sprintf('Window horizontal size set to %g fraction', AxesPosition(3)));
     end
 
     function f_windowhsize_dec(hObject, eventdata)
@@ -2355,6 +2413,7 @@ end
             AxesPosition = AxesPosition - [-0.01 0 0.01 0];
         end
         set(axehand, 'Position', AxesPosition);
+        set(h_hintbar, 'String', sprintf('Window horizontal size set to %g fraction', AxesPosition(3)));
     end
 
     function f_plothand_buttondown(hObject, eventdata)
@@ -2597,4 +2656,8 @@ sigma = std(x, 'omitnan');
 z = bsxfun(@rdivide, bsxfun(@minus, x, mu), sigma);
 end
 
+function list = stagger_odds_evens(list)
+n = length(list);
+list = list([1:2:n, 2:2:n]);
+end
 
