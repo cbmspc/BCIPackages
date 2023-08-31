@@ -21,6 +21,14 @@ if Nobs ~= size(TrainData,1)
     error('Number of observations from TrainData and TrainLabels disagree.');
 end
 
+if any(isnan(TrainData(:)))
+    error('TrainData contains NaN');
+end
+
+if any(isnan(TrainLabels(:)))
+    error('TrainLabels contains NaN');
+end
+
 classes = unique(TrainLabels);
 
 Nclass = length(classes);

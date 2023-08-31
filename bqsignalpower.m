@@ -37,7 +37,6 @@ if opts.ReflectSignal
 end
 
 %silent = 1;
-a0 = 1;
 
 %wh = waitbar(0, ['bqsignalpower Band 0/' num2str(Nfreqbin)]);
 
@@ -47,24 +46,25 @@ for b = 1:Nfreqbin
     Fc1 = FreqRange(b, 1);
     Fc2 = FreqRange(b, 2);
     [a1, a2, scale] = Calculate4thOrderBandpassFilterCoefficients(Fs, Fc1, Fc2);
-    opts.filtcoefs(b,:) = [a1, a2, scale];
+    a0 = a2*0+1;
+    opts.filtcoefs{b} = [a1, a2, scale];
     b0 = 1*scale;
     b1 = 0*scale;
     b2 = -1*scale;
     if opts.ReflectSignal
-        signal_reflected_filtered = filter([b0 b1 b2], [a0 a1 a2], signal_reflected);
-        %signal_reflected_filtered = CustomFilter(a1, a2, scale, signal_reflected);
+        %signal_reflected_filtered = filter([b0(1) b1(1) b2(1)], [a0(1) a1(1) a2(1)], signal_reflected);
+        signal_reflected_filtered = CustomFilter(a1(1), a2(1), scale(1), signal_reflected);
         signal_filtered = signal_reflected_filtered(opts.ReflectSigLen+1:end,:);
         for i = 2:opts.FilterIter
-            signal_filtered = filter([b0 b1 b2], [a0 a1 a2], signal_filtered);
-            %signal_filtered = CustomFilter(a1, a2, scale, signal_filtered);
+            %signal_filtered = filter([b0(i) b1(i) b2(i)], [a0(i) a1(i) a2(i)], signal_filtered);
+            signal_filtered = CustomFilter(a1(i), a2(i), scale(i), signal_filtered);
         end
     else
-        signal_filtered = filter([b0 b1 b2], [a0 a1 a2], signal);
-        %signal_filtered = CustomFilter(a1, a2, scale, signal);
+        %signal_filtered = filter([b0(1) b1(1) b2(1)], [a0(1) a1(1) a2(1)], signal);
+        signal_filtered = CustomFilter(a1(1), a2(1), scale(1), signal);
         for i = 2:opts.FilterIter
-            signal_filtered = filter([b0 b1 b2], [a0 a1 a2], signal_filtered);
-            %signal_filtered = CustomFilter(a1, a2, scale, signal_filtered);
+            %signal_filtered = filter([b0(i) b1(i) b2(i)], [a0(i) a1(i) a2(i)], signal_filtered);
+            signal_filtered = CustomFilter(a1(i), a2(i), scale(i), signal_filtered);
         end
     end
     signal_filtered_squared = signal_filtered.^2;
@@ -78,21 +78,6 @@ for b = 1:Nfreqbin
     
 end
 %delete(wh);
-
-
-function [a1, a2, scale] = Calculate4thOrderBandpassFilterCoefficients(Fs, Fc1, Fc2)
-r1 = pi*Fc1/Fs;
-r2 = pi*Fc2/Fs;
-zp0 = (1-r1) / (1+r1);
-zp2 = (1-r2) / (1+r2);
-rc = pi * (Fc1 + Fc2) / 2 / Fs;
-zc = (1 + 1i*rc) / (1 - 1i*rc);
-de = (zc - zp0) * (zc - zp2);
-nu = (zc - 1) * (zc + 1);
-ka = de / nu;
-a1 = -(zp0 + zp2);
-a2 = zp0 * zp2;
-scale = abs(ka);
 
 
 function [y, z1, z2] = Step(b0, b1, b2, a1, a2, s0, x, z1, z2)

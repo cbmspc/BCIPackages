@@ -7,6 +7,15 @@
 function Fmat = featureextraction(TrainData, TrainLabels, MfeatureSpace)
 %
 
+if any(isnan(TrainData(:)))
+    error('TrainData contains NaN');
+end
+
+if any(isnan(TrainLabels(:)))
+    error('TrainLabels contains NaN');
+end
+
+
 if isempty(MfeatureSpace)
     warning('MfeatureSpace is blank (not set). Results may be unpredictable.');
 end

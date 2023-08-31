@@ -15,6 +15,9 @@ for i = 1:Ni
     a = IdleBoundsSec(i,1) + SkipFirstSec;
     b = IdleBoundsSec(i,2);
     dur = (b-a)/NSplitsWithinABound;
+    if dur <= 0
+        continue
+    end
     for j = 0:NSplitsWithinABound-1
         k = k + 1;
         BoundsSec(k,:) = [a+dur*j, a+dur*(j+1)];
@@ -25,9 +28,15 @@ for i = 1:Nm
     a = MoveBoundsSec(i,1) + SkipFirstSec;
     b = MoveBoundsSec(i,2);
     dur = (b-a)/NSplitsWithinABound;
+    if dur <= 0
+        continue
+    end
     for j = 0:NSplitsWithinABound-1
         k = k + 1;
         BoundsSec(k,:) = [a+dur*j, a+dur*(j+1)];
         Labels(k) = 1;
     end
 end
+
+BoundsSec = BoundsSec(~isnan(Labels),:);
+Labels = Labels(~isnan(Labels));

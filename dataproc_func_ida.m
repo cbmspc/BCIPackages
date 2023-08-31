@@ -16,6 +16,14 @@ CrossValidError_l = [];
 CrossValidError_q = [];
 NdataSpace = [];
 
+if any(isnan(TrainData(:)))
+    error('TrainData contains NaN');
+end
+
+if any(isnan(TrainLabels(:)))
+    error('TrainLabels contains NaN');
+end
+
 
 BinData = TrainData .';
 classes = unique(TrainLabels);

@@ -7,6 +7,11 @@ function [ContigGroups, CLength] = get_contig_groups (x)
 %
 % CLength returns the length of each group
 %
+
+if islogical(x)
+    x = find(x);
+end
+
 x = [x(:).' inf];
 ContigGroups = cell(1,length(x));
 CLength = zeros(1,length(x));

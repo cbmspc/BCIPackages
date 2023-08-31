@@ -1,97 +1,103 @@
-% Calculates the power of a real time series signal at a particular
-% frequency range (or all range if not specified)
+% Calculates the power of a time series signal in each frequency range, or
+% all range if frange is not specified
+% signal must be time x chan, or a tall vector if there is only 1 channel
+% Fs is the sampling frequency in Hz
+% frange is optional
+% NFFT is optional
+% method can be 'fft' or 'pwelch'
+% pwelch is the default, as it requires less nfft
 
-function P = signalpower (signal, Fs, frange, NFFT)
-if ~exist('frange','var') || isempty(frange)
-    frange = [-inf inf];
+
+function P = signalpower (signal, Fs, frange, NFFT, method)
+if ~exist('frange','var') || isempty(frange) || ~isnumeric(frange) || size(frange,2) ~= 2
+    %frange = [-inf inf];
+    frange = [0 Fs/2];
 end
-Min_NFFT = Fs/min(diff(frange,[],2));
+if ~exist('method','var') || isempty(method)
+    method = '';
+end
+if ~exist('NFFT','var') || ~isnumeric(NFFT)
+    NFFT = [];
+end
+
+if size(signal,1) <= 2 && size(signal,2) > 10
+    % probably need to transpose
+    signal = signal.';
+    warning('Signal width > height. Transposed signal.');
+end
+
+% De-mean the signal for better estimation
+mu = mean(signal,1);
+signal = detrend(signal);
 L = size(signal,1);
-if ~exist('NFFT','var') || isempty(NFFT) || ~isnumeric(NFFT)
-    %NFFT = 2^nextpow2(max(L,Min_NFFT));
-    %NFFT = 8*2^nextpow2(Min_NFFT);
-    % 2021-11-02 increase NFFT by a margin of two to avoid missing a bin
-    NFFT = 16*2^nextpow2(Min_NFFT);
+
+switch method
+    case 'fft'
+        P = via_fft_method(signal, Fs, frange, NFFT, L);
+    case 'pwelch'
+        P = via_pwelch_twosided_method(signal, Fs, frange, NFFT, L);
+    case 'pwelchonesided'
+        P = via_pwelch_onesided_method(signal, Fs, frange, NFFT, L);
+    case 'pwelchtwosided'
+        P = via_pwelch_twosided_method(signal, Fs, frange, NFFT, L);
+    case 'pwelchcentered'
+        P = via_pwelch_centered_method(signal, Fs, frange, NFFT, L);
+    otherwise
+        P = via_pwelch_twosided_method(signal, Fs, frange, NFFT, L);
 end
+
+% add DC power back
+for i = 1:size(frange,1)
+    if frange(i,1) == 0
+        P(i,:) = P(i,:) + mu.^2;
+    end
+end
+
+return
+
+
+function P = via_fft_method (signal, Fs, frange, NFFT, L)
 X = fft(signal,NFFT,1);
+NFFT = size(X,1);
 d = Fs/NFFT;
-%f = [0:d:Fs/2, -Fs/2+d:d:-d];
 f = 0:d:Fs/2;
 P = zeros(size(frange,1), size(signal,2));
 for i = 1:size(frange,1)
-    %Y = X((f >= frange(i,1) & f <= frange(i,2)) | (f < -frange(i,1) & f > -frange(i,2)),:);
-    Y = X(f >= frange(i,1) & f <= frange(i,2),:);
+    Y = X(f >= frange(i,1) & f < frange(i,2),:);
     P(i,:) = 2 * sum(abs(Y).^2,1) / NFFT / L;
 end
 return
 
-% X = fft(signal,[],1);
-% if ~exist('frange','var') || size(frange,2) ~= 2
-%     Y = X;
-%     P = sum(abs(Y).^2) / size(signal,1).^2;
-% else
-%     P = zeros(size(frange,1), size(signal,2));
-%     for i = 1:size(frange,1)
-%         Y = isolatefreq(X,Fs,frange(i,:),'pass');
-%         P(i,:) = sum(abs(Y).^2,1) / size(signal,1).^2;
-%     end
-% end
+
+function P = via_pwelch_twosided_method (signal, Fs, frange, NFFT, ~)
+[X, f] = pwelch(signal, [], [], NFFT, Fs, 'twosided', 'psd');
+NFFT = length(f);
+P = zeros(size(frange,1), size(signal,2));
+for i = 1:size(frange,1)
+    Y = X(f >= frange(i,1) & f < frange(i,2),:);
+    P(i,:) = 2 * sum(Y,1) / NFFT * Fs;
+end
+return
 
 
-% function Y = isolatefreq (Y, Fs, Fc, Type)
-% 
-% Ratio = (size(Y,1)) / Fs;
-% Fs = (size(Y,1));
-% Fc = Fc * Ratio;
-% 
-% % from DC (0) to Nyquist frequency (Fs/2)
-% Fall = 1:floor(Fs/2+1);
-% 
-% RS = Y(Fall,:);
-% 
-% LS = flipud(Y(setdiff(1:Fs,Fall),:));
-% 
-% RSFall = Fall;
-% LSFall = fliplr(-(setdiff(1:Fs,Fall)-Fs-1));
-% 
-% % Sanity check
-% for i = 1:length(Fc)
-%     if Fc(i) >= Fall(end)
-%         Fc(i) = Fall(end)-1;
-%     elseif Fc(i) < 0
-%         Fc(i) = 0;
-%     end
-% end
-% 
-% if strcmp(Type,'pass')
-%     Type = 'band';
-% end
-% 
-% % Filtering
-% switch Type
-%     case 'low'
-%         RSFstop = (RSFall > Fc+1);
-%         LSFstop = (LSFall > Fc);
-%         RS(RSFstop,:) = 0;
-%         LS(LSFstop,:) = 0;
-%     case 'high'
-%         RSFstop = (RSFall < Fc+1);
-%         LSFstop = (LSFall < Fc);
-%         RS(RSFstop,:) = 0;
-%         LS(LSFstop,:) = 0;
-%     case 'band'
-%         RSFstop = union(find(RSFall < Fc(1)+1),find(RSFall > Fc(2)+1));
-%         LSFstop = union(find(LSFall < Fc(1)),find(LSFall > Fc(2)));
-%         RS(RSFstop,:) = 0;
-%         LS(LSFstop,:) = 0;
-%     case 'stop'
-%         RSFstop = intersect(find(RSFall >= Fc(1)+1),find(RSFall <= Fc(2)+1));
-%         LSFstop = intersect(find(LSFall >= Fc(1)),find(LSFall <= Fc(2)));
-%         RS(RSFstop,:) = 0;
-%         LS(LSFstop,:) = 0;
-%     otherwise
-%         error('Unknown filter type (4th parameter). Must be "low", "high", "band", or "stop"');
-% end
-% 
-% Y = cat(1,RS,flipud(LS));
-% 
+function P = via_pwelch_onesided_method (signal, Fs, frange, NFFT, ~)
+[X, f] = pwelch(signal, [], [], NFFT, Fs, 'onesided', 'psd');
+NFFT = (length(f)-1)*2;
+P = zeros(size(frange,1), size(signal,2));
+for i = 1:size(frange,1)
+    Y = X(f >= frange(i,1) & f < frange(i,2),:);
+    P(i,:) = sum(Y,1) / NFFT * Fs;
+end
+return
+
+
+function P = via_pwelch_centered_method (signal, Fs, frange, NFFT, ~)
+[X, f] = pwelch(signal, [], [], NFFT, Fs, 'centered', 'psd');
+NFFT = length(f);
+P = zeros(size(frange,1), size(signal,2));
+for i = 1:size(frange,1)
+    Y = X(f >= frange(i,1) & f < frange(i,2),:);
+    P(i,:) = 2 * sum(Y,1) / NFFT * Fs;
+end
+return
+

@@ -321,7 +321,15 @@ if BALANCED
         Labels = cat(1,TestLabels,TrainLabelsSub);
         TestIdx = [1:length(TestLabels)];
         
-        [pcorrectC{i},pconfuseC{i}] = dataproc_main_multiintervalidation(Data,Labels,TestIdx,DRFUN,DRPARM,FEFUN,FEPARM,CFUN,CNAME,PRIOR,CPARM,OPTS);
+        %Po 2023-07-10: If command fails (e.g. Inf/NaN), skip it for the
+        %averaging
+        try
+            [pcorrectC{i},pconfuseC{i}] = dataproc_main_multiintervalidation(Data,Labels,TestIdx,DRFUN,DRPARM,FEFUN,FEPARM,CFUN,CNAME,PRIOR,CPARM,OPTS);
+        catch
+            pcorrectC{i} = NaN;
+            pconfuseC{i} = NaN;
+        end
+        
         %if ishandle(wh)
         %    try
         %        waitbar(i/MRUN, wh, sprintf('Inter validating, last Pcorrect=%-5.3f', median(median(cell2mat(pcorrectC{i})))));
@@ -330,20 +338,38 @@ if BALANCED
     end
     % 2021-10-20 Lazy: Combine them and forget it
     
+    RealMRUN = MRUN;
     for i = 1:MRUN
-        for j = size(pcorrectC{i},1):-1:1
-            for k = size(pcorrectC{i},2):-1:1
-                for l = size(pcorrectC{i},3):-1:1
-                    if i == 1
-                        pcorrect{j,k,l} = pcorrectC{i}{j,k,l} / MRUN;
-                        pconfuse{j,k,l} = pconfuseC{i}{j,k,l} ./ MRUN;
-                    else
-                        pcorrect{j,k,l} = pcorrect{j,k,l} + pcorrectC{i}{j,k,l} / MRUN;
-                        pconfuse{j,k,l} = pconfuse{j,k,l} + pconfuseC{i}{j,k,l} / MRUN;
+        if ~iscell(pcorrectC{i}) && isnan(pcorrectC{i})
+            RealMRUN = RealMRUN - 1;
+        end
+    end
+    jmax = numel(DRPARM);
+    kmax = numel(FEPARM);
+    lmax = numel(CPARM);
+    if RealMRUN > 0
+        for i = 1:MRUN
+            if iscell(pcorrectC{i})
+                for j = size(pcorrectC{i},1):-1:1
+                    for k = size(pcorrectC{i},2):-1:1
+                        for l = size(pcorrectC{i},3):-1:1
+                            if i == 1
+                                pcorrect{j,k,l} = pcorrectC{i}{j,k,l} / RealMRUN;
+                                pconfuse{j,k,l} = pconfuseC{i}{j,k,l} ./ RealMRUN;
+                            else
+                                pcorrect{j,k,l} = pcorrect{j,k,l} + pcorrectC{i}{j,k,l} / RealMRUN;
+                                pconfuse{j,k,l} = pconfuse{j,k,l} + pconfuseC{i}{j,k,l} / RealMRUN;
+                            end
+                        end
                     end
                 end
             end
         end
+    else
+        pcorrect = cell(jmax,kmax,lmax);
+        pcorrect{:} = 0;
+        pconfuse = cell(jmax,kmax,lmax);
+        pcorrect{:} = (double(~eye(Nclass)))/(Nclass-1);
     end
     
     %if ishandle(wh)
@@ -404,7 +430,12 @@ if ~SWsilent
     fprintf(FPID, 'Inter Validation Report\n');
     
     fprintf(FPID, '    Input dimension: %i\n',size(TrainData,2));
-    fprintf(FPID, 'Dimension reduction: %s (%g)\n',DRFUN{1},DRPARM{1});
+    %fprintf(FPID, 'Dimension reduction: %s (%g)\n',DRFUN{1},DRPARM{1});
+    if iscell(DRFUN)
+        fprintf(FPID, 'Dimension reduction: %s (%g)\n',DRFUN{1},DRPARM{1});
+    else
+        fprintf(FPID, 'Dimension reduction: %s (%g)\n',DRFUN,DRPARM);
+    end
 
     fprintf(FPID, 'TRAINING\n');
     fprintf(FPID, '   Number of trials: ');

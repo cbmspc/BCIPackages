@@ -7,6 +7,15 @@
 
 function Fmat = dataproc_func_aida(TrainData, TrainLabels, MfeatureSpace)
 
+if any(isnan(TrainData(:)))
+    error('TrainData contains NaN');
+end
+
+if any(isnan(TrainLabels(:)))
+    error('TrainLabels contains NaN');
+end
+
+
 if size(TrainData,2) <= MfeatureSpace
     % There is no valid reason to do feature extraction if input dimension
     % is already equal to output dimension

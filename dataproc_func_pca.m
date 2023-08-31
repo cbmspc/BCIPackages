@@ -13,6 +13,10 @@
 
 
 function [DRmat, latent] = dataproc_func_pca(TrainData, TrainLabels, DRparm) %#ok<INUSL>
+if any(isnan(TrainData(:)))
+    error('TrainData contains NaN');
+end
+
 [coeff, latent] = dataproc_func_princomp(TrainData);
 
 

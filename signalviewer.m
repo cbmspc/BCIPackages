@@ -143,12 +143,16 @@ end
 
 StitchedSegmentNames = {};
 SignalIsStitched = 0;
-if iscell(Signal)
+if iscell(Signal) 
     
+    if exist('EventTimeStamps','var') %JL230523 added check to see if EventTimeStamps exists
     % 2023-05-19 Special rule for opts.EventTimeStamps if it is all text.
-    if iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && min(cellfun(@ischar,EventTimeStamps))
-        StitchedSegmentNames = EventTimeStamps;
-        % This will be handled later when EventTimeStamps is reformatted
+        if iscell(EventTimeStamps) && ...
+           numel(EventTimeStamps) == length(EventTimeStamps) &&...
+           min(cellfun(@ischar,EventTimeStamps))
+            StitchedSegmentNames = EventTimeStamps;
+            % This will be handled later when EventTimeStamps is reformatted
+        end
     end
     
     UserSuppliedEventNames = 0;

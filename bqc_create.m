@@ -1,6 +1,6 @@
 % Create Biquadratic coefficients
 
-function Hd = bqc_create(Fs, Fc1, Fc2, N, SWsilent)
+function [Hd, a1, a2, scale] = bqc_create(Fs, Fc1, Fc2, N, SWsilent)
 
 if ~exist('SWsilent','var') || isempty(SWsilent)
     SWsilent = 0;
@@ -55,7 +55,9 @@ if ~SWsilent
     fprintf('\n\n');
 end
 
-
+a1 = sos(:,5);
+a2 = sos(:,6);
+scale = scales(1:end-1);
 
 % fprintf('\nbqc');
 % i = 0;
