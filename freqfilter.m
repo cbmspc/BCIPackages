@@ -71,6 +71,11 @@ if ~exist('ReflectLen', 'var') || isempty(ReflectLen)
 end
 
 
+% 2024-03-28: Basic warning if orientation is wrong
+if ~iscell(y) && ~isstruct(y) && size(y,2) > size(y,1) && size(y,2) > Fs/4
+    warning('The input signal %s has more columns (%i) than rows (%i). It is being interpreted as %.3g seconds long and %i channels. If this is not correct, transpose the matrix first.', inputname(1), size(y,2), size(y,1), size(y,1)/Fs, size(y,2));
+end
+
 % If y is in rawdata or eegdata format, process each observation separately
 if iscell(y)
     for i = length(y):-1:1

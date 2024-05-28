@@ -29,6 +29,6 @@ if exist(tmp_loadwork_indexfile, 'file')
     clear tmp_loadwork_*
     fprintf('Done.\n');
 else
-    fprintf('Nothing to load.\n');
+    fprintf('Nothing to load. There is no saved index file specific to the folder you are in.\n');
     clear tmp_loadwork_*
 end

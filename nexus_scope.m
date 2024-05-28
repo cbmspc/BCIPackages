@@ -2072,6 +2072,19 @@ rawdata = rawdata(1:end-1,:);
                     set(thwarning, 'VerticalAlignment', WarnData.(fn{i}).VerticalAlignment);
                     set(thwarning, 'FontName', WarnData.(fn{i}).FontName);
                     ERRORS = WarnData.(fn{i}).String;
+                    
+                    % 2023-08-31 Po: Only display low battery warning on
+                    % the side that has low battery.
+                    if strcmp(fn{i},WarningBatteryLowString) && numel(thwarning) == 2 && numel(STATUSchan) == 2
+                        if BattLowWarn(STATUSchan(1)) && ~BattLowWarn(STATUSchan(2))
+                            set(thwarning(1), 'Visible', 'on');
+                            set(thwarning(2), 'Visible', 'off');
+                        elseif ~BattLowWarn(STATUSchan(1)) && BattLowWarn(STATUSchan(2))
+                            set(thwarning(1), 'Visible', 'off');
+                            set(thwarning(2), 'Visible', 'on');
+                        end
+                    end
+                    
                     break
                 end
             end

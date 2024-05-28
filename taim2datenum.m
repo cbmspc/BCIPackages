@@ -1,4 +1,7 @@
 % TAIM (TAI time in minutes) to MATLAB datenum (days)
+% The use of datenum is not recommended for high-precision comparisons due
+% to the precision limit of the "double" data type
+% 
 function n = taim2datenum (t, nonutc)
 if ischar(t)
     % in the form tttttttt:fffff

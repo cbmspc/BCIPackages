@@ -72,6 +72,10 @@ if exist('Opts', 'var') && isstruct(Opts)
         axes_hand = [];
     end
 end
+userdata.unixtime = unixtime;
+userdata.pwd = pwd;
+userdata.values = values;
+userdata.ChanNames = ChanNames;
 
 
 [~, ElecNames, FlatXYCoords] = eeg_electrode_to_gridcoord_3d ('all');
@@ -125,6 +129,7 @@ if ~isempty(axes_hand)
     [~, ContourHand] = contour(axes_hand, xi, yi, zi, NumContourLevels, 'LineWidth', 2);
 else
     SurfHand = surf(xi, yi, zi, 'EdgeColor', 'none');
+    colormap jet
     [~, ContourHand] = contour(xi, yi, zi, NumContourLevels, 'LineWidth', 2);
 end
 
@@ -168,8 +173,11 @@ axis off
 nosesize = 0.3;
 drawnose(gca, radius, nosesize, 2);
 
+%cimap = chan2idx(upper(ElecNames), upper(OnlyShowElectrodes), 1);
+rcimap = chan2idx(upper(OnlyShowElectrodes), upper(ElecNames), 0);
+
 for i = 1:length(ElecNames)
-    if ismember(upper(ElecNames{i}), upper(OnlyShowElectrodes))
+    if ismember(upper(ElecNames{i}), upper(OnlyShowElectrodes)) && values(rcimap(i)) ~= 0
         if FontSize > 0
             text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+0.2,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontSize',FontSize,'FontName',FontName);
         end
@@ -178,7 +186,16 @@ end
 
 set(gca,'Xlim',(radius+nosesize*sqrt(2)/2)*[-1 1],'YLim',(radius+nosesize*sqrt(2)/2)*[-1 1]);
 
+%2024-04-02 Automatically enable symmetricclim if data contains negative
+%values unless Opts.symmetricclim is defined 
+if ~exist('Opts', 'var') || ~isstruct(Opts) || ~isfield(Opts, 'symmetricclim')
+    if any(values<0)
+        Opts.symmetricclim = 1;
+    end
+end
+
 if exist('Opts', 'var') && isstruct(Opts)
+    userdata.Opts = Opts;
     if isfield(Opts, 'symmetricclim') && Opts.symmetricclim
         CLim = max(abs(data(:)))*[-1 1];
         set(gca, 'CLim', CLim);
@@ -191,6 +208,9 @@ end
 tmp = chan2lidx(upper(ElecNames),upper(OnlyShowElectrodes));
 FlatXYCoords_active = FlatXYCoords(tmp,:);
 ElecNames_active = ElecNames(tmp);
+
+set(gcf, 'UserData', userdata);
+
 
 
 function drawcirc (ax, origin, radius, linewidth)

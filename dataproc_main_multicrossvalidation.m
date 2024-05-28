@@ -140,6 +140,8 @@
 % 2017-04-19 Added SWbalanced for test trials
 % 2018-03-08 Updated example usage
 % 2021-11-12 No change
+% 2023-09-13 Removed parfor
+% 2024-04-01 Added back waitbar with time estimates
 %
 %
 % ptwang@uci.edu
@@ -447,29 +449,34 @@ end
 NTrialstotest = length(Trialstotest);
 
 pcmax = zeros(M,1);
+t_lastdisplayed = tic;
 
 if SWprogressoutput && SWprogressoutput < 2
-    if M == 1
-        wh = [];
-        %wh = waitbar(0, 'Leave-one-out cross validating');
+    if SWleaveoneout
+        %wh = [];
+        wh = waitbar(0, 'Cross validating', 'Name', sprintf('LOOCV %i trials, %i classes', sum(NtrialA), Nclass));
     else
-        %20230403: disabled
-        wh = [];
-        %wh = waitbar(0, 'Cross validating');
+        %wh = [];
+        wh = waitbar(0, 'Cross validating', 'Name', sprintf('%i-fold CV %i trials, %i classes', K, sum(NtrialA), Nclass));
     end
 end
 
+%warned_about_waitbar = 0;
+
+t_wholestart = tic;
 for m = 1:M
     if SWprogressoutput
         if SWprogressoutput >= 2
             fprintf('Now doing run #%3i : ', m);
         end
         bksp = 0;
-        if ishandle(wh)
-            try
-                waitbar(m/M, wh);
-            end
-        end
+        % if ishandle(wh)
+        %     try
+        %         if M > 1
+        %             waitbar((m-1)/M + 0, wh);
+        %         end
+        %     end
+        % end
     end
     % Do these every run
     
@@ -514,7 +521,9 @@ for m = 1:M
     
     % 75% speed increase using parfor with 4 threads
     %parfor%
-    parfor ki = 1:NTrialstotest
+    
+    %2023-09-13 Can use parfor if you already have parallel workers ready
+    for ki = 1:NTrialstotest
         k = Trialstotest(ki); % k is the trial/fold index to be tested
         
         % Do these every fold
@@ -760,6 +769,28 @@ for m = 1:M
         %    end
         %end
         
+
+        if ishandle(wh) && NTrialstotest > 1 && toc(t_lastdisplayed) > 5
+            f_done = (m-1 + ki/NTrialstotest) / M;
+            if SWleaveoneout
+                % Leave one out - show the trial progress and ETA
+                try
+                    t_elap = toc(t_wholestart);
+                    t_rem = t_elap*(1-f_done)/f_done;
+                    waitbar(f_done, wh, sprintf('Cross validating trial# %i done (%.1f min remain)\nPcorrect not computed until entire run is done', ki, t_rem/60));
+                end
+            else
+                % K fold (don't overwrite the last Pcorrect result)
+                try
+                    waitbar(f_done, wh);
+                end
+            end
+            t_lastdisplayed = tic;
+        elseif ~ishandle(wh)
+            error('User aborted the cross validation process');
+        end
+
+
     end % End of a fold (ki)
     
     % Collect data after parallel loop
@@ -834,14 +865,20 @@ for m = 1:M
             end
         end
         if bksp
-            fprintf([InstantProgressBackspace '\b']); %#ok<UNRCH>
+            fprintf([InstantProgressBackspace '\b']);
         end
         if SWprogressoutput >= 2
             fprintf(' Best Pcorrect = %-5.3f (chance = %-5.3f)\n',pcmax(m),ChancePcorrect);
-        elseif ishandle(wh)
+        elseif ishandle(wh) && M > 1
+            f_done = (m-1 + ki/NTrialstotest) / M;
             try
-                waitbar(m/M, wh, sprintf('Cross validating, last Pcorrect=%-5.3f', pcmax(m)));
+                t_elap = toc(t_wholestart);
+                t_rem = t_elap*(1-f_done)/f_done;
+                waitbar(f_done, wh, sprintf('Cross validating, run %i done (%.0f sec remain)\nlast Pcorrect=%-5.3f', m, t_rem, pcmax(m)));
             end
+            t_lastdisplayed = tic;
+        elseif ~ishandle(wh)
+            error('User aborted the cross validation process');
         end
     end
 end % End of a run (m)

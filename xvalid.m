@@ -62,6 +62,16 @@ end
 
 TrainLabels = TrainLabels(:);
 
+
+if ~isnumeric(TrainLabels) && iscell(TrainLabels) && length(TrainLabels) > 1 && ischar(TrainLabels{1})
+    [TrainLabels, uniquelabels] = categorical_to_numeric_labels(TrainLabels);
+    fprintf('The text labels have been converted to numerical labels:\n');
+    for i = 1:length(uniquelabels)
+        fprintf('\t%i\t%s\n', i, uniquelabels{i});
+    end
+end
+
+
 if mod(length(varargin),2)
     error('Properties list must be in pairs, ie. property1 name, property1 value, ...');
 end

@@ -192,6 +192,7 @@ for m = 1:Nm
         %subplot(Ns,1,s);
         shand(m,s) = subplot('Position',AxisPos(s,:));
         imagesc(real(NBF{m,s}),[-1,1]);
+        colormap jet
         %imagesc(BF{m,s});
         %caxis([cmin(m) cmax(m)]);
         

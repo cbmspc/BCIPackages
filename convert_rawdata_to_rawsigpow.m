@@ -1,9 +1,17 @@
-function [rawsigpow, frange] = convert_rawdata_to_rawsigpow (rawdataOReegdata, Fs, frange)
+function [rawsigpow, frange] = convert_rawdata_to_rawsigpow (rawdataOReegdata, Fs, frange, NFFT, method)
 % Converts rawdata (chan x time x trial) or eegdata (cell of time x chan)
 % into rawsigpow (chan x freq x trial)
 
 if isempty(rawdataOReegdata)
     error('rawdata is empty');
+end
+
+if ~exist('NFFT','var') || isempty(NFFT)
+    NFFT = [];
+end
+
+if ~exist('method','var') || isempty(method)
+    method = '';
 end
 
 if ~iscell(rawdataOReegdata) && size(rawdataOReegdata,3) > 10
@@ -34,15 +42,14 @@ if Ntr > 100
     fprintf(' Converting time domain signals to spectral powers ..');
 end
 
-% With 4 threads, parfor has 60% speed increase.
 if exist('rawdata','var')
-    parfor tr = 1:Ntr
-        rawsigpow(:,:,tr) = signalpower(rawdata(:,:,tr).', Fs, frange).';
+    for tr = 1:Ntr
+        rawsigpow(:,:,tr) = signalpower(rawdata(:,:,tr).', Fs, frange, NFFT).';
         %fprintf('\b\b\b\b\b\b\b\b\b%3i%% left', round(tr/Ntr*100));
     end
 elseif exist('eegdata','var')
-    parfor tr = 1:Ntr
-        rawsigpow(:,:,tr) = signalpower(eegdata{tr}, Fs, frange).';
+    for tr = 1:Ntr
+        rawsigpow(:,:,tr) = signalpower(eegdata{tr}, Fs, frange, NFFT).';
         %fprintf('\b\b\b\b\b\b\b\b\b%3i%% left', round(tr/Ntr*100));
     end
 end

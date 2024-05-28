@@ -27,13 +27,10 @@
 %   If specified, turns on the notch filter at the specified powerline frequency (and harmonics)
 %
 %   opts.bandpass = [1 35]
-%   If specified, turns on both high pass and low pass filters at the specified corner frequencies
-%
-%   opts.highpass = 1
-%   If specified, turns on high pass filter at the specified corner frequency. This field is ignored if bandpass is specified.
-%
-%   opts.lowpass = 30
-%   If specified, turns on low pass filter at the specified corner frequency. This field is ignored if bandpass is specified.
+%   If specified, turns on Butterworth band-pass filter at the specified
+%   corner frequencies. If one of the corner frequencies is not valid, it
+%   degrades into either a high-pass filter, a low-pass filter, or the
+%   filter is turned off.
 %
 %   opts.sensitivity = 100
 %   If specified, sets vertical sensitivity (in microvolts) after viewer is opened
@@ -198,7 +195,7 @@ if ~exist('ChanNames', 'var') || isempty(ChanNames)
     
     nchan = size(Signal,2);
     npad = floor(log10(nchan))+1;
-    ChanNames = string_to_cell(num2str(1:nchan,['ch%0' num2str(npad) 'i,']),',');
+    ChanNames = string_to_cell(num2str(1:nchan,['c%0' num2str(npad) 'i,']),',');
 end
 ChanNames = ChanNames(:).';
 if size(Signal,1) == length(ChanNames) && size(Signal,2) ~= length(ChanNames)
@@ -226,6 +223,17 @@ if ~exist('opts', 'var') || ~isstruct(opts)
     opts = struct;
 end
 
+
+% 2024-03-28: Basic warning if orientation is wrong
+if ~iscell(Signal) && ~isstruct(Signal) && size(Signal,2) > size(Signal,1) && size(Signal,2) > Fs/4
+    warning('The input signal %s has more columns (%i) than rows (%i). It is being interpreted as %.3g seconds long and %i channels. If this is not correct, transpose the matrix first.', inputname(1), size(Signal,2), size(Signal,1), size(Signal,1)/Fs, size(Signal,2));
+end
+if size(Signal,2) > 256
+    warning('Plotting more than 256 channels (you have %i channels) can take a very long time. Recommend splitting the data into multiple plots.', size(Signal,2));
+end
+
+
+
 viewhand_ica_sig = ceil(rand*1000000000);
 viewhand_ica_A = ceil(rand*1000000000);
 viewhand_ica_W = ceil(rand*1000000000);
@@ -237,6 +245,7 @@ previously_selected_timepoint = -2;
 FineSnapScale = 100;
 selected_cursortype = 0;
 CursorEnable = 0;
+InfoLabelEnable = 0;
 
 % Remove channels that are completely flat
 %n = size(Signal,1);
@@ -276,6 +285,11 @@ else
     ica_W = [];
     ica_A = [];
 end
+
+if size(Signal,2) ~= numel(ChanNames)
+    error('The numbers of channels in Signal and in ChanNames disagree.');
+end
+
 Signal = Signal(:,~chnc);
 ChanNames = ChanNames(~chnc);
 
@@ -299,10 +313,14 @@ end
 %ica_W = ica_W(:,ix);
 %ica_A = ica_A(ix,:);
 Signal_postica = Signal;
+Signal_postreref = Signal;
 Signal_postnotch = Signal;
-Signal_postfilter = Signal;
-Signal4 = Signal(:,1);
+Signal_postbutter = Signal;
+Signal_postenvelope = Signal;
+Signal_postdecimation = Signal(:,1); % This is for each channel's rendering only
 Signal_psd_source = Signal(:,1) * 0;
+
+PerChannelFilterStates = false(4,length(ChanNames)); % Reref, Notch, Butter, Envelope
 
 % If a signal is known to be bandlimited due to low-pass and/or envelope
 % filter, reduce the number of points to plot to speed up
@@ -325,7 +343,6 @@ PlotHold = 0;
 PowerLineFrequency = 60;
 MaxFilterOrder = 4;
 FilterOrder = MaxFilterOrder;
-FilterReflectMult = 0;
 FilterChunkSec = 600;
 FilterBusy = 0;
 MovementBusy = 0;
@@ -335,7 +352,7 @@ icachans = {};
 
 Nsch = length(ChanNames(selchan));
 Ntp = size(Signal,1);
-
+ 
 PermittedXZoomRanges   = [0.001 0.005 0.01 0.05 0.1 0.5 1 2 5 10 20 30 60 120 300 600 1200 1800 3600:3600:6*3600 8*3600 12*3600 24*3600 7*24*3600];
 PermittedXZoomRanges = PermittedXZoomRanges(PermittedXZoomRanges > 1/Fs);
 PermittedChanSepRanges = [1e-6 2e-6 5e-6 1e-5 2e-5 5e-5 1e-4 2e-4 5e-4 .001 .002 .005 .01 .02 .05 .1 .2 .5 1 2 5 10 20 50 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000 1000000 2000000 5000000 10000000];
@@ -380,13 +397,18 @@ Kolor = Kolor(tmp,:);
 Nkolor = size(Kolor,1);
 
 EventKolor = [0.75 0.75 0];
-EventFontName = 'Verdana';
-EventFontSize = 10;
-EventFontWeight = 'normal';
+EventFontName = 'Calibri';
+EventFontSize = 24;
+EventFontWeight = 'bold';
 
 AxesFontName = 'Consolas';
-AxesFontSize = 16;
+AxesFontSize = 12;
 CursorTextFontSize = 8;
+
+InfoLabelFontName = 'Calibri';
+InfoLabelFontSizeScale = 0.8;
+InfoLabelMargin = 0.01;
+
 
 AxesPosition = [0.0300    0.0600    0.88    0.93];
 
@@ -414,7 +436,9 @@ hold on
 set(fighand,'Position',screensize);
 YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
 XLim = [0 10];
-set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', AxesFontName, 'FontUnits', 'pixel', 'FontSize', AxesFontSize); %#ok<*NBRAK>
+ChanNamesDisplayed = ChanNames;
+changed_CND = 0;
+set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', AxesFontName, 'FontUnits', 'pixel', 'FontSize', AxesFontSize); %#ok<*NBRAK>
 axehand = get(fighand,'CurrentAxes');
 
 t1 = 1;
@@ -432,6 +456,12 @@ for ch = Nsch:-1:1
     plottext1hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontUnits', 'pixel', 'FontSize', CursorTextFontSize);
     plottext2hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontUnits', 'pixel', 'FontSize', CursorTextFontSize);
     plottext3hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontUnits', 'pixel', 'FontSize', CursorTextFontSize);
+    plotinfolabel1hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Color', (Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontUnits', 'pixel', 'FontSize', AxesFontSize*InfoLabelFontSizeScale, 'FontName', InfoLabelFontName, 'Margin', InfoLabelMargin);
+    plotinfolabel2hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Color', (Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontUnits', 'pixel', 'FontSize', AxesFontSize*InfoLabelFontSizeScale, 'FontName', InfoLabelFontName, 'Margin', InfoLabelMargin);
+    plotinfolabel3hand(ch) = text(0, 0, '', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'BackgroundColor', lightercolor(Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Color', (Kolor(mod(selchan(ch)-1,Nkolor)+1,:)), 'Visible', 'off', 'FontUnits', 'pixel', 'FontSize', AxesFontSize*InfoLabelFontSizeScale, 'FontName', InfoLabelFontName, 'Margin', InfoLabelMargin);
+    set(plotinfolabel1hand(ch), 'FontUnits', 'normalized');
+    set(plotinfolabel2hand(ch), 'FontUnits', 'normalized');
+    set(plotinfolabel3hand(ch), 'FontUnits', 'normalized');
     set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
     set(plothand(ch), 'ButtonDownFcn', @f_plothand_buttondown);
     setappdata(plothand(ch), 'chanind', selchan(ch));
@@ -445,8 +475,8 @@ set(axehand, 'FontUnits', 'normalized');
 AxesFontSize = get(axehand, 'FontSize');
 
 tmax = max(Time);
-SigChunkRendered = false(ceil(tmax / FilterChunkSec),1);
-ChunkIndexMax = length(SigChunkRendered);
+%SigChunkRendered = false(ceil(tmax / FilterChunkSec),length(ChanNames));
+%ChunkIndexMax = size(SigChunkRendered,1);
 
 % Allow different kinds of event time stamp formats
 if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps)
@@ -541,15 +571,18 @@ if EventEnable
     set(eventtexthand(i), 'Visible', 'off');
 end
 
-
-HighPassFilter.state = 0;
-%HighPassFilter.cutoff = ceil(Fs/99)/100; % Fs/10000 likely the stability limit
-HighPassFilter.cutoff = ceil(Fcut_minfreq*101)/100;
-LowPassFilter.state = 0;
-LowPassFilter.cutoff = floor(Fs/2-1);
+BandPassFilter.state = 0;
+BandPassFilter.cutoff = [0 Fs/2];
+%HighPassFilter.state = 0;
+%HighPassFilter.cutoff = ceil(Fcut_minfreq*101)/100;
+%LowPassFilter.state = 0;
+%LowPassFilter.cutoff = floor(Fs/2-1);
 EnvelopeFilter.state = 0;
 EnvelopeFilter.cutoff = 2;
 NotchFilter.state = 0;
+RerefFilter.state = 0;
+RerefFilter.type = 'car';
+RerefFilter.chanidx = [];
 NotchFilter.order = 4; % Must be even
 NotchFilter.qfactor = 10;
 ZscoreFilter.state = 0;
@@ -565,7 +598,8 @@ fontweight_off = 'normal';
 fontcolor_on1 = [0 0.5 0];
 fontcolor_on2 = [1 0 0];
 fontcolor_off = [0 0 0];
-
+backgroundcolor_buttondefault = [0.7 0.7 0.7];
+backgroundcolor_buttonalert = [1 1 0];
 
 
 h_hugetext = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.35 0.5 0.25 0.08], 'String', 'BIG TEXT', 'FontUnits', 'normalized', 'FontSize', 0.8, 'Visible', 'off', 'BackgroundColor', [0 0 0], 'ForegroundColor', [1 1 1]);
@@ -603,49 +637,61 @@ h_autofit = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Po
 
 h_passfilttitle = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.68 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Filters', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_notch_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.66 0.034 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['Notch ' num2str(PowerLineFrequency) 'Hz'], 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-%h_notch_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.937 0.66 0.017 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_notch_order = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.954 0.66 0.010 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.order), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_notch_orderunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.964 0.66 0.010 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ord', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
-h_notch_qfactor = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.975 0.66 0.010 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.qfactor), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_notch_qfactorunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.985 0.66 0.005 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Q', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
+h_ica_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.66 0.025 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'Use the bottom right panel to control Independent Component Analysis.');
+h_car_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.945 0.66 0.025 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'CAR', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'The currently selected channels are re-referenced and will not change until turned off and on again.');
+h_car_chancount = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.970 0.66 0.020 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', '0ch', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.8);
 
+h_notch_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.64 0.034 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['Notch ' num2str(PowerLineFrequency) 'Hz'], 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+%h_notch_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.937 0.64 0.017 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_notch_order = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.954 0.64 0.010 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.order), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_notch_orderunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.964 0.64 0.010 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ord', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
+h_notch_qfactor = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.975 0.64 0.010 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.qfactor), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_notch_qfactorunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.985 0.64 0.005 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Q', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 
-h_hpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.64 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HighPass', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-%h_hpf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.64 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_hpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.64 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(HighPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_hpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+h_bpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.62 0.025 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Butter', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'Bandpass/Lowpass/Highpass Butterworth filter turns on automatically after entering a pair of valid cutoff frequencies.');
+h_bpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.945 0.62 0.030 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(BandPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_bpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.62 0.015 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_lpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.62 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'LowPass', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-%h_lpf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.62 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_lpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.62 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(LowPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_lpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.62 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+%h_hpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.64 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HighPass', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_hpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.64 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(HighPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_hpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.64 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_evf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.60 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Envelope', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-%h_evf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.60 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_evf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.60 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(EnvelopeFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_evf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.60 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
+%h_lpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.62 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'LowPass', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_lpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.62 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(LowPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_lpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.62 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_zscore_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.58 0.030 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-%h_zscore_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_evf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.60 0.035 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Envelope', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_evf_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.935 0.60 0.02 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_evf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.955 0.60 0.020 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(EnvelopeFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_evf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.60 0.015 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
-h_fastdraw_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.96 0.58 0.030 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Value', 1, 'FontWeight', fontweight_on1, 'ForegroundColor', fontcolor_on1);
-%h_fastdraw_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.98 0.58 0.015 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_on, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_zscore_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.58 0.030 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+%h_zscore_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.94 0.58 0.015 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+
+h_fastdraw_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.96 0.58 0.030 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Value', 1, 'FontWeight', fontweight_on1, 'ForegroundColor', fontcolor_on1);
+%h_fastdraw_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.98 0.58 0.015 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_on, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+
+h_chansel_warnconfirm = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.56 0.07 0.12], 'ForegroundColor', [1 1 0], 'BackgroundColor', [0.2, 0.2, 0.2], 'String', 'Apply or revert channel selection first.', 'FontUnits', 'normalized', 'FontSize', 0.15, 'Visible', 'off');
+
 
 h_chansel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.92 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5); %#ok<NASGU>
-h_chansel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.92 0.12 0.040, 0.400], 'FontUnits', 'pixel');
-h_chansel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plot', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_chansel_auto = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Auto', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_chansel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.945 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'Visible', 'off');
+h_chansel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.92 0.14 0.040, 0.380], 'FontUnits', 'pixel');
+h_chansel_commandentry = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.124 0.039 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Adv Select', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'Enter regular expression patterns to step 1: select channels and then step 2: deselect channels. Leave blank to skip a step.');
+h_chansel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.108 0.02 0.015], 'BackgroundColor', backgroundcolor_buttondefault, 'String', 'Apply', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+%h_chansel_auto = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.108 0.02 0.015], 'BackgroundColor', backgroundcolor_buttondefault, 'String', 'Auto', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_chansel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.94 0.108 0.02 0.015], 'BackgroundColor', backgroundcolor_buttondefault, 'String', 'Revert', 'FontUnits', 'normalized', 'Visible', 'on');
 
-h_cursor_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.94 0.08 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Cursor', 'FontUnits', 'normalized', 'FontName', 'Times New Roman');
+h_infolabel_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.92 0.091 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'I-box', 'FontUnits', 'normalized', 'FontName', 'Times New Roman');
+h_cursor_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.94 0.091 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Cursor', 'FontUnits', 'normalized', 'FontName', 'Times New Roman');
 %h_cursor_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.95 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'off', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+
+h_eventlabels_showhide = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.075 0.039 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hide Events', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_signal_export = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.92 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export Sig', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
 
 h_icasel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5); %#ok<NASGU>
-h_icasel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.96 0.12 0.030, 0.400], 'FontUnits', 'pixel');
-h_icasel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.10 0.02 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Start', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_icasel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.96 0.14 0.030, 0.380], 'FontUnits', 'pixel');
+h_icasel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.961 0.10 0.019 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Start', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_icasel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_icasel_view_sources = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'S', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_icasel_view_mixmat = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.97 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -665,8 +711,8 @@ h_xspan_edittext1intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalize
 h_xspan_edit1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.04 0.020 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_xspan_edittext1unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.07 0.020 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 
-h_lmoddate = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.020 0.14 0.012], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['SignalViewer version: ' lmoddate], 'FontUnits', 'normalized', 'FontSize', 1.0, 'FontName', 'FixedWidth', 'HorizontalAlignment', 'left'); %#ok<NASGU>
-h_hintbar = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.25 0.020 0.57 0.018], 'BackgroundColor', [0.7 0.9 0.7], 'String', '', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana', 'HorizontalAlignment', 'left');
+h_lmoddate = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.020 0.095 0.012], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['SignalViewer version: ' lmoddate], 'FontUnits', 'normalized', 'FontSize', 1.0, 'FontName', 'Calibri', 'HorizontalAlignment', 'left'); %#ok<NASGU>
+h_hintbar = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.20 0.020 0.62 0.015], 'BackgroundColor', [0.7 0.9 0.7], 'String', '', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana', 'HorizontalAlignment', 'left');
 
 h_xspan_edittext2intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.83 0.020 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 h_xspan_edit2 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.86 0.020 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -681,13 +727,13 @@ h_xspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized
 % h_yspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.56 0.025 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'µV', 'FontUnits', 'normalized', 'FontSize', ControlFontSize);
 
 
-h_footer_message = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.000 0.70 0.018], 'BackgroundColor', [0.8 0.8 0.8], 'String', FooterMessage, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana');
+h_footer_message = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.000 0.70 0.018], 'BackgroundColor', [0.8 0.8 1.0], 'String', FooterMessage, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana');
 if isempty(FooterMessage)
     set(h_footer_message, 'Visible', 'off');
 end
 
 if ~EventEnable
-    set([h_eventfont_inc h_eventfont_dec], 'Enable', 'off');
+    set([h_eventfont_inc h_eventfont_dec h_eventlabels_showhide], 'Enable', 'off', 'Visible', 'off');
 end
 
 set(h_icasel_reset, 'Enable', 'off');
@@ -714,10 +760,14 @@ set(h_xspan_edit2, 'Callback', @f_xspan_edit2);
 
 set(h_hold_switch, 'Callback', @f_hold_switch);
 
-set(h_hpf_switch, 'Callback', @f_hpf_switch);
-set(h_lpf_switch, 'Callback', @f_lpf_switch);
-set(h_hpf_cutoff, 'Callback', @f_hpf_cutoff);
-set(h_lpf_cutoff, 'Callback', @f_lpf_cutoff);
+set(h_bpf_switch, 'Callback', @f_bpf_switch);
+set(h_bpf_cutoff, 'Callback', @f_bpf_cutoff);
+set(h_ica_switch, 'Callback', @f_ica_switch);
+set(h_car_switch, 'Callback', @f_car_switch);
+%set(h_hpf_switch, 'Callback', @f_hpf_switch);
+%set(h_lpf_switch, 'Callback', @f_lpf_switch);
+%set(h_hpf_cutoff, 'Callback', @f_hpf_cutoff);
+%set(h_lpf_cutoff, 'Callback', @f_lpf_cutoff);
 set(h_evf_switch, 'Callback', @f_evf_switch);
 set(h_evf_cutoff, 'Callback', @f_evf_cutoff);
 set(h_notch_switch, 'Callback', @f_notch_switch);
@@ -726,6 +776,8 @@ set(h_notch_qfactor, 'Callback', @f_notch_qfactor);
 set(h_zscore_switch, 'Callback', @f_zscore_switch);
 set(h_fastdraw_switch, 'Callback', @f_fastdraw_switch);
 set(h_chansel_list, 'Callback', @f_chansel_list);
+set(h_chansel_commandentry, 'Callback', @f_chansel_commandentry);
+set(h_eventlabels_showhide, 'Callback', @f_eventlabels_showhide);
 set(h_chansel_confirm, 'Callback', @f_chansel_confirm);
 set(h_chansel_reset, 'Callback', @f_chansel_reset);
 set(h_psd_plot, 'Callback', @f_psd_plot);
@@ -736,7 +788,8 @@ set(h_icasel_view_sources, 'Callback', @f_icasel_view_sources);
 set(h_icasel_view_mixmat, 'Callback', @f_icasel_view_mixmat);
 set(h_icasel_view_sepmat, 'Callback', @f_icasel_view_sepmat);
 set(h_icasel_view_export, 'Callback', @f_icasel_view_export);
-set(h_chansel_auto, 'Callback', @f_chansel_auto);
+%set(h_chansel_auto, 'Callback', @f_chansel_auto);
+set(h_infolabel_switch, 'Callback', @f_infolabel_enable);
 set(h_cursor_switch, 'Callback', @f_cursor_enable);
 set(h_signal_export, 'Callback', @f_signal_export);
 set(h_axesfont_inc, 'Callback', @f_axesfont_inc);
@@ -748,18 +801,26 @@ set(h_windowhsize_dec, 'Callback', @f_windowhsize_dec);
 set(fighand, 'KeyPressFcn', @f_fig_keypress);
 set(fighand,'Position',screensize);
 
+reref_update();
 notch_update();
-filter_update();
+bandpass_update();
+envelope_update();
+render_update();
 %set(h_bigtext, 'Visible', 'off', 'String', '');
 
 set(h_xspan_text, 'String', ['full t range [' num2str(round(min(Time))) ', ' num2str(round(max(Time))) '] s']);
 
 try
     pause(0.00001);
-    oldWarningState = warning('off', 'MATLAB:ui:javacomponent:FunctionToBeRemoved');
-    frame_h = get(handle(fighand),'JavaFrame');
-    set(frame_h,'Maximized',1);
-    warning(oldWarningState);
+    set(fighand, 'WindowState', 'maximized');
+catch
+    try
+        pause(0.00001);
+        oldWarningState = warning('off', 'MATLAB:ui:javacomponent:FunctionToBeRemoved');
+        frame_h = get(handle(fighand),'JavaFrame');
+        set(frame_h,'Maximized',1);
+        warning(oldWarningState);
+    end
 end
 
 
@@ -771,25 +832,31 @@ if isfield(opts, 'notch')
         f_notch_switch(fighand, []);
     end
 end
+hasvalidbpf = 0;
+if ~isfield(opts, 'bandpass') || numel(opts.bandpass) ~= 2 || ~isnumeric(opts.bandpass)
+    opts.bandpass = [0 Fs/2];
+end
+
+if isfield(opts, 'highpass')
+    if numel(opts.highpass) == 1 && opts.highpass(1) > 0 && opts.highpass(1) < Fs/2
+        opts.bandpass(1) = opts.highpass;
+        hasvalidbpf = 1;
+    end
+end
+if isfield(opts, 'lowpass')
+    if numel(opts.lowpass) == 1 && opts.lowpass(1) > 0 && opts.lowpass(1) < Fs/2
+        opts.bandpass(2) = opts.lowpass;
+        hasvalidbpf = 1;
+    end
+end
 if isfield(opts, 'bandpass')
-    if numel(opts.bandpass) == 2 && opts.bandpass(1) > 0 && opts.bandpass(2) < Fs/2 && opts.bandpass(1) < opts.bandpass(2)
-        set(h_hpf_cutoff, 'String', num2str(opts.bandpass(1)));
-        set(h_lpf_cutoff, 'String', num2str(opts.bandpass(2)));
-        f_bpf_switch(fighand, []);
+    if numel(opts.bandpass) == 2 && (opts.bandpass(1) > 0 || opts.bandpass(2) < Fs/2)
+        hasvalidbpf = 1;
     end
-else
-    if isfield(opts, 'highpass')
-        if numel(opts.highpass) == 1 && opts.highpass(1) > 0 && opts.highpass(1) < Fs/2
-            set(h_hpf_cutoff, 'String', num2str(opts.highpass(1)));
-            f_hpf_switch(fighand, []);
-        end
-    end
-    if isfield(opts, 'lowpass')
-        if numel(opts.lowpass) == 1 && opts.lowpass(1) > 0 && opts.lowpass(1) < Fs/2
-            set(h_lpf_cutoff, 'String', num2str(opts.lowpass(1)));
-            f_lpf_switch(fighand, []);
-        end
-    end
+end
+if hasvalidbpf
+    set(h_bpf_cutoff, 'String', num2str(opts.bandpass));
+    f_bpf_cutoff([], []);
 end
 
 %drawnow
@@ -843,14 +910,16 @@ end
                 if Ctrl
                     f_xzoomout(hObject, []);
                 elseif Alt && EventEnable
-                    u = find(EventTimes < XLim(1), 1, 'last');
+                    u = find(EventTimes < (XLim(1) + XLim(2))/2, 1, 'last');
                     if ~isempty(u)
                         XRange = XLim(2) - XLim(1);
                         XLim(1) = EventTimes(u) - XRange/2;
                         XLim(2) = EventTimes(u) + XRange/2;
                         resnap_pan();
+                        set(h_hintbar, 'String', ['Centered on event #' num2str(u) ': ' EventTimeStamps{u,2}]);
                     elseif XLim(1) < min(EventTimes) && XLim(1) > 0
-                        f_panleft(hObject, 5.0);
+                        %f_panleft(hObject, 5.0);
+                        set(h_hintbar, 'String', 'There are no more events to the left!');
                     end
                 elseif Alt && ~EventEnable
                     if XLim(1) > 0
@@ -865,14 +934,16 @@ end
                 if Ctrl
                     f_xzoomin(hObject, []);
                 elseif Alt && EventEnable
-                    u = find(EventTimes > XLim(2), 1, 'first');
+                    u = find(EventTimes > (XLim(1)+XLim(2))/2, 1, 'first');
                     if ~isempty(u)
                         XRange = XLim(2) - XLim(1);
                         XLim(1) = EventTimes(u) - XRange/2;
                         XLim(2) = EventTimes(u) + XRange/2;
                         resnap_pan();
+                        set(h_hintbar, 'String', ['Centered on event #' num2str(u) ': ' EventTimeStamps{u,2}]);
                     elseif XLim(2) > max(EventTimes) && XLim(2) < Time_max
-                        f_panright(hObject, 5.0);
+                        set(h_hintbar, 'String', 'There are no more events to the right!');
+                        %f_panright(hObject, 5.0);
                         %fprintf('a');
                     end
                 elseif Alt && ~EventEnable
@@ -910,7 +981,7 @@ end
                 f_xzoomout(hObject, []);
                 
         end
-        set(h_hintbar, 'String', 'Ctrl left/right: change time scale. Ctrl up/down: change sensitivity. Shift left/right: scroll slowly. Alt left/right: go to events.');
+        %set(h_hintbar, 'String', 'Ctrl left/right: change time scale. Ctrl up/down: change sensitivity. Shift left/right: scroll slowly. Alt left/right: go to events.');
     end
 
 
@@ -932,64 +1003,6 @@ end
     end
 
 
-
-    function f_hpf_switch(hObject, eventdata)
-        disable_filter_switches();
-        if ~HighPassFilter.state
-            HighPassFilter.state = 1;
-        else
-            HighPassFilter.state = 0;
-        end
-        
-        if HighPassFilter.state
-            %set(h_hpf_state, 'String', text_on);
-            set(h_hpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
-        else
-            %set(h_hpf_state, 'String', text_off);
-            set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-        end
-        
-        filter_update();
-        enable_filter_switches();
-        set(h_hintbar, 'String', '');
-    end
-
-    function f_lpf_switch(hObject, eventdata)
-        disable_filter_switches();
-        if ~LowPassFilter.state
-            LowPassFilter.state = 1;
-        else
-            LowPassFilter.state = 0;
-        end
-        
-        if LowPassFilter.state
-            %set(h_lpf_state, 'String', text_on);
-            set(h_lpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
-        else
-            %set(h_lpf_state, 'String', text_off);
-            set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-        end
-        
-        filter_update();
-        enable_filter_switches();
-        set(h_hintbar, 'String', '');
-    end
-
-    function f_bpf_switch(hObject, eventdata)
-        % This is not a real switch but rather lets a batch script update
-        % two filters at the same time
-        disable_filter_switches();
-        HighPassFilter.state = 1;
-        %set(h_hpf_state, 'String', text_on);
-        set(h_hpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
-        LowPassFilter.state = 1;
-        %set(h_lpf_state, 'String', text_on);
-        set(h_lpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
-        filter_update();
-        enable_filter_switches();
-        set(h_hintbar, 'String', '');
-    end
-
     function f_evf_switch(hObject, eventdata)
         disable_filter_switches();
         if ~EnvelopeFilter.state
@@ -1006,45 +1019,101 @@ end
             set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
         
-        filter_update();
+        envelope_update();
+        render_update();
+        enable_filter_switches();
+        if EnvelopeFilter.state
+            set(h_hintbar, 'String', 'Turned on envelope filter.');
+        else
+            set(h_hintbar, 'String', 'Turned off envelope filter.');
+        end
+    end
+
+
+    function f_bpf_switch(hObject, eventdata)
+        if isequal(get(h_bpf_switch, 'ForegroundColor'), fontcolor_on1)
+            set(h_bpf_cutoff, 'String', '');
+            f_bpf_cutoff([], []);
+        else
+            set(h_hintbar, 'String', get(h_bpf_switch, 'Tooltip'));
+            set(h_bpf_switch, 'Value', 0);
+        end
+    end
+
+
+    function f_bpf_cutoff(hObject, eventdata)
+        disable_filter_switches();
+
+        %Po240516 Automatically render filter if a valid range is entered.
+        validate_bpf_cutoff();
+        if is_nontrivial_bpf_cutoff()
+            BandPassFilter.state = 1;
+            set(h_bpf_switch, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1, 'Value', 1);
+            bandpass_update();
+            envelope_update();
+            render_update();
+        elseif BandPassFilter.state
+            bandpass_update();
+            envelope_update();
+            render_update();
+            BandPassFilter.state = 0;
+            set(h_bpf_switch, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off, 'Value', 0);
+        end
+
         enable_filter_switches();
         set(h_hintbar, 'String', '');
     end
 
-    function f_hpf_cutoff(hObject, eventdata)
-        disable_filter_switches();
-        if HighPassFilter.state
-            filter_update();
+    function f_ica_switch(hObject, eventdata)
+        if isequal(get(h_ica_switch, 'ForegroundColor'), fontcolor_on1)
+            set(h_icasel_list, 'Value', 1:length(get(h_icasel_list, 'String')));
+            f_icasel_confirm([], []);
+        else
+            set(h_hintbar, 'String', get(h_ica_switch, 'Tooltip'));
+            set(h_ica_switch, 'Value', 0);
         end
-        enable_filter_switches();
-        set(h_hintbar, 'String', '');
     end
 
-    function f_lpf_cutoff(hObject, eventdata)
+    function f_car_switch(hObject, eventdata)
         disable_filter_switches();
-        if LowPassFilter.state
-            filter_update();
+        if RerefFilter.state
+            RerefFilter.state = 0;
+            RerefFilter.chanidx = [];
+        else
+            RerefFilter.state = 1;
+            RerefFilter.chanidx = selchan;
         end
+        set(h_car_chancount, 'String', [num2str(length(RerefFilter.chanidx)) 'ch']);
+        reref_update();
+        notch_update();
+        bandpass_update();
+        envelope_update();
+        render_update();
         enable_filter_switches();
-        set(h_hintbar, 'String', '');
+        if RerefFilter.state
+            set(h_hintbar, 'String', 'Common average reference (CAR) enabled on the currently selected channels (denoted with ©). (Remember to re-CAR if changing channels)');
+        else
+            set(h_hintbar, 'String', 'Turned off CAR.');
+        end
     end
 
     function f_evf_cutoff(hObject, eventdata)
         disable_filter_switches();
         if EnvelopeFilter.state
-            filter_update();
+            envelope_update();
+            render_update();
         end
         enable_filter_switches();
         set(h_hintbar, 'String', '');
     end
 
     function disable_filter_switches()
-        set([h_hpf_switch, h_lpf_switch, h_evf_switch, h_hpf_cutoff, h_lpf_cutoff, h_evf_cutoff, h_notch_switch, h_notch_order, h_notch_qfactor], 'Enable', 'off');
+        set([h_bpf_switch, h_ica_switch, h_car_switch, h_evf_switch, h_bpf_cutoff, h_evf_cutoff, h_notch_switch, h_notch_order, h_notch_qfactor], 'Enable', 'off');
         drawnow
     end
 
     function enable_filter_switches()
-        set([h_hpf_switch, h_lpf_switch, h_evf_switch, h_hpf_cutoff, h_lpf_cutoff, h_evf_cutoff, h_notch_switch, h_notch_order, h_notch_qfactor], 'Enable', 'on');
+        set([h_bpf_switch, h_ica_switch, h_car_switch, h_evf_switch, h_bpf_cutoff, h_evf_cutoff, h_notch_switch, h_notch_order, h_notch_qfactor], 'Enable', 'on');
     end
 
     function disable_movement_switches()
@@ -1063,10 +1132,17 @@ end
         else
             NotchFilter.state = 1;
         end
+        %reref_update();
         notch_update();
-        filter_update();
+        bandpass_update();
+        envelope_update();
+        render_update();
         enable_filter_switches();
-        set(h_hintbar, 'String', '');
+        if NotchFilter.state
+            set(h_hintbar, 'String', 'Turned on notch filter.');
+        else
+            set(h_hintbar, 'String', 'Turned off notch filter.');
+        end
     end
 
     function f_notch_order(hObject, eventdata)
@@ -1075,9 +1151,15 @@ end
         if isfinite(ord) && mod(ord,2) == 0 && ord >= 2 && ord <= 10
             %set(h_notch_state, 'String', 'Wait'); 
             drawnow;
-            NotchFilter.order = ord;
+            if ~isequal(NotchFilter.order,ord)
+                PerChannelFilterStates(2:end,:) = false; %Filter parameters changed. Invalidating.
+                NotchFilter.order = ord;
+            end
+            %reref_update();
             notch_update();
-            filter_update();
+            bandpass_update();
+            envelope_update();
+            render_update();
         else
             set(h_notch_order, 'String', num2str(NotchFilter.order));
         end
@@ -1091,9 +1173,15 @@ end
         if isfinite(q) && q > 0
             %set(h_notch_state, 'String', 'Wait'); 
             drawnow;
-            NotchFilter.qfactor = q;
+            if ~isequal(NotchFilter.qfactor,q)
+                PerChannelFilterStates(2:end,:) = false; %Filter parameters changed. Invalidating.
+                NotchFilter.qfactor = q;
+            end
+            %reref_update();
             notch_update();
-            filter_update();
+            bandpass_update();
+            envelope_update();
+            render_update();
         else
             set(h_notch_qfactor, 'String', num2str(NotchFilter.qfactor));
         end
@@ -1102,38 +1190,234 @@ end
     end
 
     
+    function newchannames = channames_with_car_symbol()
+        newchannames = ChanNames;
+        inds = find(PerChannelFilterStates(1,:));
+        for i = inds
+            newchannames{i} = [newchannames{i} ' ©'];
+        end
+    end
+
+
+    function reref_update()
+        Signal_postreref = Signal_postica;
+        PerChannelFilterStates(1:end,:) = false;
+        if RerefFilter.state
+            FilterBusy = 1;
+            set(h_bigtext, 'Visible', 'on', 'String', ['Re-referencing...']); drawnow;
+            Signal_postreref(:,RerefFilter.chanidx) = car(Signal_postreref(:,RerefFilter.chanidx));
+            set(h_bigtext, 'Visible', 'on', 'String', ['Finishing re-reference...']); drawnow;
+            set(h_car_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
+            PerChannelFilterStates(1,RerefFilter.chanidx) = true;
+            PerChannelFilterStates(2:end,RerefFilter.chanidx) = false; % Once this channel is re-referenced, all subsequent filters on this channel are invalidated
+            set(h_chansel_list, 'String', channames_with_car_symbol());
+            FilterBusy = 0;
+            set(h_bigtext, 'Visible', 'off', 'String', '');
+        else
+            set(h_car_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+            set(h_chansel_list, 'String', ChanNames);
+        end
+    end
+
+
     function notch_update()
         if NotchFilter.state
             FilterBusy = 1;
-            set(h_bigtext, 'Visible', 'on', 'String', ['Preparing notch filter...']); drawnow;
+            set(h_bigtext, 'Visible', 'on', 'String', ['Preparing multi-harmonic notch filters...']); drawnow;
             clear d Hd
             Funda = PowerLineFrequency;
             for h = 1:floor(Fs/2/Funda)
                 % Create one for each harmonic
+                set(h_bigtext, 'Visible', 'on', 'String', ['Preparing ' num2str(Funda*h) ' Hz notch filter...']); drawnow;
                 d = fdesign.notch('N,F0,Q',NotchFilter.order,Funda*h/(Fs/2),NotchFilter.qfactor*h);
                 Hd{h} = design(d);
             end
             warning('off', 'signal:filtfilt:ParseSOS');
             warning('off', 'signal:filtfilt:ParseB');
-            for ch = size(Signal_postica,2):-1:1
-                set(h_bigtext, 'Visible', 'on', 'String', ['Applying notch filter (' num2str(ch) ' chans to go)']); drawnow;
-                %Signal_postnotch(:,ch) = freqfilter(Signal_postica(:,ch), Fs, [PowerLineFrequency+[-2 2], NotchOrder], 'stop', 'butter', 1*Fs);
-                Signal_postnotch(:,ch) = Signal_postica(:,ch);
+            for ch = size(Signal_postreref,2):-1:1
+                set(h_bigtext, 'Visible', 'on', 'String', ['Applying notch filters (' num2str(ch) ' chans to go)']); drawnow;
+                if PerChannelFilterStates(2,ch) % Po240528: Only if this channel hasn't been done
+                    continue
+                end
+                if ~ismember(ch, selchan) % Po240528: Only if this channel is plotted
+                    continue
+                end
+                Signal_postnotch(:,ch) = Signal_postreref(:,ch);
                 for h = 1:length(Hd)
                     Signal_postnotch(:,ch) = filtfilt(Hd{h}.sosMatrix,Hd{h}.ScaleValues,Signal_postnotch(:,ch));
                 end
+                PerChannelFilterStates(2,ch) = true;
+                PerChannelFilterStates(3:end,ch) = false; % Once this channel is notched, all subsequent filters on this channel are invalidated
             end
             set(h_bigtext, 'Visible', 'on', 'String', ['Finishing notch filter...']); drawnow;
-            %set(h_notch_state, 'String', text_on);
             set(h_notch_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', '');
         else
-            Signal_postnotch = Signal_postica;
-            %set(h_notch_state, 'String', text_off);
+            if ~isequal(Signal_postnotch, Signal_postreref)
+                Signal_postnotch = Signal_postreref;
+                PerChannelFilterStates(2:end,:) = false;
+            end
             set(h_notch_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
         end
     end
+
+
+    function bandpass_update()
+        % Input validation
+        bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
+        if length(bpf) ~= 2 || numel(bpf) ~= 2
+            bpf = [0 Fs/2];
+        end
+        if ~isfinite(bpf(1)) || bpf(1) < 0 || imag(bpf(1)) ~= 0
+            bpf(1) = 0;
+        end
+        if ~isfinite(bpf(2)) || bpf(2) > Fs/2 || imag(bpf(2)) ~= 0
+            bpf(2) = Fs/2;
+        end
+
+        if bpf(2) <= bpf(1)
+            bpf(1) = 0;
+            bpf(2) = Fs/2;
+            BandPassFilter.state = 0;
+        end
+
+        if BandPassFilter.cutoff(1) ~= bpf(1) || BandPassFilter.cutoff(2) ~= bpf(2)
+            PerChannelFilterStates(3:end,:) = false; %Filter parameters changed. Invalidating.
+            BandPassFilter.cutoff = bpf(1:2);
+            set(h_bpf_cutoff, 'String', num2str(BandPassFilter.cutoff));
+        end
+        
+        % If after validation still enabled, do filtering
+        if BandPassFilter.state
+            FilterBusy = 1;
+            set(h_bigtext, 'Visible', 'on', 'String', ['Preparing Butterworth filter...']); drawnow;
+
+            for ch = size(Signal_postnotch,2):-1:1
+                if PerChannelFilterStates(3,ch) % Po240528: Only if this channel hasn't been done
+                    continue
+                end
+                if ~ismember(ch, selchan) % Po240528: Only if this channel is plotted
+                    continue
+                end
+                if bpf(1) > 0 && bpf(2) < Fs/2
+                    set(h_bigtext, 'Visible', 'on', 'String', ['Applying band-pass filter (' num2str(ch) ' chans to go)']); drawnow;
+                    [Signal_postbutter(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [bpf FilterOrder], 'pass', 'butter');
+                elseif bpf(1) > 0
+                    set(h_bigtext, 'Visible', 'on', 'String', ['Applying high-pass filter (' num2str(ch) ' chans to go)']); drawnow;
+                    [Signal_postbutter(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [bpf(1) FilterOrder], 'high', 'butter');
+                elseif bpf(2) < Fs/2
+                    set(h_bigtext, 'Visible', 'on', 'String', ['Applying low-pass filter (' num2str(ch) ' chans to go)']); drawnow;
+                    [Signal_postbutter(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [bpf(2) FilterOrder], 'low', 'butter');
+                else
+                    Signal_postbutter = Signal_postnotch;
+                    break;
+                end
+                while any(FilterInfo.ButterUnstable)
+                    if FilterOrder <= 1
+                        Signal_postbutter(:,ch) = Signal_postnotch(:,ch);
+                        BandPassFilter.state = 0;
+                        break
+                    end
+                    FilterOrder = ceil(FilterOrder / 2);
+                    if bpf(1) > 0 && bpf(2) < Fs/2
+                        [Signal_postbutter(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [bpf FilterOrder], 'pass', 'butter');
+                    elseif bpf(1) > 0
+                        [Signal_postbutter(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [bpf(1) FilterOrder], 'high', 'butter');
+                    elseif bpf(2) < Fs/2
+                        [Signal_postbutter(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [bpf(2) FilterOrder], 'low', 'butter');
+                    end
+                end
+                if ~BandPassFilter.state
+                    %Signal_postbutter = Signal_postnotch;
+                    break
+                end
+                PerChannelFilterStates(3,ch) = true;
+                PerChannelFilterStates(4:end,ch) = false; % Once this channel is buttered, all subsequent filters on this channel are invalidated
+            end
+
+        end
+        if ~BandPassFilter.state
+            if ~isequal(Signal_postbutter, Signal_postnotch)
+                Signal_postbutter = Signal_postnotch;
+                PerChannelFilterStates(3:end,:) = false;
+            end
+            set(h_bpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+        end
+        FilterBusy = 0;
+    end
+
+
+%Po240524: Butterworth filter and Envelope filter are now separate.
+    function envelope_update()
+        % Input validation
+        evf = str2double(get(h_evf_cutoff, 'String'));
+
+        if ~isfinite(evf)
+            evf = Fs;
+        end
+
+        if evf >= Fs/2 || evf <= 0
+            EnvelopeFilter.state = 0;
+            set(h_evf_cutoff, 'String', num2str(floor(Fs/2*99)/100));
+            set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+        end
+
+        if EnvelopeFilter.cutoff ~= evf
+            PerChannelFilterStates(4:end,:) = false; %Filter parameters changed. Invalidating.
+            EnvelopeFilter.cutoff = evf;
+        end
+
+        % If after validation still enabled, do filtering
+        if EnvelopeFilter.state
+            FilterBusy = 1;
+            set(h_bigtext, 'Visible', 'on', 'String', ['Preparing envelope filter...']); drawnow;
+            for ch = size(Signal_postbutter,2):-1:1
+                if PerChannelFilterStates(4,ch) % Po240528: Only if this channel hasn't been done
+                    continue
+                end
+                if ~ismember(ch, selchan) % Po240528: Only if this channel is plotted
+                    continue
+                end
+                set(h_bigtext, 'Visible', 'on', 'String', ['Applying envelope filter (' num2str(ch) ' chans to go)']); drawnow;
+                [Signal_postenvelope(:,ch), FilterInfo] = freqfilter(Signal_postbutter(:,ch).^2, Fs, [evf FilterOrder], 'low', 'butter');
+                while any(FilterInfo.ButterUnstable)
+                    if FilterOrder <= 1
+                        Signal_postenvelope(:,ch) = Signal_postbutter(:,ch);
+                        EnvelopeFilter.state = 0;
+                        set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+                        break
+                    end
+                    FilterOrder = ceil(FilterOrder / 2);
+                    [Signal_postenvelope(:,ch), FilterInfo] = freqfilter(Signal_postbutter(:,ch).^2, Fs, [evf FilterOrder], 'low', 'butter');
+                end
+                if ~EnvelopeFilter.state
+                    %Signal_postbutter = Signal_postbutter;
+                    break
+                end
+                PerChannelFilterStates(4,ch) = true;
+            end
+            if EnvelopeFilter.state
+                SigBandwidth = min(SigBandwidth,evf);
+            end
+
+        end
+        if ~EnvelopeFilter.state
+            if ~isequal(Signal_postenvelope, Signal_postbutter)
+                Signal_postenvelope = Signal_postbutter;
+                PerChannelFilterStates(4:end,:) = false;
+            end
+            set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+        end
+        FilterBusy = 0;
+    end
+
+
+    function render_update() 
+        set(h_bigtext, 'Visible', 'on', 'String', 'Rendering...'); drawnow;
+        redraw();
+        set(h_bigtext, 'Visible', 'off', 'String', ''); drawnow;
+    end        
 
 
     function f_zscore_switch(hObject, eventdata)
@@ -1180,240 +1464,34 @@ end
     end
 
 
-    function filter_update()
-        hpf = str2double(get(h_hpf_cutoff, 'String'));
-        lpf = str2double(get(h_lpf_cutoff, 'String'));
-        evf = str2double(get(h_evf_cutoff, 'String'));
-        
-        % 20220711: Set them to impossible values but still valid
-        % numerics to avoid crashing.
-        if ~isfinite(hpf)
-            hpf = 0;
+    function L = validate_bpf_cutoff()
+        bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
+        changesmade = 0;
+        if length(bpf) ~= 2 || numel(bpf) ~= 2
+            bpf = [0 Fs/2];
+            changesmade = 1;
         end
-        if ~isfinite(lpf)
-            lpf = Fs;
+        if ~isfinite(bpf(1)) || bpf(1) < 0 || imag(bpf(1)) ~= 0
+            bpf(1) = 0;
+            changesmade = 1;
         end
-        
-        if ~isfinite(lpf)
-            evf = Fs;
+        if ~isfinite(bpf(2)) || bpf(2) > Fs/2 || imag(bpf(2)) ~= 0
+            bpf(2) = Fs/2;
+            changesmade = 1;
         end
-        
-        if hpf <= Fcut_minfreq % Not likely to be stable, or not even available
-            HighPassFilter.state = 0;
-            set(h_hpf_cutoff, 'String', num2str(ceil(Fcut_minfreq*101)/100));
-            %set(h_hpf_state, 'String', text_off);
-            set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+        if changesmade
+        set(h_bpf_cutoff, 'String', num2str(bpf));
         end
-        if lpf >= Fs/2
-            LowPassFilter.state = 0;
-            set(h_lpf_cutoff, 'String', num2str(floor(Fs/2*99)/100));
-            %set(h_lpf_state, 'String', text_off);
-            set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-        end
-        if hpf >= lpf
-            HighPassFilter.state = 0;
-            %set(h_hpf_state, 'String', text_off);
-            set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-            LowPassFilter.state = 0;
-            %set(h_lpf_state, 'String', text_off);
-            set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-        end
-        if evf >= Fs/2
-            EnvelopeFilter.state = 0;
-            set(h_evf_cutoff, 'String', num2str(floor(Fs/2*99)/100));
-            %set(h_evf_state, 'String', text_off);
-            set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-        end
-        
-        if HighPassFilter.cutoff ~= hpf || LowPassFilter.cutoff ~= lpf
-            HighPassFilter.cutoff = hpf;
-            LowPassFilter.cutoff = lpf;
-        end
-        if EnvelopeFilter.cutoff ~= evf
-            EnvelopeFilter.cutoff = evf;
-        end
-        if HighPassFilter.state || LowPassFilter.state || EnvelopeFilter.state
-            SigChunkRendered(:) = 0;
-            FilterOrder = MaxFilterOrder;
-            filter_render();
-        else
-            Signal_postfilter = Signal_postnotch;
-            SigChunkRendered(:) = 1;
-        end
-        
-        redraw();
     end
 
-
-    function chunkindexrange = xlim_to_sigchunk()
-        chunkindexrange = [max(1,floor(XLim(1)/FilterChunkSec)+1), min(ChunkIndexMax,ceil(XLim(2) / FilterChunkSec))];
-    end
-
-
-    function filter_render()
-        hpf = str2double(get(h_hpf_cutoff, 'String'));
-        lpf = str2double(get(h_lpf_cutoff, 'String'));
-        evf = str2double(get(h_evf_cutoff, 'String'));
-        chunkindexrange = xlim_to_sigchunk();
-        if SigChunkRendered(chunkindexrange(1):chunkindexrange(2))
-            %redraw();
-            return;
+    function L = is_nontrivial_bpf_cutoff()
+        L = false;
+        bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
+        if (bpf(1) > 0 || bpf(2) < Fs/2) && bpf(2) > bpf(1)
+            L = true;
         end
-        
-        if HighPassFilter.state || LowPassFilter.state || EnvelopeFilter.state
-            FilterBusy = 1;
-            disable_movement_switches();
-            %set([h_hpf_state h_lpf_state h_evf_state], 'String', 'Wait');
-            set(h_bigtext, 'Visible', 'on', 'String', 'Preparing filters...'); 
-            %redraw();
-            drawnow;
-            
-            % Only need to render the chunks and 1/8 chunk to the left and
-            % to the right
-            
-            
-            %e1 = max(Time_min, (chunkindexrange(1)-1-0.125)*FilterChunkSec);
-            %e2 = min(Time_max, (chunkindexrange(2)+0.125)*FilterChunkSec);
-            
-            %ti1 = find(Time>=e1,1);
-            %ti2 = find(Time<=e2,1,'last');
-            
-            if HighPassFilter.state
-                for ch = size(Signal_postnotch,2):-1:1
-                    set(h_bigtext, 'Visible', 'on', 'String', ['Applying high-pass filter (' num2str(ch) ' chans to go)']); drawnow;
-                    [Signal3a(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [hpf FilterOrder], 'high', 'butter', FilterReflectMult*FilterOrder/hpf*Fs);
-                    while any(FilterInfo.ButterUnstable)
-                        if FilterOrder <= 1
-                            Signal3a(:,ch) = Signal_postnotch(:,ch);
-                            HighPassFilter.state = 0;
-                            %set(h_hpf_state, 'String', text_off);
-                            set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-                            SigChunkRendered(:) = 0;
-                            break
-                        end
-                        FilterOrder = ceil(FilterOrder / 2);
-                        [Signal3a(:,ch), FilterInfo] = freqfilter(Signal_postnotch(:,ch), Fs, [hpf FilterOrder], 'high', 'butter', FilterReflectMult*FilterOrder/hpf*Fs);
-                    end
-                    if ~HighPassFilter.state
-                        Signal3a = Signal_postnotch;
-                        break
-                    end
-                end
-            else
-                Signal3a = Signal_postnotch;
-            end
-            
-            SigBandwidth = Fs/2;
-            
-            if LowPassFilter.state
-                for ch = size(Signal_postnotch,2):-1:1
-                    set(h_bigtext, 'Visible', 'on', 'String', ['Applying low-pass filter (' num2str(ch) ' chans to go)']); drawnow;
-                    [Signal3b(:,ch), FilterInfo] = freqfilter(Signal3a(:,ch), Fs, [lpf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/lpf*Fs);
-                    while any(FilterInfo.ButterUnstable)
-                        if FilterOrder <= 1
-                            Signal3b(:,ch) = Signal3a(:,ch);
-                            LowPassFilter.state = 0;
-                            %set(h_lpf_state, 'String', text_off);
-                            set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-                            SigChunkRendered(:) = 0;
-                            break
-                        end
-                        FilterOrder = ceil(FilterOrder / 2);
-                        [Signal3b(:,ch), FilterInfo] = freqfilter(Signal3a(:,ch), Fs, [lpf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/lpf*Fs);
-                    end
-                    if ~LowPassFilter.state
-                        Signal3b = Signal3a;
-                        break
-                    end
-                end
-                if LowPassFilter.state
-                    SigBandwidth = lpf;
-                end
-            else
-                Signal3b = Signal3a;
-            end
-            
-            if EnvelopeFilter.state
-                for ch = size(Signal_postnotch,2):-1:1
-                    set(h_bigtext, 'Visible', 'on', 'String', ['Applying envelope filter (' num2str(ch) ' chans to go)']); drawnow;
-                    [Signal_postfilter(:,ch), FilterInfo] = freqfilter(Signal3b(:,ch).^2, Fs, [evf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/evf*Fs);
-                    while any(FilterInfo.ButterUnstable)
-                        if FilterOrder <= 1
-                            Signal_postfilter(:,ch) = Signal3b(:,ch);
-                            EnvelopeFilter.state = 0;
-                            %set(h_evf_state, 'String', text_off);
-                            set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-                            SigChunkRendered(:) = 0;
-                            break
-                        end
-                        FilterOrder = ceil(FilterOrder / 2);
-                        [Signal_postfilter(:,ch), FilterInfo] = freqfilter(Signal3b(:,ch).^2, Fs, [evf FilterOrder], 'low', 'butter', FilterReflectMult*FilterOrder/evf*Fs);
-                    end
-                    if ~EnvelopeFilter.state
-                        Signal_postfilter = Signal3b;
-                        break
-                    end
-                end
-                if EnvelopeFilter.state
-                    SigBandwidth = min(SigBandwidth,evf);
-                end
-            else
-                Signal_postfilter = Signal3b;
-            end            
-            
-            
-%             set(h_bigtext, 'Visible', 'on', 'String', 'Interpolating to the plot grid...'); drawnow;
-%             if BandLimitedInterpolation
-%                 BLIM = max(1,floor(Fs/2^nextpow2(SigBandwidth*4)));
-%                 Signal_postfilter(ti1:BLIM:ti2,:) = interp1(ETime, Signal3c, Time(ti1:BLIM:ti2));
-%             else
-%                 Signal_postfilter(ti1:ti2,:) = interp1(ETime, Signal3c, Time(ti1:ti2));
-%             end
-            
-            clear Signal3a Signal3b
-            
-            SigChunkRendered(chunkindexrange(1):chunkindexrange(2)) = 1;
-            FilterBusy = 0;
-            enable_movement_switches();
-            
-            if HighPassFilter.state
-                %set(h_hpf_state, 'String', text_on);
-                set(h_hpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
-            else
-                %set(h_hpf_state, 'String', text_off);
-                set(h_hpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-            end
-            if LowPassFilter.state
-                %set(h_lpf_state, 'String', text_on);
-                set(h_lpf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
-            else
-                %set(h_lpf_state, 'String', text_off);
-                set(h_lpf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-            end
-            if EnvelopeFilter.state
-                %set(h_evf_state, 'String', text_on);
-                set(h_evf_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
-            else
-                %set(h_evf_state, 'String', text_off);
-                set(h_evf_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
-            end
-        end
-        
-        set(h_bigtext, 'Visible', 'on', 'String', 'Rendering...'); drawnow;
-        redraw();
-        set(h_bigtext, 'Visible', 'off', 'String', ''); drawnow;
-        
-        
+        return
     end
-
-
-
-
-
-
-
-
-
 
 
     function f_xzoomin(hObject, eventdata)
@@ -1571,8 +1649,13 @@ end
             return;
         end
         v = str2double(get(h_xspan_edit1, 'String'));
-        if isfinite(v) && imag(v) == 0 && v < XLim(2)
-            XLim(1) = v;
+        if isfinite(v) && imag(v) == 0
+            if  v < XLim(2)
+                XLim(1) = v;
+            else
+                XLim(2) = v + (XLim(2)-XLim(1));
+                XLim(1) = v;
+            end
         end
         set(axehand, 'XLim', XLim);
         MovementBusy = 1;
@@ -1589,8 +1672,13 @@ end
             return;
         end
         v = str2double(get(h_xspan_edit2, 'String'));
-        if isfinite(v) && imag(v) == 0 && v > XLim(1)
-            XLim(2) = v;
+        if isfinite(v) && imag(v) == 0
+            if v > XLim(1)
+                XLim(2) = v;
+            else
+                XLim(1) = v - (XLim(2)-XLim(1));
+                XLim(2) = v;
+            end
         end
         set(axehand, 'XLim', XLim);
         MovementBusy = 1;
@@ -1615,10 +1703,10 @@ end
             chansep = PermittedChanSepRanges(in);
         end
         %YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
-        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
+        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed), 'YLim', YLim);
         YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)), 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1641,10 +1729,10 @@ end
             chansep = PermittedChanSepRanges(in);
         end
         %YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
-        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
+        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed), 'YLim', YLim);
         YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)), 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -1678,7 +1766,6 @@ end
         set(axehand, 'XLim', XLim, 'YLim', YLim);
         set(h_xspan_edit1, 'String', num2str(XLim(1)));
         set(h_xspan_edit2, 'String', num2str(XLim(2)));
-        filter_render();
         redraw();
         
     end
@@ -1724,7 +1811,6 @@ end
         set(axehand, 'XLim', XLim, 'YLim', YLim);
         set(h_xspan_edit1, 'String', num2str(XLim(1)));
         set(h_xspan_edit2, 'String', num2str(XLim(2)));
-        filter_render();
         redraw();
 
     end
@@ -1741,6 +1827,7 @@ end
         end
         
         Nsch = length(selchan);
+        sd = zeros(1,Nsch);
         tdrawupdate = tic;
         for ch = randperm(Nsch)
             
@@ -1762,7 +1849,7 @@ end
                     lcomlist = [];
                 end
                 if ~isempty(lcomlist)
-                    tmp = Signal_postfilter(:,selchan(ch));
+                    tmp = Signal_postenvelope(:,selchan(ch));
                     for i2 = 1:length(lcomlist)
                         i = lcomlist(i2);
                         if blankaround_stitch_samples > 0 && blankaround_stitch_samples <= EventTimePoints(i,2)-EventTimePoints(i,1)+1
@@ -1770,9 +1857,9 @@ end
                             tmp(round(EventTimePoints(i,2) - [blankaround_stitch_samples-1:-1:0]),:) = NaN;
                         end
                     end
-                    Signal4 = tmp(t1:BLIM:t2,:);
+                    Signal_postdecimation = tmp(t1:BLIM:t2,:);
                 else
-                    Signal4 = Signal_postfilter(t1:BLIM:t2,selchan(ch));
+                    Signal_postdecimation = Signal_postenvelope(t1:BLIM:t2,selchan(ch));
                 end
                 
                 Time4 = Time(t1:BLIM:t2);
@@ -1780,18 +1867,19 @@ end
                     tdiff = Time(t2) - Time(t1);
                     Fs_pref = 2^nextpow2(SLD_H / tdiff);
                     if Fs_pref < Fs/BLIM
-                        [Signal4, Time4] = downsamplecustom(Signal4, Time4, SLD_H);
+                        [Signal_postdecimation, Time4] = downsamplecustom(Signal_postdecimation, Time4, SLD_H);
                     end
                 end
                 
-                YDATA = Signal4;
+                YDATA = Signal_postdecimation;
+                sd(ch) = std(YDATA);
                 
                 if ZscoreFilter.state
                     YDATA = nanzscore(YDATA)*ZscoreFilter.multiplier;
                 else
                     YDATA = YDATA - nanmedian(YDATA);
                 end
-                
+
                 set(plothand(ch), 'XData', Time4, 'YData', YDATA - chansep*ch, 'Visible', 'on');
                 set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
                 setappdata(plothand(ch), 'chanind', selchan(ch));
@@ -1811,6 +1899,24 @@ end
             end
             
         end
+
+        % Po240524: This is buggy and tags the wrong channels. Disabled.
+        % meansd = mean(sd);
+        % excesssd_cids = find(sd / meansd / 6 > 1);
+        % if ~isempty(excesssd_cids)
+        %     changed_CND = 1;
+        %     CND = ChanNamesDisplayed;
+        %     for ch = excesssd_cids
+        %         CND{ch} = [repmat('!', 1, floor(sd(ch) / meansd / 6)) ChanNamesDisplayed{ch}];
+        %     end
+        %     set(axehand, 'YTickLabel', fliplr(CND(selchan)));
+        % elseif changed_CND
+        %     changed_CND = 0;
+        %     set(axehand, 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)));
+        % end
+        % 
+
+
         for ch = length(plothand):-1:Nsch+1
             set(plothand(ch), 'Visible', 'off');
         end
@@ -1846,20 +1952,65 @@ end
                 if EventTimeStamps{i,1} < XLim(1) || EventTimeStamps{i,1} > XLim(2)
                     continue
                 end
+                % Po240516: Repositioned event labels to top of chart
                 tmp = get(eventtexthand(i), 'Position');
-                tmp(2) = YPos(mod(i-1,NYPos)+1);
+                tmp(2) = YLim(2); %YPos(mod(i-1,NYPos)+1);
                 larrow = '«';
                 rarrow = '';
                 horali = 'left';
-                if EventTimeStamps{i,1} - XLim(1) > (XLim(2) - XLim(1))*0.5
-                    larrow = '';
-                    rarrow = '»';
-                    horali = 'right';
-                    tmp(2) = tmp(2)+(YLim(2)-YLim(1))/100*96;
-                end
-                set(eventtexthand(i), 'Position', tmp, 'String', [larrow EventTimeStamps{i,2} rarrow], 'HorizontalAlignment', horali);
+                verali = 'top';
+                %if EventTimeStamps{i,1} - XLim(1) > (XLim(2) - XLim(1))*0.5
+                %    larrow = '';
+                %    rarrow = '»';
+                %    horali = 'right';
+                %    tmp(2) = 0; %tmp(2)+(YLim(2)-YLim(1))/100*96;
+                %end
+                set(eventtexthand(i), 'Position', tmp, 'String', [larrow EventTimeStamps{i,2} rarrow], 'HorizontalAlignment', horali, 'VerticalAlignment', verali, 'Margin', 0.01);
+                %set(eventtexthand(i), 'Position', tmp, 'String', [larrow EventTimeStamps{i,2} rarrow], 'HorizontalAlignment', horali, 'Rotation', 90, 'LineStyle', ':', 'EdgeColor', EventKolor);
             end
-            clear tmp
+
+            % Po240516: A second round to un-overlap labels at or too close
+            % to the same timestamp
+            eventtexthandpositions = cell2mat(get(eventtexthand, 'Position'));
+            eventtexthandpositions(:,3) = 1:size(eventtexthandpositions,1);
+            eventtexthandpositions = eventtexthandpositions(XLim(1) <= cell2mat(EventTimeStamps(:,1)) & XLim(2) >= cell2mat(EventTimeStamps(:,1)),:);
+            if size(eventtexthandpositions,1) > 1
+                tmp2 = eventtexthandpositions(:,1:2);
+                tmp2(:,1) = tmp2(:,1) ./ (XLim(2) - XLim(1));
+                tmp2(:,2) = tmp2(:,2) ./ (YLim(2) - YLim(1));
+                tmp = squareform(pdist(tmp2));
+                tmp_min_dist = 0.15;
+                tmp_shifty_by = 0.01;
+                tmp_shiftx_by = 0.01;
+                tmp_y_change = (YLim(2)-YLim(1))*tmp_shifty_by;
+                tmp_x_change = (XLim(2)-XLim(1))*tmp_shiftx_by;
+                for i = 1:size(eventtexthandpositions,1)
+                    for j = i+1:size(eventtexthandpositions,1)
+                        while tmp(i,j) < tmp_min_dist && eventtexthandpositions(j,2) > YLim(1) + tmp_y_change
+                            %fprintf('%i is too close to %i (dist = %g)\n', j, i, tmp(i,j));
+                            eventtexthandpositions(j,2) = eventtexthandpositions(j,2) - tmp_y_change;
+                            %eventtexthandpositions(j,1) = eventtexthandpositions(j,1) + tmp_x_change;
+                            tmp2 = eventtexthandpositions(:,1:2);
+                            tmp2(:,1) = tmp2(:,1) ./ (XLim(2) - XLim(1));
+                            tmp2(:,2) = tmp2(:,2) ./ (YLim(2) - YLim(1));
+                            tmp = squareform(pdist(tmp2));
+                        end
+                        tmp_nattempts = 0;
+                        while tmp(i,j) < tmp_min_dist && tmp_nattempts < 1000
+                            eventtexthandpositions(j,2) = rand(1) * (YLim(2) - YLim(1)) + YLim(1);
+                            tmp2 = eventtexthandpositions(:,1:2);
+                            tmp2(:,1) = tmp2(:,1) ./ (XLim(2) - XLim(1));
+                            tmp2(:,2) = tmp2(:,2) ./ (YLim(2) - YLim(1));
+                            tmp = squareform(pdist(tmp2));
+                            tmp_nattempts = tmp_nattempts + 1;
+                        end
+                    end
+                end
+                for i = 1:size(eventtexthandpositions,1)
+                    set(eventtexthand(eventtexthandpositions(i,3)), 'Position', eventtexthandpositions(i,1:2));
+                end
+            end
+            clear tmp tmp_*
         end
 
         
@@ -1903,20 +2054,50 @@ end
             set(eventtexthand(~l), 'Visible', 'off');
         end
         
-        
         update_cursorline();
+        check_axes_fontangle_and_resize();
+        update_infolabels();
         
     end
 
 
-    function f_chansel_auto(hObject, eventdata)
-        try
-            cids = GetChannelsWithSimilarStdev(Signal_postfilter);
-            set(h_chansel_list, 'Value', cids);
-            f_chansel_confirm([], []);
-        catch
+    function check_axes_fontangle_and_resize()
+        % Newer versions of MATLAB automatically rotate the axes text
+        % if the font is too large, so when we detect rotation, we
+        % should reduce font size to fit
+        ang = xtickangle(axehand);
+        while ang ~= 0
+            f_axesfont_dec([], []);
+            drawnow;
+            ang = xtickangle(axehand);
         end
     end
+
+
+    % function f_chansel_auto(hObject, eventdata)
+    %     try
+    %         cids = GetChannelsWithSimilarStdev(Signal_postbutter);
+    %         set(h_chansel_list, 'Value', cids);
+    %         f_chansel_confirm([], []);
+    %     catch
+    %     end
+    % end
+
+
+    function f_infolabel_enable(hObject, eventdata)
+        if InfoLabelEnable
+            InfoLabelEnable = 0;
+            set(h_infolabel_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+            update_infolabels();
+            set(h_hintbar, 'String', '');
+        else
+            InfoLabelEnable = 1;
+            update_infolabels();
+            set(h_infolabel_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
+            set(h_hintbar, 'String', 'Local min, max, and standard deviation in the currently displayed time range are shown for each channel.');
+        end
+    end
+
 
     function f_cursor_enable(hObject, eventdata)
         if CursorEnable
@@ -1934,23 +2115,110 @@ end
     end
 
     function f_chansel_list(hObject, eventdata)
-        set(h_hintbar, 'String', 'Hold Ctrl to select/deselect multiple. Hold Shift to select contiguous range. Click "Plot" to finalize selection.');
+        set(h_hintbar, 'String', ['Hold Ctrl to select/deselect multiple. Hold Shift to select contiguous range. Click "' get(h_chansel_confirm, 'String') '" to update. For advanced selection, use "' get(h_chansel_commandentry, 'String') '"']);
+        if ~isequal(selchan, get(h_chansel_list, 'Value'))
+            set(h_chansel_confirm, 'BackgroundColor', backgroundcolor_buttonalert);
+            set(h_chansel_reset, 'BackgroundColor', backgroundcolor_buttonalert);
+            set(h_chansel_warnconfirm, 'Visible', 'on');
+        else
+            set(h_chansel_confirm, 'BackgroundColor', backgroundcolor_buttondefault);
+            set(h_chansel_reset, 'BackgroundColor', backgroundcolor_buttondefault);
+            set(h_chansel_warnconfirm, 'Visible', 'off');
+        end
+    end
+
+
+    function f_chansel_commandentry(hObject, eventdata)
+        set(h_hintbar, 'String', 'Selection commands are parsed one by one in sequential order. Leave blank to skip a step.');
+        tmp_prompt = {'(Optional) Step 1. Enter a variable name in the base workspace to select these channels (example: channames):', '(Optional) Step 2. Regexp pattern to SELECT channels:', '(Optional) Step 3. Regexp pattern to DESELECT channels:', '(Optional) Step 4. Regexp pattern to SELECT channels:'};
+        tmp_fieldsize = [1 60; 1 60; 1 60; 1 60];
+        tmp_defaultinput = {'', '', '', ''};
+        tmp_answer = inputdlg(tmp_prompt, 'Select/Deselect Channels to Plot', tmp_fieldsize, tmp_defaultinput);
+        if length(tmp_answer) ~= 4
+            set(h_hintbar, 'String', 'Canceled selection. No change was made.');
+            return
+        end
+        tmp_VARset = tmp_answer{1};
+        tmp_REinclude = tmp_answer{2};
+        tmp_REexclude = tmp_answer{3};
+        tmp_REincludeagain = tmp_answer{4};
+        selchan = get(h_chansel_list, 'Value');
+        if ~isempty(tmp_VARset)
+            tmp_importedchannames = cell(0);
+            tmp_whosinbase = evalin('base','who');
+            if ismember(tmp_VARset,tmp_whosinbase)
+                try
+                    tmp_importedchannames = evalin('base', tmp_VARset);
+                    selchan = chan2idx(ChanNamesDisplayed, tmp_importedchannames, 1);
+                end
+            end
+        end
+        for i = 1:length(ChanNamesDisplayed)
+            if ~isempty(regexp(ChanNamesDisplayed{i}, tmp_REinclude, 'match', 'once'))
+                selchan = union(selchan, i);
+            end
+        end
+        for i = 1:length(ChanNamesDisplayed)
+            if ~isempty(regexp(ChanNamesDisplayed{i}, tmp_REexclude, 'match', 'once'))
+                selchan = setdiff(selchan, i);
+            end
+        end
+        for i = 1:length(ChanNamesDisplayed)
+            if ~isempty(regexp(ChanNamesDisplayed{i}, tmp_REincludeagain, 'match', 'once'))
+                selchan = union(selchan, i);
+            end
+        end
+        
+        set(h_chansel_list, 'Value', selchan);
+        f_chansel_confirm(hObject, eventdata);
+
+    end
+
+
+    function f_eventlabels_showhide(hObject, eventdata)
+        visible = get(eventtexthand, 'Visible');
+        if any([visible{:}] == 1)
+            set(eventtexthand, 'Visible', 'off');
+        else
+            redraw();
+        end
     end
 
 
     function f_chansel_confirm(hObject, eventdata)
+        set(h_hintbar, 'String', 'Plot is updating'); drawnow;
+        set(h_chansel_confirm, 'BackgroundColor', backgroundcolor_buttondefault);
+        set(h_chansel_reset, 'BackgroundColor', backgroundcolor_buttondefault);
+        set(h_chansel_warnconfirm, 'Visible', 'off');
         selchan = get(h_chansel_list, 'Value');
         Nsch = length(selchan);
-        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)));
-        redraw();
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)));
+
+        % Po240528: Added these updaters before redraw 
+        % (they won't recalculate unnecessarily anymore)
+        notch_update();
+        bandpass_update();
+        envelope_update();
+        render_update(); % this already includes redraw()
+        
         %Automatically zoom out if less-than-full channels fill the screen
         if Nsch < (YLim(2)-YLim(1))/chansep
             f_yzoomout(hObject, eventdata);
         end
+
+        same_as_car_channels = isequal(find(PerChannelFilterStates(1,:)), selchan);
+        warntext = '';
+        if RerefFilter.state && ~same_as_car_channels
+            warntext = 'WARNING: Common average reference was NOT applied to these channels. Turn it off and on again to apply.';
+        end
+        set(h_hintbar, 'String', ['Plot is updated. ' warntext]); drawnow;
     end
 
     function f_chansel_reset(hObject, eventdata)
         set(h_chansel_list, 'Value', selchan);
+        set(h_chansel_confirm, 'BackgroundColor', backgroundcolor_buttondefault);
+        set(h_chansel_reset, 'BackgroundColor', backgroundcolor_buttondefault);
+        set(h_chansel_warnconfirm, 'Visible', 'off');
     end
 
     function f_psd_plot(hObject, eventdata)
@@ -2014,14 +2282,14 @@ end
                 % y values of the exact x point
                 
                 %YDATA = get(plothand(ch), 'YData');
-                YDATA_fullres = Signal_postfilter(t1:BLIM:t2,selchan(ch));
+                YDATA_fullres = Signal_postenvelope(t1:BLIM:t2,selchan(ch));
                 if ZscoreFilter.state
                     YDATA_fullres = nanzscore(YDATA_fullres)*ZscoreFilter.multiplier - chansep*ch;
                 else
                     YDATA_fullres = YDATA_fullres - nanmedian(YDATA_fullres) - chansep*ch;
                 end
                 
-                ypoint(ch) = interp1(Time, Signal_postfilter(:,selchan(ch)), selected_timepoint);
+                ypoint(ch) = interp1(Time, Signal_postenvelope(:,selchan(ch)), selected_timepoint);
                 
                 % Locally search for min and max in each channel
                 lookcenter = find(Time >= selected_timepoint, 1, 'first');
@@ -2050,7 +2318,7 @@ end
                     if lookcenter - lookradius < 1 || lookcenter + lookradius > Ntp
                         return
                     end
-                    tmp = Signal_postfilter(lookcenter-lookradius:lookcenter+lookradius,selchan(ch));
+                    tmp = Signal_postenvelope(lookcenter-lookradius:lookcenter+lookradius,selchan(ch));
                     [ylocmin(ch), ind] = min(tmp);
                     xindmin(ch) = ind - 1 + loclookcenter - lookradius;
                     xlocmin(ch) = Time(t1-1+xindmin(ch));
@@ -2063,7 +2331,7 @@ end
                     if lookcenter - lookradius < 1 || lookcenter + lookradius > Ntp
                         return
                     end
-                    tmp = Signal_postfilter(lookcenter-lookradius:lookcenter+lookradius,selchan(ch));
+                    tmp = Signal_postenvelope(lookcenter-lookradius:lookcenter+lookradius,selchan(ch));
                     [ylocmax(ch), ind] = max(tmp);
                     xindmax(ch) = ind - 1 + loclookcenter - lookradius;
                     xlocmax(ch) = Time(t1-1+xindmax(ch));
@@ -2082,6 +2350,16 @@ end
     end
 
 
+    function update_infolabels()
+        if InfoLabelEnable
+            for ch = Nsch:-1:1
+                set(plotinfolabel1hand(ch), 'String', sprintf('[min %+.3g, max %+.3g, sd %.3g]', min(Signal_postenvelope(t1:t2,selchan(ch))), max(Signal_postenvelope(t1:t2,selchan(ch))), std(Signal_postenvelope(t1:t2,selchan(ch)))), 'Position', [XLim(1), -chansep*ch, 0], 'Visible', 'on');
+            end
+            set([plotinfolabel1hand], 'Visible', 'on');
+        else
+            set([plotinfolabel1hand plotinfolabel2hand plotinfolabel3hand], 'Visible', 'off');
+        end
+    end
 
 
     function update_psd()
@@ -2089,7 +2367,7 @@ end
             if ~isempty(selected_plothand) && ishandle(selected_plothand)
                 channame = getappdata(selected_plothand, 'channame');
                 chanind = getappdata(selected_plothand, 'chanind');
-                tmp = Signal_postfilter(t1:t2,chanind);
+                tmp = Signal_postenvelope(t1:t2,chanind);
                 tmp = tmp(isfinite(tmp));
                 if size(Signal_psd_source,1) == size(tmp,1) && size(Signal_psd_source,2) == size(tmp,2) && norm(Signal_psd_source - tmp) == 0
                     % These are the same signal.
@@ -2104,18 +2382,18 @@ end
                 plot(fxx, 10*log10(pxx));
                 xlabel('Frequency (Hz)');
                 ylabel('PSD (dB/Hz)');
-                fc1 = HighPassFilter.cutoff;
-                fc2 = LowPassFilter.cutoff;
-                if ~HighPassFilter.state
+                fc1 = BandPassFilter.cutoff(1);
+                fc2 = BandPassFilter.cutoff(2);
+                if ~BandPassFilter.state
                     fc1 = 0;
                 end
-                if ~LowPassFilter.state
+                if ~BandPassFilter.state
                     fc2 = Fs/2;
                 end
                 
 
-                % Applicable filters are: ICA, Notch, HPF, LPF, Env
-                tmp_af = {'ICA', 'Notch', 'HPF', 'LPF', 'Env'};
+                % Applicable filters are: ICA, Notch, BPF, Env
+                tmp_af = {'ICA', 'Notch', 'BPF', 'Env'};
                 tmp_ftr = false(1,5);
                 if length(selica) ~= size(ica_A,2)
                     tmp_ftr(1) = 1;
@@ -2123,10 +2401,10 @@ end
                 if NotchFilter.state
                     tmp_ftr(2) = 1;
                 end
-                if HighPassFilter.state
+                if BandPassFilter.state
                     tmp_ftr(3) = 1;
                 end
-                if LowPassFilter.state
+                if BandPassFilter.state
                     tmp_ftr(4) = 1;
                 end
                 if EnvelopeFilter.state
@@ -2173,7 +2451,11 @@ end
                     reflect_len = averagesegmentduration * Fs / 2;
                     Fcut_stitch = Fcut_minfreq;
                     FO_stitch = 2;
-                    tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = freqfilter(tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), Fs, [Fcut_stitch, FO_stitch], 'high', 'butter', reflect_len);
+                    try
+                        tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = freqfilter(tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), Fs, [Fcut_stitch, FO_stitch], 'high', 'butter', reflect_len);
+                    catch
+                        tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:);
+                    end
                 end
                 
                 if ishandle(wh)
@@ -2239,7 +2521,7 @@ end
             ica_sig = ica_W * Signal.';
             mica = size(ica_A,2);
             selica = mica;
-            icachans = string_to_cell(num2str(1:mica, 'ic%i '), ' ');
+            icachans = string_to_cell(num2str(1:mica, 'i%i '), ' ');
             set(h_icasel_list, 'String', icachans);
             set(h_icasel_list, 'Value', 1:mica);
             set(h_icasel_confirm, 'String', 'Mix', 'Enable', 'on');
@@ -2265,6 +2547,7 @@ end
                 FilterBusy = 1;
                 set(h_bigtext, 'Visible', 'on', 'String', 'Mixing new ICs...'); drawnow;
                 Signal_postica = Signal;
+                set(h_ica_switch, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off, 'Value', 0);
                 FilterBusy = 0;
                 set(h_bigtext, 'Visible', 'off', 'String', '');
             else
@@ -2273,11 +2556,15 @@ end
                 tmp = ica_A;
                 tmp(:,setdiff(1:size(ica_A,2),selica)) = 0;
                 Signal_postica = (tmp*ica_sig).';
+                set(h_ica_switch, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1, 'Value', 1);
                 FilterBusy = 0;
                 set(h_bigtext, 'Visible', 'off', 'String', '');
             end
+            reref_update();
             notch_update();
-            filter_update();
+            bandpass_update();
+            envelope_update();
+            render_update();
         end
     end
 
@@ -2294,7 +2581,7 @@ end
         end
         if ~ishandle(viewhand_ica_sig)
             npad2 = floor(log10(size(ica_sig,1)))+1;
-            ic_names = string_to_cell(num2str(1:size(ica_sig,1),['ic%0' num2str(npad2) 'i,']),',');
+            ic_names = string_to_cell(num2str(1:size(ica_sig,1),['i%0' num2str(npad2) 'i,']),',');
             viewhand_ica_sig = signalviewer(ica_sig.', Fs, ic_names, [], [], [], 'This figure window displays the ICA sources. Close this window to return to the original time signals. Exclude and remix ICs in the original time signals, not in here.');
         else
             figure(viewhand_ica_sig);
@@ -2362,9 +2649,14 @@ end
     function f_signal_export(hObject, eventdata)
         assignin('caller', 'signalviewer_Signal', Signal);
         assignin('caller', 'signalviewer_Signal_postica', Signal_postica);
+        assignin('caller', 'signalviewer_Signal_postreref', Signal_postreref);
         assignin('caller', 'signalviewer_Signal_postnotch', Signal_postnotch);
-        assignin('caller', 'signalviewer_Signal_postfilter', Signal_postfilter);
+        assignin('caller', 'signalviewer_Signal_postbutter', Signal_postbutter);
+        assignin('caller', 'signalviewer_Signal_postenvelope', Signal_postenvelope);
+        assignin('caller', 'signalviewer_ChanNames', ChanNames);
         assignin('caller', 'signalviewer_selchan', selchan);
+        assignin('caller', 'signalviewer_PlottedChanNames', ChanNames(selchan));
+        assignin('caller', 'signalviewer_RerefChanNames', ChanNames(RerefFilter.chanidx));
         assignin('caller', 'signalviewer_signal_export_timestamp', now);
         set(h_hintbar, 'String', 'Signal variables exported to caller workspace.');
     end
@@ -2374,6 +2666,7 @@ end
         AxesFontSize = AxesFontSize + .001;
         set(axehand, 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
         set([plottext1hand plottext2hand plottext3hand], 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
+        set([plotinfolabel1hand plotinfolabel2hand plotinfolabel3hand], 'FontUnits', 'normalized', 'FontSize', AxesFontSize*InfoLabelFontSizeScale);
         set(h_hintbar, 'String', sprintf('Axes font size set to %g units', AxesFontSize));
     end
 
@@ -2383,6 +2676,7 @@ end
         end
         set(axehand, 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
         set([plottext1hand plottext2hand plottext3hand], 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
+        set([plotinfolabel1hand plotinfolabel2hand plotinfolabel3hand], 'FontUnits', 'normalized', 'FontSize', AxesFontSize*InfoLabelFontSizeScale);
         set(h_hintbar, 'String', sprintf('Axes font size set to %g units', AxesFontSize));
     end
 
@@ -2467,16 +2761,14 @@ end
 
     function autofit()
         Fs_int = round(Fs);
-        tmpr = 1+Fs_int:size(Signal_postfilter,1)-Fs_int+1;
+        tmpr = 1+Fs_int:size(Signal_postenvelope,1)-Fs_int+1;
         if isempty(tmpr)
-            tmpr = 1:size(Signal_postfilter,1);
+            tmpr = 1:size(Signal_postenvelope,1);
         end
         if ZscoreFilter.state
-            %tmp = max(max(abs(zscore(Signal_postfilter(tmpr,:))*ZscoreFilter.multiplier)));
-            tmp = quantile(  max(nanzscore(Signal_postfilter(tmpr,:))*ZscoreFilter.multiplier) - min(nanzscore(Signal_postfilter(tmpr,:))*ZscoreFilter.multiplier), 0.5 );
+            tmp = quantile(  max(nanzscore(Signal_postenvelope(tmpr,:))*ZscoreFilter.multiplier) - min(nanzscore(Signal_postenvelope(tmpr,:))*ZscoreFilter.multiplier), 0.5 );
         else
-            %tmp = max(max(abs(Signal_postfilter(tmpr,:))));
-            tmp = quantile(max(Signal_postfilter(tmpr,:)) - min(Signal_postfilter(tmpr,:)),0.5);
+            tmp = quantile(max(Signal_postenvelope(tmpr,:)) - min(Signal_postenvelope(tmpr,:)),0.5);
         end
         refit(tmp);
     end

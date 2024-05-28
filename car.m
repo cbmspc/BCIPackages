@@ -23,6 +23,9 @@ if size(in,3) > 1
 else
     % 2D matrix (time x ch)
     out = in;
+    if size(in,2) > size(in,1)
+        warning(['Input data may need to be transposed first (# of time points = ' num2str(size(in,1)) ', # of channels = ' num2str(size(in,2)) ').']);
+    end
     s = std(in,[],1);
     m = mean(in(:,s>0),2);
     for ch = find(s > 0)

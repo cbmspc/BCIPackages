@@ -420,7 +420,7 @@ for Dataset = 1:Ndataset
         xtest = linspace(x2min,x2max,201);
         
         TBounds = cell(1,length(xtest));
-        parfor i = 1:length(xtest)
+        for i = 1:length(xtest)
             [rise, fall] = localfunc_findedges (x2(:,Dataset) > xtest(i), SWedgetreatment, SWedgeaddleft, SWedgeaddright, size(x2,1));
             if ~isempty(rise) && length(rise) == length(fall)
                 TBounds{i} = [rise fall];

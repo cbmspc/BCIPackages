@@ -57,6 +57,25 @@ end
 if d1 == 1 && d2 == 1
     lcpair = lcpair{1};
 end
+
+flatchans1 = std(sig1) == 0;
+flatchans2 = std(sig2) == 0;
+infchans1 = ~min(isfinite(sig1));
+infchans2 = ~min(isfinite(sig2));
+if any(infchans1)
+    warning(['(covcoef) Channels [' get_contig_groups_string(find(infchans1)) '] in signal "' inputname(1) '" contain Inf/NaN, which will lead to NaNs']);
+end
+if any(infchans2)
+    warning(['(covcoef) Channels [' get_contig_groups_string(find(infchans2)) '] in signal "' inputname(2) '" contain Inf/NaN, which will lead to NaNs']);
+end
+if any(flatchans1)
+    warning(['(covcoef) Channels [' get_contig_groups_string(find(flatchans1)) '] in signal "' inputname(1) '" are flat/empty, which will lead to NaNs']);
+end
+if any(flatchans2)
+    warning(['(covcoef) Channels [' get_contig_groups_string(find(flatchans2)) '] in signal "' inputname(2) '" are flat/empty, which will lead to NaNs']);
+end
+
+
 return
 
 
@@ -90,6 +109,9 @@ if size(sig1,1) == 0 || size(sig2,1) == 0
     lcpair = NaN;
     return
 end
+
+sig1 = double(sig1);
+sig2 = double(sig2);
 
 sig1 = sig1-mean(sig1);
 sig2 = sig2-mean(sig2);

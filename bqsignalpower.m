@@ -2,7 +2,7 @@
 % signal at particular frequency ranges using causal biquad bandpass filter
 % bank
 
-function [signal_power, opts] = bqsignalpower (signal, Fs, FreqRange, TimeRange, opts)
+function [signal_power, opts, signal_filtered_in_each_freqbin] = bqsignalpower (signal, Fs, FreqRange, TimeRange, opts)
 if size(signal,1) < size(signal,2)
     signal = signal.';
 end
@@ -36,6 +36,11 @@ if opts.ReflectSignal
     signal_reflected = [flipud(signal(1:opts.ReflectSigLen,:)); signal];
 end
 
+if nargout >= 3
+    % User wants signal_filtered_in_each_bin
+    signal_filtered_in_each_freqbin = nan(SigLen,Nchan,Nfreqbin);
+end
+
 %silent = 1;
 
 %wh = waitbar(0, ['bqsignalpower Band 0/' num2str(Nfreqbin)]);
@@ -67,6 +72,12 @@ for b = 1:Nfreqbin
             signal_filtered = CustomFilter(a1(i), a2(i), scale(i), signal_filtered);
         end
     end
+
+    if exist('signal_filtered_in_each_bin','var')
+        signal_filtered_in_each_freqbin(:,:,b) = signal_filtered;
+    end
+
+
     signal_filtered_squared = signal_filtered.^2;
     
     for k = 1:Ntimebin
