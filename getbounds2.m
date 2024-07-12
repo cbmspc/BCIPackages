@@ -71,6 +71,7 @@
 % Comment          Comment in the title
 
 % 20140325: Removed the -1 in Actions = [Bounds(:,1) Bounds(:,2)]./Fs_x;
+% 20240604: Implemented Squared
 
 function [Bounds_sec, StableWidth, thres_level, ManualCoords] = getbounds2 (x, Fs_x, varargin)
 %%
@@ -97,9 +98,13 @@ end
 if nargin > 2
     tmpgindisp = cell(1,floor((nargin-2)/2));
     for i = 1:2:nargin-2
-        tmpgindisp{(i+1)/2} = [varargin{i} ' = [' num2str(varargin{i+1}) ']'];
+        try
+            tmpgindisp{(i+1)/2} = [varargin{i} ' = [' num2str(varargin{i+1}) ']'];
+        end
         if strcmpi(varargin{i},'Comment')
             Comment = varargin{i+1};
+        elseif strcmpi(varargin{i},'ChanNames')
+            ChanNames = varargin{i+1};
         else
             eval([varargin{i} ' = [' num2str(varargin{i+1}) '];']);
         end
@@ -108,7 +113,7 @@ end
 
 % Verbosity level
 if ~exist('SWinfo','var') || isempty(SWinfo)
-    SWinfo = 0;
+    SWinfo = 1;
 end
 
 if SWinfo > 0 && nargin > 2 && exist('tmpgindisp','var')
@@ -184,6 +189,7 @@ end
 Ndataset = size(x,2);
 SignalIsFlipped = zeros(1,Ndataset);
 SignalIsAbsed = zeros(1,Ndataset);
+SignalIsSquared = zeros(1,Ndataset);
 
 if isLogicalSignal
     % Logical signals cannot be flipped, filtered, or squared
@@ -223,17 +229,29 @@ end
 
 
 if length(Flipped) < Ndataset
-    Flipped = Flipped(:).';
-    Flipped(Ndataset-length(Flipped)+1:Ndataset) = 0;
+    if numel(Flipped) == 1
+        Flipped = repmat(Flipped, [1 Ndataset]);
+    else
+        Flipped = Flipped(:).';
+        Flipped(Ndataset-length(Flipped)+1:Ndataset) = 0;
+    end
 end
 
 if length(Squared) < Ndataset
-    Squared = Squared(:).';
-    Squared(Ndataset-length(Squared)+1:Ndataset) = 0;
+    if numel(Squared) == 1
+        Squared = repmat(Squared, [1 Ndataset]);
+    else
+        Squared = Squared(:).';
+        Squared(Ndataset-length(Squared)+1:Ndataset) = 0;
+    end
 end
 
 if size(Fcutoff,1) < Ndataset
-    Fcutoff(Ndataset-size(Fcutoff,1)+1:Ndataset,:) = NaN;
+    if numel(Fcutoff) == 2
+        Fcutoff = repmat([Fcutoff(1) Fcutoff(2)], [Ndataset 1]);
+    else
+        Fcutoff(Ndataset-size(Fcutoff,1)+1:Ndataset,:) = NaN;
+    end
 end
 
 if size(Fcutoff,2) < 2
@@ -399,7 +417,25 @@ for Dataset = 1:Ndataset
         me = -me;
     end
     
-    %%
+    %% 20240604
+    isSQ = any(x2(:,Dataset) < 0);
+    mustSQ = Squared(Dataset) == 1;
+    mustnotSQ = Squared(Dataset) == -1 | Squared(Dataset) == 0;
+    if isSQ && mustnotSQ && SWinfo >= 1
+        fprintf('Squaring signal is disallowed.\n');
+    end
+    
+    if mustSQ || (~mustnotSQ && isSQ)
+        if SWinfo >= 1
+            fprintf('Squaring the signal.\n');
+        end
+        x2(:,Dataset) = x2(:,Dataset).^2;
+        x(:,Dataset) = x(:,Dataset).^2;
+        x2_orig = x2;
+        x_orig = x;
+        SignalIsSquared(Dataset) = 1 - SignalIsSquared(Dataset);
+        me = me.^2;
+    end    
     
     
     if ~isLogicalSignal
@@ -588,7 +624,7 @@ for Dataset = 1:Ndataset
                 tbox1 = uicontrol(gcf, 'Style', 'text', 'Units', 'pixels', 'String', '', 'HorizontalAlignment', 'left', 'FontSize', 11, 'BackgroundColor', [0.8 1 0.95], 'FontName', 'Consolas');
                 %set(tbox1, 'Position', [0.838 0.835 0.162 0.165]);
                 tbox1w = 248.184;
-                tbox1h = 106.06;
+                tbox1h = 126.06;
                 gcfpos = get(gcf, 'Position');
                 set(tbox1, 'Position', [gcfpos(3)-tbox1w+1, gcfpos(4)-tbox1h+1, tbox1w, tbox1h]);
             end
@@ -611,6 +647,13 @@ for Dataset = 1:Ndataset
                 RunInstantUpdate = 0;
                 RunRedraw = 0;
                 if mb
+
+                    if mb >= 'A' && mb <= 'Z'
+                        % You have caps lock ON!
+                        localfunc_modalmsgbox('Your CapsLock is on. Turn it off when using getbounds2.');
+                    end
+
+
                     switch mb
                         
                         case 1
@@ -728,6 +771,9 @@ for Dataset = 1:Ndataset
                                 set(gca, 'YLimMode', 'auto');
                             end
                             RunRedraw = 1;
+                        case 72
+                            % The 'h' key displays help
+                            localfunc_modalmsgbox(HELPMSG);
                         case 101
                             % The 'e' key finalizes the manual selection.
                             trying = 0;
@@ -959,8 +1005,18 @@ for Dataset = 1:Ndataset
                                 set(gca, 'Children', [manx2ph; setdiff(tmp_c, manx2ph)]);
                             end
                             if SignalIsFlipped(Dataset), tmp_Flip = 'Yes'; else tmp_Flip = 'No'; end;
+                            if SignalIsSquared(Dataset), tmp_Squared = 'Yes'; else tmp_Squared = 'No'; end;
+                            disp1 = 'Dataset#';
+                            form1 = '%05i';
+                            formdata1 = Dataset;
+                            if exist('ChanNames', 'var') && ~isempty(ChanNames) && length(ChanNames) >= Dataset && iscell(ChanNames)
+                                disp1 = 'Channel ';
+                                form1 = '%-5s';
+                                formdata1 = ChanNames{Dataset};
+                            end
                             tboxcell = {
-                                sprintf('Dataset# %05i  Flipped= %s', Dataset, tmp_Flip);
+                                sprintf([disp1 ' ' form1 '  Flipped= %s'], formdata1, tmp_Flip);
+                                sprintf('  Squared=%s', tmp_Squared);
                                 sprintf('  Fcutoff=[%.3g %.3g] Hz', Fcutoff(Dataset,1:2));
                                 sprintf('   JitTol= %.3g', JitTol);
                                 sprintf('LengthLim=[%.3g %.3g]', MinLen, MaxLen);
@@ -1260,7 +1316,7 @@ h = msgbox(msg, 'getbounds2 - manual mode', 'modal');
 ah = get( h, 'CurrentAxes' );
 ch = get( ah, 'Children' );
 set( ch, 'FontSize', 11 );
-set(h,'Position', get(h,'Position') + [0 0 50 0]);
+set(h,'Position', get(h,'Position') + [0 0 100 50]);
 uiwait(h);
 
 
