@@ -116,6 +116,9 @@ if ~iscell(Signal) && size(Signal,3) > 1
 end
 
 pwelch_nfft = [];
+signalviewer_psd_pxx = [];
+signalviewer_psd_fxx = [];
+signalviewer_psd_channame = '';
 
 panfrac_default = 0.50;
 % default to pan left/right this many screens
@@ -524,8 +527,10 @@ Nkolor = size(Kolor,1);
 %Will generate EventKolors when the number of events is confirmed
 EventPatchAlpha = 0.05;
 EventFontName = 'Calibri';
-EventFontSize = 14;
-EventFontWeight = 'normal';
+EventFontSize = 16;
+EventFontWeight = 'bold';
+EventLineWidth = 2;
+EventLineStyle = '--';
 
 AxesFontName = 'Consolas';
 AxesFontSize = 12;
@@ -702,6 +707,9 @@ if EventEnable
     tmp = reshape([tmp(tmp2/2+1:end); tmp(1:tmp2/2)], 1, []);
     EventKolors = EventKolors(tmp,:);
 
+    %Po240712: Make them darker so easier to see
+    EventKolors = EventKolors * 2/3;
+
 if isfield(opts, 'EventColors') && isnumeric(opts.EventColors) && isequal(size(EventKolors),size(opts.EventColors)) && isreal(opts.EventColors) && min(min(opts.EventColors)) >= 0
     if max(max(opts.EventColors)) <= 1
         EventKolors = opts.EventColors;
@@ -737,7 +745,7 @@ end
         if EventTimes(i,1) == EventTimes(i,2)
             EventKolor = EventKolors(mod(i-1,size(EventKolors,1))+1,:);
             EventKolor = EventKolor/2+0.50;
-            eventplothand(i) = plot( EventTimes(i,1)*[1 1], [-10000000*(Nsch+1), 10000000], '-', 'Color', EventKolor );
+            eventplothand(i) = plot( EventTimes(i,1)*[1 1], [-10000000*(Nsch+1), 10000000], 'LineStyle', EventLineStyle, 'Color', EventKolor, 'LineWidth', EventLineWidth );
         else
             EventKolor = EventKolors(mod(i-1,size(EventKolors,1))+1,:);
             eventplothand(i) = patch( [EventTimes(i,1) EventTimes(i,2) EventTimes(i,2) EventTimes(i,1)], [-10000000*(Nsch+1), -10000000*(Nsch+1), 10000000, 10000000], '-', 'FaceColor', EventKolor, 'EdgeColor', 'none', 'FaceAlpha', EventPatchAlpha); 
@@ -751,12 +759,16 @@ end
             horali = 'right';
         end
 
-        if mean(rgb2gray(EventKolor)) < 0.5
-            EventTextKolor = [1 1 1];
-        else
-            EventTextKolor = [0 0 0];
-        end
-        eventtexthand(i) = text( EventTimes(i,1), YPos(mod(i-1,NYPos)+1), [larrow EventTimeStamps{i,2} rarrow], 'FontName', EventFontName, 'FontUnits', 'pixel', 'FontSize', EventFontSize, 'FontWeight', EventFontWeight, 'HorizontalAlignment', horali, 'BackgroundColor', EventKolor, 'Color', EventTextKolor);
+        %Po240712: Changed event text color and background color
+        %EventTextBackgroundKolor = EventKolor;
+        EventTextBackgroundKolor = 'none';
+        EventTextKolor = EventKolor;
+        %if mean(rgb2gray(EventKolor)) < 0.5
+        %    EventTextKolor = [1 1 1];
+        %else
+        %    EventTextKolor = [0 0 0];
+        %end
+        eventtexthand(i) = text( EventTimes(i,1), YPos(mod(i-1,NYPos)+1), [larrow EventTimeStamps{i,2} rarrow], 'FontName', EventFontName, 'FontUnits', 'pixel', 'FontSize', EventFontSize, 'FontWeight', EventFontWeight, 'HorizontalAlignment', horali, 'BackgroundColor', EventTextBackgroundKolor, 'Color', EventTextKolor);
     end
     set(eventtexthand(i), 'Visible', 'off');
 end
@@ -1125,13 +1137,15 @@ f_hold_switch(-100000, []);
     function f_fig_scrollwheel(hObject, eventdata)
         if eventdata.VerticalScrollCount < 0
             % Mouse whell scroll up
-                f_xzoomin(hObject, []);
+                f_panleft(hObject, 0.10);
+                %f_xzoomin(hObject, []);
                 %f_sepdown(hObject, []);
                 %autofit();
 
         elseif eventdata.VerticalScrollCount > 0
             % Mouse whell scroll down
-                f_xzoomout(hObject, []);
+                f_panright(hObject, 0.10);
+                %f_xzoomout(hObject, []);
                 %f_sepup(hObject, []);
                 %autofit();
         end
@@ -2216,6 +2230,7 @@ f_hold_switch(-100000, []);
 
     function resnap_pan()
         XRange = XLim(2)-XLim(1);
+        XRange = round(XRange*1e9)/1e9; %Po240712: Fixed rounding error
         YRange = YLim(2)-YLim(1);
         if XLim(2) > Time_max
             XLim(2) = Time_max;
@@ -2246,20 +2261,21 @@ f_hold_switch(-100000, []);
 
 
     function XLim = round_xlim(XLim, XRange)
+        xl1 = round(XLim(1)*1e9)/1e9; %Po240712: Fixed rounding error
         if XRange >= 1
-            XLim(1) = floor(XLim(1)*FineSnapScale)/FineSnapScale;
+            XLim(1) = floor(xl1*FineSnapScale)/FineSnapScale;
         elseif XRange >= 0.1
-            XLim(1) = floor(XLim(1)*10*FineSnapScale)/10/FineSnapScale;
+            XLim(1) = floor(xl1*10*FineSnapScale)/10/FineSnapScale;
         elseif XRange >= 0.01
-            XLim(1) = floor(XLim(1)*100*FineSnapScale)/100/FineSnapScale;
+            XLim(1) = floor(xl1*100*FineSnapScale)/100/FineSnapScale;
         elseif XRange >= 0.001
-            XLim(1) = floor(XLim(1)*1000*FineSnapScale)/1000/FineSnapScale;
+            XLim(1) = floor(xl1*1000*FineSnapScale)/1000/FineSnapScale;
         elseif XRange >= 0.0001
-            XLim(1) = floor(XLim(1)*10000*FineSnapScale)/10000/FineSnapScale;
+            XLim(1) = floor(xl1*10000*FineSnapScale)/10000/FineSnapScale;
         elseif XRange >= 0.00001
-            XLim(1) = floor(XLim(1)*100000*FineSnapScale)/100000/FineSnapScale;
+            XLim(1) = floor(xl1*100000*FineSnapScale)/100000/FineSnapScale;
         elseif XRange >= 0.000001
-            XLim(1) = floor(XLim(1)*1000000*FineSnapScale)/1000000/FineSnapScale;
+            XLim(1) = floor(xl1*1000000*FineSnapScale)/1000000/FineSnapScale;
         end
     end
 
@@ -2444,7 +2460,11 @@ f_hold_switch(-100000, []);
 
             % Po240516: A second round to un-overlap labels at or too close
             % to the same timestamp
-            eventtexthandpositions = cell2mat(get(eventtexthand, 'Position'));
+            if iscell(get(eventtexthand, 'Position'))
+                eventtexthandpositions = cell2mat(get(eventtexthand, 'Position'));
+            else
+                eventtexthandpositions = get(eventtexthand, 'Position');
+            end
             eventtexthandpositions(:,3) = 1:size(eventtexthandpositions,1);
             %eventtexthandpositions = eventtexthandpositions(XLim(1) <= cell2mat(EventTimeStamps(:,1)) & XLim(2) >= cell2mat(EventTimeStamps(:,1)),:);
             eventtexthandpositions = eventtexthandpositions(XLim(1) <= EventTimes(:,1) & XLim(2) >= EventTimes(:,1),:);
@@ -2941,6 +2961,17 @@ f_hold_switch(-100000, []);
             if ~isempty(selected_plothand) && ishandle(selected_plothand)
                 channame = getappdata(selected_plothand, 'channame');
                 chanind = getappdata(selected_plothand, 'chanind');
+                chancolor = get(selected_plothand, 'Color');
+
+                if ~ismember(chanind, selchan)
+                    %Po240712 The PSD channel is not a selected channel.
+                    %Force it to be.
+                    selected_plothand = plothand(selchan(1));
+                    channame = getappdata(selected_plothand, 'channame');
+                    chanind = getappdata(selected_plothand, 'chanind');
+                    chancolor = get(selected_plothand, 'Color');
+                end
+                
                 tmp = Signal_postenvelope(t1:t2,chanind);
                 tmp = tmp(isfinite(tmp));
                 if size(Signal_psd_source,1) == size(tmp,1) && size(Signal_psd_source,2) == size(tmp,2) && norm(Signal_psd_source - tmp) == 0
@@ -2954,7 +2985,7 @@ f_hold_switch(-100000, []);
                 Signal_psd_source = tmp;
                 [pxx, fxx] = pwelch(Signal_psd_source, [], [], pwelch_nfft, Fs);
                 lpxx = 10*log10(pxx);
-                plot(fxx, lpxx);
+                plot(fxx, lpxx, 'Color', chancolor); %Po240712: PSD line color matches main window's line color
                 xlabel('Frequency (Hz)');
                 ylabel('PSD (dB/Hz)');
                 fc1 = max(0,ceil(BandPassFilter.cutoff(1)*.9));
@@ -3020,9 +3051,18 @@ f_hold_switch(-100000, []);
                 try  %#ok<*TRYNC>
                     set(viewhand_psd_axe, 'YLim', psd_dblim);
                 end
-                title(['Welch PSD in ' channame ', ' num2str(Time(t1))  '-' num2str(Time(t2)) ' s']);
+
+                if ~ismember(chanind, selchan)
+                    title(sprintf('Welch PSD in %s, %g - %g s\n%s', channame, Time(t1), Time(t2), 'WARNING: PSD channel is not plotted in the main window.'));
+                else
+                    title(sprintf('Welch PSD in %s, %g - %g s\n%s', channame, Time(t1), Time(t2), ' '));
+                end
+                
                 set(viewhand_psd, 'Name', ['PSD in ' channame ' from ' num2str(Time(t1)) ' to ' num2str(Time(t2)) ' s ' tmp_filttext]);
                 set(0, 'CurrentFigure', tmp1);
+                signalviewer_psd_pxx = pxx;
+                signalviewer_psd_fxx = fxx;
+                signalviewer_psd_channame = channame;
             else
                 set(viewhand_psd, 'Name', 'Select a channel first by clicking on its signal.');
             end
@@ -3258,6 +3298,9 @@ f_hold_switch(-100000, []);
         assignin('caller', 'signalviewer_PlottedChanNames', ChanNames(selchan));
         assignin('caller', 'signalviewer_RerefChanNames', ChanNames(RerefFilter.chanidx));
         assignin('caller', 'signalviewer_SavedPointsTable', SavedPointsTable);
+        assignin('caller', 'signalviewer_psd_pxx', signalviewer_psd_pxx);
+        assignin('caller', 'signalviewer_psd_fxx', signalviewer_psd_fxx);
+        assignin('caller', 'signalviewer_psd_channame', signalviewer_psd_channame);
         assignin('caller', 'signalviewer_fighand_Number', get(fighand,'Number'));
         assignin('caller', 'signalviewer_signalHashStr', signalHashStr);
         assignin('caller', 'signalviewer_signal_export_timestamp', now);
