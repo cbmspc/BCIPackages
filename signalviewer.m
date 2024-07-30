@@ -854,7 +854,7 @@ h_notch_qfactor = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Po
 h_notch_qfactorunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.99 0.64 0.005 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Q', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 
 h_bpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.925 0.62 0.025 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Butter', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'Bandpass/Lowpass/Highpass Butterworth filter turns on automatically after entering a pair of valid cutoff frequencies.');
-h_bpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.95 0.62 0.030 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(BandPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_bpf_cutoff = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.95 0.62 0.030 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2strcompact(BandPassFilter.cutoff), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_bpf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.98 0.62 0.015 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Hz', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize); %#ok<NASGU>
 
 %h_hpf_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.925 0.64 0.035 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'HighPass', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -1091,7 +1091,7 @@ if isfield(opts, 'bandpass')
     end
 end
 if hasvalidbpf
-    set(h_bpf_cutoff, 'String', num2str(opts.bandpass));
+    set(h_bpf_cutoff, 'String', num2strcompact(opts.bandpass));
     f_bpf_cutoff([], []);
 end
 
@@ -1679,9 +1679,29 @@ f_hold_switch(-100000, []);
     end
 
 
+    function str = num2strcompact(num)
+        str = regexprep(num2str(num),' {3,}', '  ');
+    end
+
+
+    function bpf = parse_bpf_cutoff_string()
+        try
+            b = regexp(get(h_bpf_cutoff,'String'), '(-?[0-9./*+-]+)([ ,]+)(-?[0-9./*+-]+)', 'tokens', 'once');
+        catch
+            b = {};
+        end
+        if ~isempty(b)
+            bpf = [str2num(b{1}) str2num(b{3})]; %#ok<ST2NM>
+        else
+            bpf = [];
+        end
+    end
+
+
     function bandpass_update()
         % Input validation
-        bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
+        bpf = parse_bpf_cutoff_string();
+        %bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
         if length(bpf) ~= 2 || numel(bpf) ~= 2
             bpf = [0 Fs/2];
         end
@@ -1701,7 +1721,7 @@ f_hold_switch(-100000, []);
         if BandPassFilter.cutoff(1) ~= bpf(1) || BandPassFilter.cutoff(2) ~= bpf(2)
             PerChannelFilterStates(3:end,:) = false; %Filter parameters changed. Invalidating.
             BandPassFilter.cutoff = bpf(1:2);
-            set(h_bpf_cutoff, 'String', num2str(BandPassFilter.cutoff));
+            set(h_bpf_cutoff, 'String', num2strcompact(BandPassFilter.cutoff));
         end
         
         % If after validation still enabled, do filtering
@@ -1902,7 +1922,8 @@ f_hold_switch(-100000, []);
 
 
     function L = validate_bpf_cutoff()
-        bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
+        bpf = parse_bpf_cutoff_string();
+        %bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
         changesmade = 0;
         if length(bpf) ~= 2 || numel(bpf) ~= 2
             bpf = [0 Fs/2];
@@ -1917,13 +1938,14 @@ f_hold_switch(-100000, []);
             changesmade = 1;
         end
         if changesmade
-        set(h_bpf_cutoff, 'String', num2str(bpf));
+        set(h_bpf_cutoff, 'String', num2strcompact(bpf));
         end
     end
 
     function L = is_nontrivial_bpf_cutoff()
         L = false;
-        bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
+        bpf = parse_bpf_cutoff_string();
+        %bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
         if (bpf(1) > 0 || bpf(2) < Fs/2) && bpf(2) > bpf(1)
             L = true;
         end
@@ -3120,7 +3142,7 @@ f_hold_switch(-100000, []);
             % Use default ICA arguments
             FilterBusy = 1;
             set(h_icasel_confirm, 'Enable', 'off', 'String', 'Wait');
-            set(h_bigtext, 'Visible', 'on', 'String', 'ICA: Calculating ICs...'); drawnow;
+            set(h_bigtext, 'Visible', 'on', 'String', sprintf('ICA: Calculating ICs... Progress can be monitored in the command window.\nNote that ICA uses all channels, including those not currently selected for plotting.')); drawnow;
             try
                 [~, ica_A, ica_W] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
             catch exception
