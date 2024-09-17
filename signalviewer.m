@@ -529,7 +529,7 @@ EventPatchAlpha = 0.05;
 EventFontName = 'Calibri';
 EventFontSize = 16;
 EventFontWeight = 'bold';
-EventLineWidth = 2;
+EventLineWidth = 0.5;
 EventLineStyle = '--';
 
 AxesFontName = 'Consolas';
@@ -1258,7 +1258,11 @@ f_hold_switch(-100000, []);
                 if Ctrl
                     f_xzoomout(hObject, []);
                 elseif Alt && EventEnable
-                    u = find(EventTimes(:,1) < (XLim(1) + XLim(2))/2, 1, 'last');
+                    if Shift
+                        u = find(EventTimes(:,1) < XLim(1), 1, 'last');
+                    else
+                        u = find(EventTimes(:,1) < (XLim(1) + XLim(2))/2, 1, 'last');
+                    end
                     if ~isempty(u)
                         if u == centered_on_eventnum
                             % We already centered on this. Move one over
@@ -1269,15 +1273,25 @@ f_hold_switch(-100000, []);
                         end
                         centered_on_eventnum = u;
                         XRange = XLim(2) - XLim(1);
-                        XLim(1) = EventTimes(u,1) - XRange/2;
-                        XLim(2) = EventTimes(u,1) + XRange/2;
+                        if Shift
+                            % 20240917: If the Shift key is also held
+                        XLim(1) = EventTimes(u,1);
+                        XLim(2) = EventTimes(u,1) + XRange;
+                        else
+                            XLim(1) = EventTimes(u,1) - XRange/2;
+                            XLim(2) = EventTimes(u,1) + XRange/2;
+                        end
                         resnap_pan();
                         if EventTimes(u,1) == EventTimes(u,2)
                             et = sprintf(['%.' num2str(DecimalSecondsResolution) 'f s'], EventTimes(u,1));
                         else
                             et = sprintf(['%.' num2str(DecimalSecondsResolution) 'f -- %.' num2str(DecimalSecondsResolution) 'f s'], EventTimes(u,1), EventTimes(u,2));
                         end
-                        set(h_hintbar, 'String', ['Centered on event #' num2str(u) '/' num2str(Nevents) ' [' et ']'  ': ' EventTimeStamps{u,2}]);
+                        if Shift
+                            set(h_hintbar, 'String', ['Left-aligned on event #' num2str(u) '/' num2str(Nevents) ' [' et ']'  ': ' EventTimeStamps{u,2} '.']);
+                        else
+                            set(h_hintbar, 'String', ['Centered on event #' num2str(u) '/' num2str(Nevents) ' [' et ']'  ': ' EventTimeStamps{u,2} '.   Hint: Hold both Alt and Shift to align to the left instead of center.']);
+                        end
                     elseif XLim(1) < min(EventTimes(:,1)) && XLim(1) > 0
                         %f_panleft(hObject, 5.0);
                         set(h_hintbar, 'String', 'There are no more events to the left!');
@@ -1295,7 +1309,11 @@ f_hold_switch(-100000, []);
                 if Ctrl
                     f_xzoomin(hObject, []);
                 elseif Alt && EventEnable
-                    u = find(EventTimes(:,1) > (XLim(1)+XLim(2))/2, 1, 'first');
+                    if Shift
+                        u = find(EventTimes(:,1) > XLim(1), 1, 'first');
+                    else
+                        u = find(EventTimes(:,1) > (XLim(1)+XLim(2))/2, 1, 'first');
+                    end
                     if ~isempty(u)
                         if u == centered_on_eventnum
                             % We already centered on this. Move one over
@@ -1306,15 +1324,25 @@ f_hold_switch(-100000, []);
                         end
                         centered_on_eventnum = u;
                         XRange = XLim(2) - XLim(1);
-                        XLim(1) = EventTimes(u,1) - XRange/2;
-                        XLim(2) = EventTimes(u,1) + XRange/2;
+                        if Shift
+                            % 20240917: If the Shift key is also held
+                            XLim(1) = EventTimes(u,1);
+                            XLim(2) = EventTimes(u,1) + XRange;
+                        else
+                            XLim(1) = EventTimes(u,1) - XRange/2;
+                            XLim(2) = EventTimes(u,1) + XRange/2;
+                        end
                         resnap_pan();
                         if EventTimes(u,1) == EventTimes(u,2)
                             et = sprintf(['%.' num2str(DecimalSecondsResolution) 'f s'], EventTimes(u,1));
                         else
                             et = sprintf(['%.' num2str(DecimalSecondsResolution) 'f -- %.' num2str(DecimalSecondsResolution) 'f s'], EventTimes(u,1), EventTimes(u,2));
                         end
-                        set(h_hintbar, 'String', ['Centered on event #' num2str(u) '/' num2str(Nevents) ' [' et ']'  ': ' EventTimeStamps{u,2}]);
+                        if Shift
+                            set(h_hintbar, 'String', ['Left-aligned on event #' num2str(u) '/' num2str(Nevents) ' [' et ']'  ': ' EventTimeStamps{u,2} '.']);
+                        else
+                            set(h_hintbar, 'String', ['Centered on event #' num2str(u) '/' num2str(Nevents) ' [' et ']'  ': ' EventTimeStamps{u,2} '.   Hint: Hold both Alt and Shift to align to the left instead of center.']);
+                        end
                     elseif XLim(2) > max(EventTimes(:,1)) && XLim(2) < Time_max
                         set(h_hintbar, 'String', 'There are no more events to the right!');
                         %f_panright(hObject, 5.0);

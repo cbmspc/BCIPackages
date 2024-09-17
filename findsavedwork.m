@@ -1,16 +1,26 @@
 function findsavedwork()
 pause(0.1);
-b = pwd;
-w = getworkdir();
-a = dir(b);
-for i = 1:length(a)
-    d = [b filesep a(i).name];
-    f = [w filesep 'matlab-' crc32(lower(getusername)) '-' crc32(lower(d)) '-index.mat'];
-    g = dir(f);
-    if ~isempty(g)
-        fprintf('You have saved work for %s, last saved at %s. <a href="matlab: clear; cd(''%s%s%s''); loadwork;">Click here to clear workspace and load this work</a>.\n', a(i).name, g(1).date, getbciprogramsdir(), filesep, a(i).name);
-        fprintf('Note that you can have multiple types of saved data:\n  1. "Saved Work" (this feature) where you manually saved your workspace specific to the folder you are in\n  2. Exit Save (when you close MATLAB properly, it will reload the workspace when you start MATLAB next time)\n  3. Auto Save (every 15-30 minutes in the background, in case MATLAB crashes)\n');
+S = settings();
+hx = S.matlab.desktop.currentfolder.History.PersonalValue;
+count = 0;
+finfou = [0 0];
+for i = 1:length(hx)
+    if exist(hx{i}, 'dir') && exist([hx{i} filesep 'matlab.mat'], 'file')
+        count = count + 1;
+        finfo = dir([hx{i} filesep 'matlab.mat']);
+        if ~isequal(finfou, [finfo.bytes finfo.datenum])
+            finfou = [finfo.bytes finfo.datenum];
+            vinfo = whos('-file', [hx{i} filesep 'matlab.mat']);
+            [~, ind] = sort([vinfo.bytes], 'descend');
+            vbignames = {vinfo(ind).name};
+            if length(vbignames) > 5
+                vbignames = [cell_to_string(vbignames(1:5), ', ') ', ...'];
+            else
+                vbignames = cell_to_string(vbignames, ', ');
+            end
+
+            fprintf('▶ "%s" contains workspace variables you saved earlier.\n    Size: %i bytes\n    Count: %i variables\n    Last saved: %s\n    Variable names: %s\n    Click <a href="matlab: clear">here</a> to clear workspace, and then <a href="matlab: cd(''%s''); load;">here</a> to load this work.\n', hx{i}, sum([vinfo.bytes]), length(vinfo), finfo.date, vbignames, hx{i});
+        end
     end
 end
-
 
