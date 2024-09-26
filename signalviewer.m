@@ -29,7 +29,13 @@
 %
 %   opts.ica_W = ICA separating matrix with orientation (Nsource x Nchan), i.e. ica_W * Signal.' = Source.'
 %   opts.ica_A = ICA mixing matrix with orientation (Nchan x Nsource), i.e. ica_A * Source.' = Signal.'
-%    Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
+%    Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', ...
+%                   'stabilization', fastica_stabilization, ...
+%                   'maxNumIterations', fastica_maxNumIterations, ...
+%                   'approach', fastica_approach, ...
+%                   'g', fastica_g, ...
+%                   'interactivePCA', fastica_interactivePCA); 
+%              These optional paramters can be set in opts.
 %    If ica matrices are not specified, FastICA is used
 %
 %   opts.FooterMessage = 'footer messaage'
@@ -144,6 +150,13 @@ set_xlim_to = [0 10];
 
 set_selectchannames_to = {};
 
+fastica_stabilization = 'on';
+fastica_maxNumIterations = 200;
+fastica_approach = 'defl';
+fastica_g = 'pow3';
+fastica_interactivePCA = 'off';
+
+
 ZoomedInMarker = 'x';
 ZoomedOutMarker = 'none';
 MarkerZoomThreshold = 100;
@@ -180,6 +193,26 @@ SavedPointsTable = {};
 
 if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
 
+    if isfield(opts, 'fastica_stabilization') && ~isempty(opts.fastica_stabilization) && ischar(opts.fastica_stabilization)
+        fastica_stabilization = opts.fastica_stabilization;
+    end
+
+    if isfield(opts, 'fastica_maxNumIterations') && ~isempty(opts.fastica_maxNumIterations) && isnumeric(opts.fastica_maxNumIterations) && isfinite(opts.fastica_maxNumIterations) && opts.fastica_maxNumIterations > 0
+        fastica_maxNumIterations = opts.fastica_maxNumIterations;
+    end
+
+    if isfield(opts, 'fastica_approach') && ~isempty(opts.fastica_approach) && ischar(opts.fastica_approach)
+        fastica_approach = opts.fastica_approach;
+    end
+
+    if isfield(opts, 'fastica_g') && ~isempty(opts.fastica_g) && ischar(opts.fastica_g)
+        fastica_g = opts.fastica_g;
+    end
+
+    if isfield(opts, 'fastica_interactivePCA') && ~isempty(opts.fastica_interactivePCA) && ischar(opts.fastica_interactivePCA)
+        fastica_interactivePCA = opts.fastica_interactivePCA;
+    end
+    
     if isfield(opts, 'SavedPointsTable') && iscell(SavedPointsTable) && size(SavedPointsTable,2) == 5 && size(SavedPointsTable,1) >= 1
         SavedPointsTable = opts.SavedPointsTable;
     end
@@ -3172,7 +3205,8 @@ f_hold_switch(-100000, []);
             set(h_icasel_confirm, 'Enable', 'off', 'String', 'Wait');
             set(h_bigtext, 'Visible', 'on', 'String', sprintf('ICA: Calculating ICs... Progress can be monitored in the command window.\nNote that ICA uses all channels, including those not currently selected for plotting.')); drawnow;
             try
-                [~, ica_A, ica_W] = fastica(Signal.', 'stabilization', 'on', 'maxNumIterations', 200);
+                fprintf('Running FastICA with these paramters: \n  stabilization = %s\n  maxNumIterations = %g\n  approach = %s\n  g = %s\n', fastica_stabilization, fastica_maxNumIterations, fastica_approach, fastica_g);
+                [~, ica_A, ica_W] = fastica(Signal.', 'stabilization', fastica_stabilization, 'maxNumIterations', fastica_maxNumIterations, 'approach', fastica_approach, 'g', fastica_g, 'interactivePCA', fastica_interactivePCA);
             catch exception
                 ica_A = [];
                 ica_W = [];

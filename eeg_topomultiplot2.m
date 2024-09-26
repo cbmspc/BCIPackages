@@ -1,24 +1,44 @@
-function eeg_topomultiplot2 (values, ChanNames, SubplotNames)
+function eeg_topomultiplot2 (values, ChanNames, SubplotNames, CLim, GridDim, headcolors, OtherOpts)
+if exist('CLim', 'var') && length(CLim) == 2
+    Opts.clim = CLim;
+else
+    Opts.clim = [-1 1]*max(abs(values(:)));
+end
 
-%values = abs(values);
-%vflat = abs(values(:));
-vflat = values(:);
-
-%Opts.clim = [0 1]*quantile(vflat, .95);
-Opts.clim = [-1 1]*max(abs(vflat));
-%Opts.symmetricclim = 1;
 Opts.fontsize = 4;
 Opts.nocolorbar = 1;
 Opts.nocontour = 1;
 Opts.npts = 64;
-[hands, underhand] = subplotcompact(floor(sqrt(size(values,2))), ceil(sqrt(size(values,2))));
 
+if exist('GridDim', 'var') && length(GridDim) == 2 && size(values,2) == GridDim(1) * GridDim(2)
+    [hands, underhand] = subplotcompact(GridDim(1), GridDim(2));
+else
+    [hands, underhand] = subplotcompact(floor(sqrt(size(values,2))), ceil(sqrt(size(values,2))));
+end
 
+if exist('OtherOpts', 'var') && isstruct(OtherOpts)
+    fns = fieldnames(OtherOpts);
+    for i = 1:length(fns)
+        if ~isfield(Opts, fns{i}) && ~strcmp(fns{i}, 'title')
+            Opts.(fns{i}) = OtherOpts.(fns{i});
+        end
+    end
+end
 
 for s = 1:size(values,2)
     Opts.axes_hand = hands(s);
+    if exist('headcolors', 'var')
+        Opts.headcolor = headcolors(mod(s-1,size(headcolors,1))+1,:,:);
+    end
+
     eeg_topoplot2(values(:,s), ChanNames, Opts);
     %title(SubplotNames{s});
     title([SubplotNames{s} '       '], 'HorizontalAlignment','right','VerticalAlignment','cap')
     pause(0.05);
 end
+
+try
+    uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.96 0.80 0.04], 'String', OtherOpts.title, 'FontUnits', 'normalized', 'FontSize', 0.6, 'Visible', 'on', 'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0]);
+    %sgtitle(OtherOpts.title);
+end
+

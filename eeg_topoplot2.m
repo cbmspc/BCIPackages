@@ -8,6 +8,7 @@ SWnosurf = 0;
 SWnocolorbar = 0;
 NumContourLevels = 10;
 OnlyShowElectrodes = ChanNames;
+SuppressElectrodeLabels = {};
 FontSize = 11;
 FontName = 'VariableWidth';
 Npts = 512;
@@ -18,6 +19,11 @@ if length(ChanNames) > 128
 end
 
 if exist('Opts', 'var') && isstruct(Opts)
+    if isfield(Opts, 'SuppressElectrodeLabels')
+        if iscell(Opts.SuppressElectrodeLabels)
+            SuppressElectrodeLabels = Opts.SuppressElectrodeLabels;
+        end
+    end
     if isfield(Opts, 'contour')
         if Opts.contour
             SWnocontour = 0;
@@ -71,6 +77,11 @@ if exist('Opts', 'var') && isstruct(Opts)
     else
         axes_hand = [];
     end
+    if isfield(Opts, 'headcolor') && numel(Opts.headcolor) == 3
+        headcolor = Opts.headcolor;
+    else
+        headcolor = [0 0 0];
+    end
 end
 userdata.unixtime = unixtime;
 userdata.pwd = pwd;
@@ -101,6 +112,7 @@ if any(cid==0)
     cid = cid(cid>0);
     warning('EEG electrodes not recognized: %s', cell_to_string(ChanNames(cid==0), ' '));
 end
+
 data = nan(length(ElecNames),1);
 data(cid,:) = values;
 ProjGridCoord = FlatXYCoords;
@@ -122,7 +134,7 @@ set(gca,'DataAspectRatio',[1 1 1]);
 % end
 
 radius = -min(min(FlatXYCoords));
-drawcirc(gca, [0 0], radius, 2);
+drawcirc(gca, [0 0], radius, 2, headcolor);
 
 if ~isempty(axes_hand)
     SurfHand = surf(axes_hand, xi, yi, zi, 'EdgeColor', 'none');
@@ -171,15 +183,17 @@ axis off
 % plotting nose
 %plot3(0, radius+0.03, MX+2, 'k^', 'MarkerSize', 15);
 nosesize = 0.3;
-drawnose(gca, radius, nosesize, 2);
+drawnose(gca, radius, nosesize, 2, headcolor);
 
 %cimap = chan2idx(upper(ElecNames), upper(OnlyShowElectrodes), 1);
 rcimap = chan2idx(upper(OnlyShowElectrodes), upper(ElecNames), 0);
 
 for i = 1:length(ElecNames)
     if ismember(upper(ElecNames{i}), upper(OnlyShowElectrodes)) && values(rcimap(i)) ~= 0
-        if FontSize > 0
-            text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+0.2,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontSize',FontSize,'FontName',FontName);
+        if ~ismember(upper(ElecNames{i}), upper(SuppressElectrodeLabels))
+            if FontSize > 0
+                text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+0.2,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontSize',FontSize,'FontName',FontName);
+            end
         end
     end
 end
@@ -213,10 +227,10 @@ set(gcf, 'UserData', userdata);
 
 
 
-function drawcirc (ax, origin, radius, linewidth)
+function drawcirc (ax, origin, radius, linewidth, kolor)
 [x,y] = pol2cart(linspace(-pi,pi,3600), radius);
-plot(ax, origin(1)+x, origin(2)+y, 'k', 'LineWidth', linewidth);
+plot(ax, origin(1)+x, origin(2)+y, 'Color', kolor, 'LineWidth', linewidth);
 
-function drawnose(ax, radius, nosesize, linewidth)
-plot(ax, [0, -nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'k', 'LineWidth', linewidth);
-plot(ax, [0, nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'k', 'LineWidth', linewidth);
+function drawnose(ax, radius, nosesize, linewidth, kolor)
+plot(ax, [0, -nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'Color', kolor, 'LineWidth', linewidth);
+plot(ax, [0, nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'Color', kolor, 'LineWidth', linewidth);
