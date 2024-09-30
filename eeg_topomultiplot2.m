@@ -19,7 +19,7 @@ end
 if exist('OtherOpts', 'var') && isstruct(OtherOpts)
     fns = fieldnames(OtherOpts);
     for i = 1:length(fns)
-        if ~isfield(Opts, fns{i}) && ~strcmp(fns{i}, 'title')
+        if ~isfield(Opts, fns{i}) && ~strcmp(fns{i}, 'title') && ~strcmp(fns{i}, 'footer')
             Opts.(fns{i}) = OtherOpts.(fns{i});
         end
     end
@@ -39,6 +39,7 @@ end
 
 try
     uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.96 0.80 0.04], 'String', OtherOpts.title, 'FontUnits', 'normalized', 'FontSize', 0.6, 'Visible', 'on', 'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0]);
+    uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.05 0.02 0.90 0.02], 'String', OtherOpts.footer, 'FontUnits', 'normalized', 'FontSize', 0.6, 'Visible', 'on', 'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0]);
     %sgtitle(OtherOpts.title);
 end
 
