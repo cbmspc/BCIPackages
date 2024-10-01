@@ -8,10 +8,13 @@ end
 
 persistent Hd_prev Funda_prev Order_prev QFactor_prev
 
+NotchFreq = NotchFreq(NotchFreq < Fs/2 & NotchFreq > 0);
+if isempty(NotchFreq)
+    return
+end
 if iscell(Hd_prev) && isequal(Funda_prev,NotchFreq) && Order_prev == Order && QFactor_prev == QFactor
     Hd = Hd_prev;
 else
-    NotchFreq = NotchFreq(NotchFreq < Fs/2 & NotchFreq > 0);
     if length(NotchFreq) == 1
         % Design notch filters for NotchFreq and all of its harmonics
         for h = floor(Fs/2/NotchFreq):-1:1
@@ -30,6 +33,10 @@ else
             d = fdesign.notch('N,F0,Q',Order,NotchFreq(h)/(Fs/2),QFactor*h);
             Hd{h} = design(d);
         end
+        Funda_prev = NotchFreq;
+        Order_prev = Order;
+        QFactor_prev = QFactor;
+        Hd_prev = Hd;
     end
 end
 
