@@ -3146,6 +3146,7 @@ f_hold_switch(-100000, []);
                 signalviewer_psd_pxx = pxx;
                 signalviewer_psd_fxx = fxx;
                 signalviewer_psd_channame = channame;
+                figure(viewhand_psd);
             else
                 set(viewhand_psd, 'Name', 'Select a channel first by clicking on its signal.');
             end
