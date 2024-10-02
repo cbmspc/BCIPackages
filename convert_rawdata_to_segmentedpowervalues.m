@@ -1,4 +1,4 @@
-% [segpowdata, seglabels] = convert_rawdata_to_segmentedpowervalues (rawdata, Fs, frange, trange, tsegsize, opts)
+% [segpowdata, seglabels, segtimesamplesrange, EventTimeStamps] = convert_rawdata_to_segmentedpowervalues (rawdata, Fs, frange, trange, tsegsize, opts)
 % This is a wrapper function that calls
 % convert_timeseriesdata_to_segmentedpowervalues to convert each epoch in
 % rawdata (chan x time x epoch) into segments and get their band powers
@@ -18,11 +18,11 @@
 %  opts.filtorder = 4
 %  opts.filtname = 'butter'
 %  opts.detrend_n = 'linear'
-% [segpowdata, seglabels] = convert_rawdata_to_segmentedpowervalues(rawdata, labels, Fs, frange, trange, tsegsize, opts);
+% [segpowdata, seglabels, segtimesamplesrange, EventTimeStamps] = convert_rawdata_to_segmentedpowervalues(rawdata, labels, Fs, frange, trange, tsegsize, opts);
 %  %Don't forget to take logarithm if appropriate
 %
 
-function [segpowdata, seglabels] = convert_rawdata_to_segmentedpowervalues (rawdata, labels, Fs, frange, trange, tsegsize, opts)
+function [segpowdata, seglabels, segtimesamplesrange, EventTimeStamps] = convert_rawdata_to_segmentedpowervalues (rawdata, labels, Fs, frange, trange, tsegsize, opts)
 
 if ~exist('labels', 'var') || size(rawdata,3) ~= length(labels)
     error('Missing required input argument: labels must have the same length as the number of epochs in rawdata');
@@ -66,14 +66,29 @@ end
 
 segpow = cell(1,size(rawdata,3));
 seglabels = cell(1,length(labels));
+segtimesamplesrange = cell(1,length(labels));
 for e = 1:size(rawdata,3)
-    segpow{e} = convert_timeseriesdata_to_segmentedpowervalues(rawdata(:,:,e).', Fs, frange, trange, tsegsize, opts);
+    [segpow{e}, segtimesamplesrange{e}] = convert_timeseriesdata_to_segmentedpowervalues(rawdata(:,:,e).', Fs, frange, trange, tsegsize, opts);
     seglabels{e} = repmat(labels(e),[1,size(segpow{e},3)]);
 end
 segpowdata = cat(3,segpow{:});
 seglabels = cat(2,seglabels{:});
+segtimesamplesrange = cat(3,segtimesamplesrange{:});
 
-
-
+%EventTimeStamps assumes that rawdata epochs are stored in time
+%consequetive chronological order. This is in the same format that
+%signalviewer expects for Opts.EventTimeStamps
+% EventTimeStamps is as tall as the number of segments
+EventTimeStamps = cell(length(seglabels),2);
+nes = size(segtimesamplesrange,1);
+epochtime = size(rawdata,2) / Fs;
+for s = 1:length(seglabels)
+    es = mod(s-1,nes)+1;
+    e = floor((s-1)/nes)+1;
+    t1 = (segtimesamplesrange(es,1,e)-1) / Fs + (e-1)*epochtime;
+    t2 = (segtimesamplesrange(es,2,e)) / Fs + (e-1)*epochtime;
+    EventTimeStamps{s,1} = [t1 t2];
+    EventTimeStamps{s,2} = sprintf('epoch%i segment%i', e, es);
+end
 
 

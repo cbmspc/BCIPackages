@@ -10,6 +10,12 @@
 %      1x2 numeric array for start and end times, can be a mix of both), 
 %      and 2nd column a string
 %     EXAMPLE: opts.EventTimeStamps = {25, 'Experiment start'; [45 65], 'Idle Epoch'; 103.2, 'Stim 1'; [105 115], 'Stim 1 Response'};
+%
+%     Hint: EventTimeStamps may not work correctly if the signal is stitched from multiple epochs, 
+%           such as when the input Signal is a cell or 3D array. To work around this problem, 
+%           stitch the signal together before passing into signalviewer, such as by using 
+%           convert_rawdata_to_timeseries.m (converts from chan x time x epoch) or by using the cat function.
+%
 %    ALTERNATE FORMAT SYNTAX (as examples below):
 %       opts.EventTimeStamps = [30 40; 45 45; 50 60; 60 70];
 %           Program automatically labels them Event 1, Event 2, ... 
