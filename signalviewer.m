@@ -161,7 +161,7 @@ fastica_maxNumIterations = 200;
 fastica_approach = 'defl';
 fastica_g = 'pow3';
 fastica_interactivePCA = 'off';
-
+disable_ica = false;
 
 ZoomedInMarker = 'x';
 ZoomedOutMarker = 'none';
@@ -219,6 +219,10 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
         fastica_interactivePCA = opts.fastica_interactivePCA;
     end
     
+    if isfield(opts, 'disable_ica') && numel(opts.disable_ica) == 1 && opts.disable_ica
+        disable_ica = true;
+    end
+
     if isfield(opts, 'SavedPointsTable') && iscell(SavedPointsTable) && size(SavedPointsTable,2) == 5 && size(SavedPointsTable,1) >= 1
         SavedPointsTable = opts.SavedPointsTable;
     end
@@ -812,6 +816,10 @@ end
     set(eventtexthand(i), 'Visible', 'off');
 end
 
+%2024-10-03: Move patches to background so that user can still click on traces for PSD.
+o_patches = findobj(get(axehand,'Children'),'Type','Patch');
+set(axehand,'Children',[setdiff(get(axehand,'Children'), o_patches); o_patches]);
+
 BandPassFilter.state = 0;
 BandPassFilter.cutoff = [0 Fs/2];
 %HighPassFilter.state = 0;
@@ -1167,6 +1175,11 @@ if set_chansep_to >= 0
 end
 if set_chansep_to > 0
     refit(set_chansep_to);
+end
+
+% Hide disabled buttons
+if disable_ica
+    set([h_icasel_title h_icasel_list h_icasel_confirm h_icasel_reset h_icasel_view_sources h_icasel_view_mixmat h_icasel_view_sepmat h_icasel_view_export], 'Visible', 'off');
 end
 
 % Done with startup
@@ -2164,13 +2177,55 @@ f_hold_switch(-100000, []);
         set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
     end
 
+    function select_next_plothand()
+        try
+            f = find(plothand(selchan) == selected_plothand);
+            if ~isempty(f)
+                s = mod(f+1 -1,length(selchan))+1;
+                selected_plothand = plothand(selchan(s));
+                while 0 - chansep*getappdata(selected_plothand, 'chanind') < YLim(1) && YLim(1) > -chansep*size(Signal,2)*3
+                    YLim = YLim - chansep;
+                end
+                while 0 - chansep*getappdata(selected_plothand, 'chanind') > YLim(2) && YLim(2) < 0+chansep*size(Signal,2)*3
+                    YLim = YLim + chansep;
+                end
+            end
+        end
+    end
+    function select_prev_plothand()
+        try
+            f = find(plothand(selchan) == selected_plothand);
+            if ~isempty(f)
+                s = mod(f-1 -1,length(selchan))+1;
+                selected_plothand = plothand(selchan(s));
+                while 0 - chansep*getappdata(selected_plothand, 'chanind') > YLim(2) && YLim(2) < 0+chansep*size(Signal,2)*3
+                    YLim = YLim + chansep;
+                end
+                while 0 - chansep*getappdata(selected_plothand, 'chanind') < YLim(1) && YLim(1) > -chansep*size(Signal,2)*3
+                    YLim = YLim - chansep;
+                end
+            end
+        end
+    end
+
+
     function f_panup(hObject, eventdata)
         if FilterBusy || MovementBusy
             return;
         end
-        YRange = YLim(2)-YLim(1);
-        YLim = YLim + YRange;
-        set(axehand, 'YLim', YLim);
+
+        %2024-10-08 Pan up/down behaves differently in the main window vs. in the PSD window
+        if isequal(hObject, viewhand_psd)
+            select_prev_plothand();
+            update_psd();
+            %YRange = YLim(2)-YLim(1);
+            %YLim = YLim + YRange;
+            %set(axehand, 'YLim', YLim);
+        else
+            YRange = YLim(2)-YLim(1);
+            YLim = YLim + YRange;
+            set(axehand, 'YLim', YLim);
+        end
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
@@ -2188,9 +2243,18 @@ f_hold_switch(-100000, []);
         if FilterBusy || MovementBusy
             return;
         end
-        YRange = YLim(2)-YLim(1);
-        YLim = YLim - YRange;
-        set(axehand, 'YLim', YLim);
+        %2024-10-08 Pan up/down behaves differently in the main window vs. in the PSD window
+        if isequal(hObject, viewhand_psd)
+            select_next_plothand();
+            update_psd();
+            %YRange = YLim(2)-YLim(1);
+            %YLim = YLim - YRange;
+            %set(axehand, 'YLim', YLim);
+        else
+            YRange = YLim(2)-YLim(1);
+            YLim = YLim - YRange;
+            set(axehand, 'YLim', YLim);
+        end
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
@@ -3313,7 +3377,8 @@ f_hold_switch(-100000, []);
         if ~ishandle(viewhand_ica_sig)
             npad2 = floor(log10(size(ica_sig,1)))+1;
             ic_names = string_to_cell(num2str(1:size(ica_sig,1),['i%0' num2str(npad2) 'i,']),',');
-            viewhand_ica_sig = signalviewer(ica_sig.', Fs, ic_names, [], [], [], 'This figure window displays the ICA sources. Close this window to return to the original time signals. Exclude and remix ICs in the original time signals, not in here.');
+            svopts.disable_ica = true;
+            viewhand_ica_sig = signalviewer(ica_sig.', Fs, ic_names, svopts, [], [], 'This figure window displays the ICA sources. Close this window to return to the original time signals. Exclude and remix ICs in the original time signals, not in here.');
         else
             figure(viewhand_ica_sig);
         end
