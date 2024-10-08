@@ -100,6 +100,9 @@
 %   is to only expand the vertical (spectral power dB) and never shrink
 %   until the "PSD" button is clicked again
 %
+%   opts.use_jet_colors = 1
+%   If specified, the jet color map is used for line colors instead of the "lines" map.
+%
 %
 %   Signal Hash = The hash (currently using the MD5 hashing algorithm) of
 %   the input signal after correcting for orientation, stitching, etc. 
@@ -191,6 +194,7 @@ infolabels_text_highdeviations = 'Channel signal deviations (sorted high to low,
 
 lookradius_fraction = 0.015;
 psd_ylim_auto = 0;
+use_jet_colors = 0;
 psd_dblim_allchans = [inf -inf];
 
 Ctrl = 0;
@@ -287,6 +291,11 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
     if isfield(opts, 'psd_ylim_auto') && numel(opts.psd_ylim_auto) == 1
         if opts.psd_ylim_auto
             psd_ylim_auto = 1;
+        end
+    end
+    if isfield(opts, 'use_jet_colors') && numel(opts.use_jet_colors) == 1
+        if opts.use_jet_colors
+            use_jet_colors = 1;
         end
     end
     if isfield(opts, 'nofiltchannames') && iscell(opts.nofiltchannames)
@@ -468,7 +477,6 @@ end
 Signal = Signal(:,~chnc);
 ChanNames = ChanNames(~chnc);
 
-
 % Fix NaNs if any
 Signal = fix_nans_for_filtering(Signal);
 
@@ -575,7 +583,12 @@ tmp = ceil(Nsch/3)*3;
 Kolor = jet(tmp)*0.50;
 tmp = reshape(reshape(rearrange_top_bottom((1:tmp).'),tmp/3,[]).',1,[]);
 Kolor = Kolor(tmp,:);
-
+if ~use_jet_colors
+    try
+        % 2024-10-08 Try to use the "lines" color map
+        Kolor = lines(size(Signal,2));
+    end
+end
 Nkolor = size(Kolor,1);
 
 %EventKolor = [0.75 0.75 0];
