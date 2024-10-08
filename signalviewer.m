@@ -94,6 +94,12 @@
 %   By default, the viewer opens with the first 10 seconds displayed.
 %   If [-inf inf] is specified, sets the range to the entire signal.
 %
+%   opts.psd_ylim_auto = 1
+%   If specified, PSD's ylim will automatically expand and shrink when
+%   navigating across different channels. Otherwise, the default behavior
+%   is to only expand the vertical (spectral power dB) and never shrink
+%   until the "PSD" button is clicked again
+%
 %
 %   Signal Hash = The hash (currently using the MD5 hashing algorithm) of
 %   the input signal after correcting for orientation, stitching, etc. 
@@ -111,7 +117,7 @@ try
         mfnp = [mfnp '.m'];
     end
     tmp = dir(mfnp);
-    lmoddate = datestr(tmp.datenum, 'YYmmdd.HHMM');
+    lmoddate = datestr(tmp.datenum, 'YYmmdd.HHMM'); %#ok<*DATST>
     clear tmp
 catch
     lmoddate = '';
@@ -184,6 +190,8 @@ infolabels_deviations = [];
 infolabels_text_highdeviations = 'Channel signal deviations (sorted high to low, double click to copy): ';
 
 lookradius_fraction = 0.015;
+psd_ylim_auto = 0;
+psd_dblim_allchans = [inf -inf];
 
 Ctrl = 0;
 Alt = 0;
@@ -276,6 +284,11 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
             set_xlim_to = [0 size(Signal,1)/SampleRate];
         end
     end
+    if isfield(opts, 'psd_ylim_auto') && numel(opts.psd_ylim_auto) == 1
+        if opts.psd_ylim_auto
+            psd_ylim_auto = 1;
+        end
+    end
     if isfield(opts, 'nofiltchannames') && iscell(opts.nofiltchannames)
         nofiltchannames = opts.nofiltchannames;
     end
@@ -322,7 +335,7 @@ if iscell(Signal)
     end
     EventTimeStamps = zeros(length(Signal),3);
     tmp = 0;
-    for i = 1:size(EventTimeStamps,1)
+    for i = 1:size(EventTimeStamps,1) %#ok<*FXUP>
         EventTimeStamps(i,:) = [tmp, tmp + size(Signal{i},1) / SampleRate, CellEvents(i)];
         tmp = tmp + size(Signal{i},1) / SampleRate;
     end
@@ -399,7 +412,7 @@ viewhand_ica_A = ceil(rand*1000000000);
 viewhand_ica_W = ceil(rand*1000000000);
 viewhand_psd = ceil(rand*1000000000);
 viewhand_psd_axe = -1;
-viewhand_psd_peak = -1;
+%viewhand_psd_peak = -1;
 selected_plothand = -1;
 selected_timepoint = -1;
 previously_selected_timepoint = -2;
@@ -431,7 +444,7 @@ InfoLabelEnable = 0;
 
 
 % Identify not-connected channels by signal variance
-chnc = nanmax(Signal) - nanmin(Signal) == 0;
+chnc = nanmax(Signal) - nanmin(Signal) == 0; %#ok<*NANMIN,*NANMAX>
 
 % Identify not-connected channels by zero-length channel names
 if length(chnc) == length(ChanNames)
@@ -512,7 +525,7 @@ PlotHold = 0;
 PowerLineFrequency = 60;
 MaxFilterOrder = 4;
 FilterOrder = MaxFilterOrder;
-FilterChunkSec = 600;
+%FilterChunkSec = 600;
 FilterBusy = 0;
 MovementBusy = 0;
 ICA_Initialized = 0;
@@ -615,9 +628,9 @@ hold on
 set(fighand,'Position',screensize);
 YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
 XLim = [0 10];
-ChanNamesDisplayed = ChanNames;
-changed_CND = 0;
-set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', AxesFontName, 'FontUnits', 'pixel', 'FontSize', AxesFontSize); %#ok<*NBRAK>
+
+%changed_CND = 0;
+set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', AxesFontName, 'FontUnits', 'pixel', 'FontSize', AxesFontSize); %#ok<*NBRAK>
 axehand = get(fighand,'CurrentAxes');
 
 t1 = 1;
@@ -631,7 +644,7 @@ for ch = Nsch:-1:1
     plotpip1hand(ch) = plot(0, 0, '+', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
     plotpip2hand(ch) = plot(0, 0, 'v', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
     plotpip3hand(ch) = plot(0, 0, '^', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
-    plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - nanmean(Signal(t1:t2,selchan(ch))) - chansep*ch);
+    plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - nanmean(Signal(t1:t2,selchan(ch))) - chansep*ch); %#ok<*NANMEAN>
     set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
     set(plothand(ch), 'ButtonDownFcn', @f_plothand_buttondown);
     setappdata(plothand(ch), 'chanind', selchan(ch));
@@ -663,7 +676,7 @@ end
 set(axehand, 'FontUnits', 'normalized');
 AxesFontSize = get(axehand, 'FontSize');
 
-tmax = max(Time);
+%tmax = max(Time);
 %SigChunkRendered = false(ceil(tmax / FilterChunkSec),length(ChanNames));
 %ChunkIndexMax = size(SigChunkRendered,1);
 
@@ -944,7 +957,7 @@ h_eventlabels_showhide = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'nor
 h_signal_export = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.935 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export Sig', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
 
-h_icasel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.965 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5); %#ok<NASGU>
+h_icasel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.965 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ICA Comps', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5);
 h_icasel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.965 0.14 0.030, 0.380], 'FontUnits', 'pixel');
 h_icasel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.966 0.10 0.019 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Start', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_icasel_reset = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.985 0.10 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'R', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -1086,7 +1099,7 @@ catch
     try
         pause(0.00001);
         oldWarningState = warning('off', 'MATLAB:ui:javacomponent:FunctionToBeRemoved');
-        frame_h = get(handle(fighand),'JavaFrame');
+        frame_h = get(handle(fighand),'JavaFrame'); %#ok<JAVFM>
         set(frame_h,'Maximized',1);
         warning(oldWarningState);
     end
@@ -1096,7 +1109,7 @@ end
 f_hold_switch(-10000, []);
 
 if ~isempty(set_selectchannames_to)
-    selchan = chan2idx(ChanNamesDisplayed, set_selectchannames_to, 1);
+    selchan = chan2idx(ChanNames, set_selectchannames_to, 1);
     set(h_chansel_list, 'Value', selchan);
     f_chansel_confirm([], []);
 end
@@ -1558,14 +1571,14 @@ f_hold_switch(-100000, []);
 
     function f_car_switch(hObject, eventdata)
         disable_filter_switches();
-        if RerefFilter.state && isequal(RerefFilter.chanidx, setdiff(selchan, chan2idx(ChanNamesDisplayed, nofiltchannames, 1)))
+        if RerefFilter.state && isequal(RerefFilter.chanidx, setdiff(selchan, chan2idx(ChanNames, nofiltchannames, 1)))
             RerefFilter.state = 0;
             RerefFilter.chanidx = [];
         else
             RerefFilter.state = 1;
             RerefFilter.chanidx = selchan;
             % Po240610: Do not CAR/notch/filter/envelope matching channels:
-            RerefFilter.chanidx = setdiff(RerefFilter.chanidx, chan2idx(ChanNamesDisplayed, nofiltchannames, 1));
+            RerefFilter.chanidx = setdiff(RerefFilter.chanidx, chan2idx(ChanNames, nofiltchannames, 1));
         end
         reref_update();
         notch_update();
@@ -1734,7 +1747,7 @@ f_hold_switch(-100000, []);
                 if ~ismember(ch, selchan) % Po240528: Only if this channel is plotted
                     continue
                 end
-                if ismember(ChanNamesDisplayed{ch}, nofiltchannames)
+                if ismember(ChanNames{ch}, nofiltchannames)
                     % Po240610: Do not CAR/notch/filter/envelope
                     continue
                 end
@@ -1816,7 +1829,7 @@ f_hold_switch(-100000, []);
                 if ~ismember(ch, selchan) % Po240528: Only if this channel is plotted
                     continue
                 end
-                if ismember(ChanNamesDisplayed{ch}, nofiltchannames)
+                if ismember(ChanNames{ch}, nofiltchannames)
                     % Po240610: Do not CAR/notch/filter/envelope
                     continue
                 end
@@ -1899,7 +1912,7 @@ f_hold_switch(-100000, []);
                 if ~ismember(ch, selchan) % Po240528: Only if this channel is plotted
                     continue
                 end
-                if ismember(ChanNamesDisplayed{ch}, nofiltchannames)
+                if ismember(ChanNames{ch}, nofiltchannames)
                     % Po240610: Do not CAR/notch/filter/envelope
                     continue
                 end
@@ -2001,7 +2014,7 @@ f_hold_switch(-100000, []);
     end
 
 
-    function L = validate_bpf_cutoff()
+    function L = validate_bpf_cutoff() %#ok<STOUT>
         bpf = parse_bpf_cutoff_string();
         %bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
         changesmade = 0;
@@ -2274,7 +2287,7 @@ f_hold_switch(-100000, []);
         if isempty(t_lastclicked)
             t_lastclicked = 0;
         end
-        if now - t_lastclicked < 0.25 / 86400
+        if now - t_lastclicked < 0.25 / 86400 %#ok<*TNOW1>
             clipboard('copy', strrep(get(h_hintbar,'String'), infolabels_text_highdeviations, ''));
             t_lastclicked = 0;
         else
@@ -2344,10 +2357,10 @@ f_hold_switch(-100000, []);
             chansep = PermittedChanSepRanges(in);
         end
         %YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
-        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed), 'YLim', YLim);
+        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
         YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)), 'YLim', YLim);
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -2370,10 +2383,10 @@ f_hold_switch(-100000, []);
             chansep = PermittedChanSepRanges(in);
         end
         %YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
-        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed), 'YLim', YLim);
+        %set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames), 'YLim', YLim);
         YLim(2) = 0.5*chansep - FirstChViewable*chansep;
         YLim(1) = YLim(2) - chansep*Nchviewable - 0.5*chansep;
-        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)), 'YLim', YLim);
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim);
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
@@ -2525,7 +2538,7 @@ f_hold_switch(-100000, []);
                 if ZscoreFilter.state
                     YDATA = nanzscore(YDATA)*ZscoreFilter.multiplier;
                 else
-                    YDATA = YDATA - nanmedian(YDATA);
+                    YDATA = YDATA - nanmedian(YDATA); %#ok<*NANMEDIAN>
                 end
 
                 %Po240611: NaN the traces above/below chansep
@@ -2581,7 +2594,7 @@ f_hold_switch(-100000, []);
         if EventEnable
             %YPos = [mean(YLim)+diff(YLim)/8     mean(YLim)    mean(YLim)-diff(YLim)/8];
             %2023-05-20: Try to set labels to avoid the Yticks
-            yt = get(axehand, 'YTick');
+            %yt = get(axehand, 'YTick');
             YPos = YLim(1)+(YLim(2)-YLim(1))/100*[1 2 3];
             YPos = YPos(YPos>YLim(1) & YPos<YLim(2));
             %YPos = stagger_odds_evens(YPos);
@@ -2629,9 +2642,9 @@ f_hold_switch(-100000, []);
                 tmp = squareform(pdist(tmp2));
                 tmp_min_dist = EventTextMinDistApart;
                 tmp_shifty_by = 0.01;
-                tmp_shiftx_by = 0.01;
+                %tmp_shiftx_by = 0.01;
                 tmp_y_change = (YLim(2)-YLim(1))*tmp_shifty_by;
-                tmp_x_change = (XLim(2)-XLim(1))*tmp_shiftx_by;
+                %tmp_x_change = (XLim(2)-XLim(1))*tmp_shiftx_by;
                 for i = 1:size(eventtexthandpositions,1)
                     for j = i+1:size(eventtexthandpositions,1)
                         while tmp(i,j) < tmp_min_dist && eventtexthandpositions(j,2) > YLim(1) + tmp_y_change
@@ -2749,11 +2762,11 @@ f_hold_switch(-100000, []);
             tmp1 = 'Local deviations in the currently displayed time range are shown for each channel. A pure sine wave of amplitude 1 µV (2 µVpp) is 1.0 deviation';
             if ~isempty(infolabels_deviations)
                 tab = [infolabels_deviations; selchan]';
-                [~,ia] = setdiff(tab(:,2),chan2idx(ChanNamesDisplayed,nofiltchannames,1));
+                [~,ia] = setdiff(tab(:,2),chan2idx(ChanNames,nofiltchannames,1));
                 tab = tab(ia,:);
                 tab = flipud(sortrows(tab));
                 thres = max( median(infolabels_deviations) + 2*1.4826*mad(infolabels_deviations,1), 1.1 * median(infolabels_deviations));
-                tmp2 = ChanNamesDisplayed(tab(tab(:,1) > thres,2)');
+                tmp2 = ChanNames(tab(tab(:,1) > thres,2)');
                 if ~isempty(tmp2)
                     tmp1 = [infolabels_text_highdeviations cell_to_string(tmp2, '|')];
                 end
@@ -2830,27 +2843,27 @@ f_hold_switch(-100000, []);
         tmp_REincludeagain = tmp_answer{4};
         selchan = get(h_chansel_list, 'Value');
         if ~isempty(tmp_VARset)
-            tmp_importedchannames = cell(0);
+            %tmp_importedchannames = cell(0);
             tmp_whosinbase = evalin('base','who');
             if ismember(tmp_VARset,tmp_whosinbase)
                 try
                     tmp_importedchannames = evalin('base', tmp_VARset);
-                    selchan = chan2idx(ChanNamesDisplayed, tmp_importedchannames, 1);
+                    selchan = chan2idx(ChanNames, tmp_importedchannames, 1);
                 end
             end
         end
-        for i = 1:length(ChanNamesDisplayed)
-            if ~isempty(regexp(ChanNamesDisplayed{i}, tmp_REinclude, 'match', 'once'))
+        for i = 1:length(ChanNames)
+            if ~isempty(regexp(ChanNames{i}, tmp_REinclude, 'match', 'once'))
                 selchan = union(selchan, i);
             end
         end
-        for i = 1:length(ChanNamesDisplayed)
-            if ~isempty(regexp(ChanNamesDisplayed{i}, tmp_REexclude, 'match', 'once'))
+        for i = 1:length(ChanNames)
+            if ~isempty(regexp(ChanNames{i}, tmp_REexclude, 'match', 'once'))
                 selchan = setdiff(selchan, i);
             end
         end
-        for i = 1:length(ChanNamesDisplayed)
-            if ~isempty(regexp(ChanNamesDisplayed{i}, tmp_REincludeagain, 'match', 'once'))
+        for i = 1:length(ChanNames)
+            if ~isempty(regexp(ChanNames{i}, tmp_REincludeagain, 'match', 'once'))
                 selchan = union(selchan, i);
             end
         end
@@ -2879,7 +2892,7 @@ f_hold_switch(-100000, []);
         set(h_chansel_warnconfirm, 'Visible', 'off');
         selchan = get(h_chansel_list, 'Value');
         Nsch = length(selchan);
-        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNamesDisplayed(selchan)));
+        set(axehand, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)));
 
         % Po240528: Added these updaters before redraw 
         % (they won't recalculate unnecessarily anymore)
@@ -2893,7 +2906,7 @@ f_hold_switch(-100000, []);
             f_yzoomout(hObject, eventdata);
         end
 
-        same_as_car_channels = isequal(find(PerChannelFilterStates(1,:)), setdiff(selchan,chan2idx(ChanNamesDisplayed, nofiltchannames, 1)));
+        same_as_car_channels = isequal(find(PerChannelFilterStates(1,:)), setdiff(selchan,chan2idx(ChanNames, nofiltchannames, 1)));
         warntext = '';
         if RerefFilter.state
             if ~same_as_car_channels
@@ -2916,13 +2929,17 @@ f_hold_switch(-100000, []);
     function f_psd_plot(hObject, eventdata)
         if ~ishandle(viewhand_psd)
             viewhand_psd = figure;
+            psd_dblim_allchans = [inf -inf];
             viewhand_psd_axe = axes('parent',viewhand_psd);
             set(viewhand_psd, 'KeyPressFcn', @f_fig_keypress);
             Signal_psd_source = Signal_psd_source*0;
             update_psd(1);
             set(viewhand_psd, 'MenuBar', 'none', 'Toolbar', 'figure', 'HandleVisibility', 'callback');
         else
+            psd_dblim_allchans = [inf -inf];
             figure(viewhand_psd);
+            set(viewhand_psd_axe, 'YLimMode', 'auto');
+            update_psd(1);
         end
         set(h_hintbar, 'String', 'PSD updated. (Use arrow keys to scroll left/right in the PSD window.)');
     end
@@ -3044,7 +3061,7 @@ f_hold_switch(-100000, []);
                         set(plottext_lmin_hand(ch), 'String', getappdata(plottext_lmin_hand(ch),'originalString'), 'Position', [xlocmin(ch) + xr/100, YDATA_fullres(xindmin(ch)), 0], 'Visible', 'on');
                     end
                     setappdata(plottext_lmin_hand(ch), 'chanind', selchan(ch));
-                    setappdata(plottext_lmin_hand(ch), 'ChanName', ChanNamesDisplayed{selchan(ch)});
+                    setappdata(plottext_lmin_hand(ch), 'ChanName', ChanNames{selchan(ch)});
                     setappdata(plottext_lmin_hand(ch), 'tvalue', xlocmin(ch));
                     setappdata(plottext_lmin_hand(ch), 'yvalue', ylocmin(ch));
 
@@ -3075,7 +3092,7 @@ f_hold_switch(-100000, []);
                         set(plottext_lmax_hand(ch), 'String', getappdata(plottext_lmax_hand(ch),'originalString'), 'Position', [xlocmax(ch) + xr/100, YDATA_fullres(xindmax(ch)), 0], 'Visible', 'on');
                     end
                     setappdata(plottext_lmax_hand(ch), 'chanind', selchan(ch));
-                    setappdata(plottext_lmax_hand(ch), 'ChanName', ChanNamesDisplayed{selchan(ch)});
+                    setappdata(plottext_lmax_hand(ch), 'ChanName', ChanNames{selchan(ch)});
                     setappdata(plottext_lmax_hand(ch), 'tvalue', xlocmax(ch));
                     setappdata(plottext_lmax_hand(ch), 'yvalue', ylocmax(ch));
                 end
@@ -3186,14 +3203,28 @@ f_hold_switch(-100000, []);
                     irange = find(fxx>=fc1 & fxx<=fc2);
                     [ymax,imax] = max(lpxx(irange));
                     fmax = fxx(irange(imax));
-                    viewhand_psd_peak = text(fmax, ymax, sprintf('PEAK\n%.3g Hz\n%.3g dB/Hz', fmax, ymax), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'FontSize', 8);
+                    viewhand_psd_peak = text(fmax, ymax, sprintf('PEAK\n%.3g Hz\n%.3g dB/Hz', fmax, ymax), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'FontSize', 8); %#ok<NASGU>
 
                 end
                 tmp2 = get(viewhand_psd_axe, 'YLim');
                 if ~isequal(channame, psd_lastchanname)
                     psd_lastchanname = channame;
                     psd_dblim = tmp2;
+                    if ~psd_ylim_auto
+                        % Keep the widest YLim when navigating across channels
+                        if psd_dblim(1) < psd_dblim_allchans(1)
+                            psd_dblim_allchans(1) = psd_dblim(1);
+                        else
+                            psd_dblim(1) = psd_dblim_allchans(1);
+                        end
+                        if psd_dblim(2) > psd_dblim_allchans(2)
+                            psd_dblim_allchans(2) = psd_dblim(2);
+                        else
+                            psd_dblim(2) = psd_dblim_allchans(2);
+                        end
+                    end
                 else
+                    % Keep the widest YLim when navigating across time
                     if tmp2(1) < psd_dblim(1)
                         psd_dblim(1) = tmp2(1);
                     end
@@ -3660,7 +3691,7 @@ function c = string_to_cell(s,d)
 % $Revision: 1.1.8.1 $ $Date: 2004/07/21 06:23:56 $
 
 c = {};
-while containsValidString(s),
+while containsValidString(s)
     [s1, s] = strtok(s, d); %#ok<*STTOK>
     if containsValidString(s1)
         c = {c{:} s1}; %#ok<*CCAT>
@@ -3757,7 +3788,7 @@ end
 
 function chanidx = GetChannelsWithSimilarStdev(signal)
 s = std(signal);
-[h, c] = hist(s);
+[h, c] = hist(s); %#ok<*HIST>
 [~, i] = max(h);
 l1 = s < c(i) + (c(2)-c(1))/2;
 l2 = s > c(i) - (c(2)-c(1))/2;
