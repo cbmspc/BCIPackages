@@ -137,9 +137,9 @@ if ~iscell(Signal) && size(Signal,3) > 1
 end
 
 pwelch_nfft = [];
-signalviewer_psd_pxx = [];
-signalviewer_psd_fxx = [];
-signalviewer_psd_channame = '';
+% signalviewer_psd_pxx = [];
+% signalviewer_psd_fxx = [];
+% signalviewer_psd_channame = '';
 
 panfrac_default = 0.50;
 % default to pan left/right this many screens
@@ -422,6 +422,24 @@ viewhand_ica_W = ceil(rand*1000000000);
 viewhand_psd = ceil(rand*1000000000);
 viewhand_psd_axe = -1;
 %viewhand_psd_peak = -1;
+psd_held_lpxx = [];
+psd_held_fxx = [];
+psd_held_Time1 = NaN;
+psd_held_Time2 = NaN;
+psd_held_chancolor = [1 1 1];
+psd_held_channame = '';
+psd_held_filttext = '';
+psd_held_linewidth = 2;
+psd_held_colorfadefactor = 0.9;
+psd_now_pxx = [];
+psd_now_lpxx = [];
+psd_now_fxx = [];
+psd_now_Time1 = NaN;
+psd_now_Time2 = NaN;
+psd_now_chancolor = [1 1 1];
+psd_now_channame = '';
+psd_now_filttext = '';
+psd_now_linewidth = 1;
 selected_plothand = -1;
 selected_timepoint = -1;
 previously_selected_timepoint = -2;
@@ -652,7 +670,7 @@ Time = (0:Ntp-1)/Fs;
 Time_min = 0;
 Time_max = (Ntp-1)/Fs;
 
-cursorlinehand = plot([0 0], [0 0], '-', 'LineWidth', 15, 'Color', [0.8 0.8 0.8]);
+cursorlinehand = plot([0 0], [0 0], '-', 'LineWidth', 3, 'Color', [0.8 0.8 0.8]);
 for ch = Nsch:-1:1
     plotpip1hand(ch) = plot(0, 0, '+', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
     plotpip2hand(ch) = plot(0, 0, 'v', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
@@ -1332,6 +1350,33 @@ f_hold_switch(-100000, []);
                     set(axehand, 'XLim', XLim);
                     resnap_pan();
                 end
+            case 'h'
+                %2024-10-09: New feature to hold the PSD (only works in the PSD window)
+                if isequal(hObject, viewhand_psd)
+                    if ~isempty(psd_now_lpxx) && length(psd_now_fxx) == length(psd_now_lpxx)
+                        if isequal(psd_held_lpxx,psd_now_lpxx)
+                            % Identical. Clear hold.
+                            psd_held_lpxx = [];
+                            psd_held_fxx = [];
+                            psd_held_Time1 = NaN;
+                            psd_held_Time2 = NaN;
+                            psd_held_chancolor = [1 1 1];
+                            psd_held_channame = '';
+                            psd_held_filttext = '';
+                            set(h_hintbar, 'String', 'PSD plot hold is released.');
+                        else
+                        psd_held_lpxx = psd_now_lpxx;
+                        psd_held_fxx = psd_now_fxx;
+                        psd_held_Time1 = psd_now_Time1;
+                        psd_held_Time2 = psd_now_Time2;
+                        psd_held_chancolor = psd_now_chancolor + ([1 1 1] - psd_now_chancolor) * psd_held_colorfadefactor;
+                        psd_held_channame = psd_now_channame;
+                        psd_held_filttext = psd_now_filttext;
+                        set(h_hintbar, 'String', 'Current PSD plot is held. Use arrow keys to move to a different time or channel to compare!');
+                        end
+                    end
+                end
+
             case 'leftarrow'
                 if Ctrl
                     f_xzoomout(hObject, []);
@@ -2943,6 +2988,13 @@ f_hold_switch(-100000, []);
         if ~ishandle(viewhand_psd)
             viewhand_psd = figure;
             psd_dblim_allchans = [inf -inf];
+            psd_held_lpxx = [];
+            psd_held_fxx = [];
+            psd_held_Time1 = NaN;
+            psd_held_Time2 = NaN;
+            psd_held_chancolor = [1 1 1];
+            psd_held_channame = '';
+            psd_held_filttext = '';
             viewhand_psd_axe = axes('parent',viewhand_psd);
             set(viewhand_psd, 'KeyPressFcn', @f_fig_keypress);
             Signal_psd_source = Signal_psd_source*0;
@@ -2954,7 +3006,7 @@ f_hold_switch(-100000, []);
             set(viewhand_psd_axe, 'YLimMode', 'auto');
             update_psd(1);
         end
-        set(h_hintbar, 'String', 'PSD updated. (Use arrow keys to scroll left/right in the PSD window.)');
+        set(h_hintbar, 'String', 'PSD updated. (Use arrow keys to scroll left/right in the PSD window. Press h to hold a PSD in plot.)');
     end
 
 
@@ -3142,17 +3194,17 @@ f_hold_switch(-100000, []);
         end
         if ishandle(viewhand_psd)
             if ~isempty(selected_plothand) && ishandle(selected_plothand)
-                channame = getappdata(selected_plothand, 'channame');
+                psd_now_channame = getappdata(selected_plothand, 'channame');
                 chanind = getappdata(selected_plothand, 'chanind');
-                chancolor = get(selected_plothand, 'Color');
+                psd_now_chancolor = get(selected_plothand, 'Color');
 
                 if ~ismember(chanind, selchan)
                     %Po240712 The PSD channel is not a selected channel.
                     %Force it to be.
                     selected_plothand = plothand(selchan(1));
-                    channame = getappdata(selected_plothand, 'channame');
+                    psd_now_channame = getappdata(selected_plothand, 'channame');
                     chanind = getappdata(selected_plothand, 'chanind');
-                    chancolor = get(selected_plothand, 'Color');
+                    psd_now_chancolor = get(selected_plothand, 'Color');
                 end
                 
                 tmp = Signal_postenvelope(t1:t2,chanind);
@@ -3166,9 +3218,20 @@ f_hold_switch(-100000, []);
                 
                 set(viewhand_psd_axe, 'FontUnits', 'pixel', 'FontSize', 16);
                 Signal_psd_source = tmp;
-                [pxx, fxx] = pwelch(Signal_psd_source, [], [], pwelch_nfft, Fs);
-                lpxx = 10*log10(pxx);
-                plot(fxx, lpxx, 'Color', chancolor); %Po240712: PSD line color matches main window's line color
+                [psd_now_pxx, psd_now_fxx] = pwelch(Signal_psd_source, [], [], pwelch_nfft, Fs);
+                psd_now_lpxx = 10*log10(psd_now_pxx);
+
+                %2024-10-09: Plot the psd held in memory
+                plotting_a_held_psd = 0;
+                if ~isempty(psd_held_lpxx) && numel(psd_held_lpxx) == numel(psd_held_fxx)
+                    plotting_a_held_psd = 1;
+                    plot(psd_held_fxx, psd_held_lpxx, 'Color', psd_held_chancolor, 'LineWidth', psd_held_linewidth);
+                    hold on
+                    plot(psd_now_fxx, psd_now_lpxx, 'Color', psd_now_chancolor, 'LineWidth', psd_now_linewidth);
+                    hold off
+                else
+                    plot(psd_now_fxx, psd_now_lpxx, 'Color', psd_now_chancolor, 'LineWidth', psd_now_linewidth); %Po240712: PSD line color matches main window's line color
+                end
                 xlabel('Frequency (Hz)');
                 ylabel('PSD (dB/Hz)');
                 fc1 = max(0,ceil(BandPassFilter.cutoff(1)*.9));
@@ -3205,23 +3268,23 @@ f_hold_switch(-100000, []);
                 end
                 
                 if any(tmp_ftr)
-                    tmp_filttext = ['(after ' cell_to_string(tmp_af(tmp_ftr), ', ') ')'];
+                    psd_now_filttext = ['(after ' cell_to_string(tmp_af(tmp_ftr), ', ') ')'];
                 else
-                    tmp_filttext = ['(no filter applied)'];
+                    psd_now_filttext = ['(no filter applied)'];
                 end
-                
+
                 try  %#ok<*TRYNC>
                     set(viewhand_psd_axe, 'XLim', [fc1 fc2]);
 
-                    irange = find(fxx>=fc1 & fxx<=fc2);
-                    [ymax,imax] = max(lpxx(irange));
-                    fmax = fxx(irange(imax));
+                    irange = find(psd_now_fxx>=fc1 & psd_now_fxx<=fc2);
+                    [ymax,imax] = max(psd_now_lpxx(irange));
+                    fmax = psd_now_fxx(irange(imax));
                     viewhand_psd_peak = text(fmax, ymax, sprintf('PEAK\n%.3g Hz\n%.3g dB/Hz', fmax, ymax), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'FontSize', 8); %#ok<NASGU>
 
                 end
                 tmp2 = get(viewhand_psd_axe, 'YLim');
-                if ~isequal(channame, psd_lastchanname)
-                    psd_lastchanname = channame;
+                if ~isequal(psd_now_channame, psd_lastchanname)
+                    psd_lastchanname = psd_now_channame;
                     psd_dblim = tmp2;
                     if ~psd_ylim_auto
                         % Keep the widest YLim when navigating across channels
@@ -3249,17 +3312,22 @@ f_hold_switch(-100000, []);
                     set(viewhand_psd_axe, 'YLim', psd_dblim);
                 end
 
+                psd_now_Time1 = Time(t1);
+                psd_now_Time2 = Time(t2);
+
                 if ~ismember(chanind, selchan)
-                    title(sprintf('Welch PSD in %s, %g - %g s\n%s', channame, Time(t1), Time(t2), 'WARNING: PSD channel is not plotted in the main window.'));
+                    title(sprintf('Welch PSD in %s, %g - %g s\n%s', psd_now_channame, psd_now_Time1, psd_now_Time2, 'WARNING: PSD channel is not plotted in the main window.'));
                 else
-                    title(sprintf('Welch PSD in %s, %g - %g s\n%s', channame, Time(t1), Time(t2), ' '));
+                    title(sprintf('Welch PSD in %s, %g - %g s\n%s', psd_now_channame, psd_now_Time1, psd_now_Time2, ' '));
+                end
+                if plotting_a_held_psd
+                    legend(sprintf('%s in %g - %g s %s', psd_held_channame, psd_held_Time1, psd_held_Time2, psd_held_filttext), sprintf('%s %s', psd_now_channame, psd_now_filttext));
+                else
+                    legend(sprintf('%s %s', psd_now_channame, psd_now_filttext));
                 end
                 
-                set(viewhand_psd, 'Name', ['PSD in ' channame ' from ' num2str(Time(t1)) ' to ' num2str(Time(t2)) ' s ' tmp_filttext]);
+                set(viewhand_psd, 'Name', ['PSD from ' num2str(psd_now_Time1) ' to ' num2str(psd_now_Time2) ' s']);
                 set(0, 'CurrentFigure', tmp1);
-                signalviewer_psd_pxx = pxx;
-                signalviewer_psd_fxx = fxx;
-                signalviewer_psd_channame = channame;
                 figure(viewhand_psd);
             else
                 set(viewhand_psd, 'Name', 'Select a channel first by clicking on its signal.');
@@ -3498,9 +3566,24 @@ f_hold_switch(-100000, []);
         assignin('caller', 'signalviewer_PlottedChanNames', ChanNames(selchan));
         assignin('caller', 'signalviewer_RerefChanNames', ChanNames(RerefFilter.chanidx));
         assignin('caller', 'signalviewer_SavedPointsTable', SavedPointsTable);
-        assignin('caller', 'signalviewer_psd_pxx', signalviewer_psd_pxx);
-        assignin('caller', 'signalviewer_psd_fxx', signalviewer_psd_fxx);
-        assignin('caller', 'signalviewer_psd_channame', signalviewer_psd_channame);
+
+        assignin('caller', 'signalviewer_psd_held_lpxx', psd_held_lpxx);
+        assignin('caller', 'signalviewer_psd_held_fxx', psd_held_fxx);
+        assignin('caller', 'signalviewer_psd_held_Time1', psd_held_Time1);
+        assignin('caller', 'signalviewer_psd_held_Time2', psd_held_Time2);
+        assignin('caller', 'signalviewer_psd_held_chancolor', psd_held_chancolor);
+        assignin('caller', 'signalviewer_psd_held_channame', psd_held_channame);
+        assignin('caller', 'signalviewer_psd_held_filttext', psd_held_filttext);
+
+        assignin('caller', 'signalviewer_psd_lpxx', psd_now_lpxx);
+        assignin('caller', 'signalviewer_psd_pxx', psd_now_pxx);
+        assignin('caller', 'signalviewer_psd_fxx', psd_now_fxx);
+        assignin('caller', 'signalviewer_psd_Time1', psd_now_Time1);
+        assignin('caller', 'signalviewer_psd_Time2', psd_now_Time2);
+        assignin('caller', 'signalviewer_psd_chancolor', psd_now_chancolor);
+        assignin('caller', 'signalviewer_psd_channame', psd_now_channame);
+        assignin('caller', 'signalviewer_psd_filttext', psd_now_filttext);
+        
         assignin('caller', 'signalviewer_fighand_Number', get(fighand,'Number'));
         assignin('caller', 'signalviewer_signalHashStr', signalHashStr);
         assignin('caller', 'signalviewer_signal_export_timestamp', now);
