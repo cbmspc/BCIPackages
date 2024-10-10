@@ -44,6 +44,22 @@
 %              These optional paramters can be set in opts.
 %    If ica matrices are not specified, FastICA is used
 %
+%   opts.ltmat = One or more linear transformation matrix with orientation
+%   (NchanOUT x NchanIN), such that transformedSignal.' = ltmat * originalSignal.'
+%     Use the 3rd dimension to specify more than one transformation matrix:
+%       Example: ltmat(:,:,1) = randn(15,15); ltmat(:,:,2) = randn(15,15)*10;
+%     
+%     For example, if signal has 15 channels, ltmat transforms the input
+%     one at a time: out(15x1) = ltmat(15x15) * in(15x1)
+%   If this was ICA, ltmat = ica_A * ica_W, because 
+%     1. Source.' = ica_W * Signal.'
+%     2. Signal.' = ica_A * Source.'
+%     3. transformedSignal.' = ica_A * ica_W * originalSignal.'
+%     4. Hence, ltmat replaces ica_A * ica_W
+%    Because the ltmat option replaces ICA, specifying a valid ltmat is
+%    treated as if ica_W and ica_A are both specified in the options, where
+%    ica_A = ltmat and ica_W = identity matrix.
+%
 %   opts.FooterMessage = 'footer messaage'
 %
 %   opts.pwelch_nfft = 4096
@@ -196,6 +212,7 @@ lookradius_fraction = 0.015;
 psd_ylim_auto = 0;
 use_jet_colors = 0;
 psd_dblim_allchans = [inf -inf];
+use_ltmat = 0;
 
 Ctrl = 0;
 Alt = 0;
@@ -245,6 +262,14 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
         EventTimeStamps = opts.eventtimestamps;
     else
         clear EventTimeStamps;
+    end
+    if isfield(opts, 'ltmat') && size(opts.ltmat,1) == size(opts.ltmat,2) && size(opts.ltmat,1) > 0 && isnumeric(opts.ltmat)
+        opts.ica_A = opts.ltmat(:,:,1);
+        opts.ica_W = eye(size(opts.ica_A,1));
+        ltmat = opts.ltmat;
+        use_ltmat = 1;
+    else
+        ltmat = [];
     end
     if isfield(opts, 'ica_W')
         ica_W = opts.ica_W;
@@ -482,6 +507,9 @@ if exist('ica_W', 'var') && exist('ica_A', 'var') && ~isempty(ica_W) && ~isempty
     if size(ica_W,2) == size(Signal,2) && size(ica_A,1) == size(Signal,2)
         ica_W = ica_W(:,~chnc);
         ica_A = ica_A(~chnc,:);
+    end
+    if size(ltmat,2) == size(Signal,2) && size(ltmat,1) == size(Signal,2)
+        ltmat = ltmat(~chnc,~chnc,:);
     end
 else
     ica_W = [];
@@ -1083,6 +1111,7 @@ set(h_chansel_confirm, 'Callback', @f_chansel_confirm);
 set(h_chansel_reset, 'Callback', @f_chansel_reset);
 set(h_psd_plot, 'Callback', @f_psd_plot);
 set(h_autofit, 'Callback', @f_autofit);
+set(h_icasel_list, 'Callback', @f_icasel_list);
 set(h_icasel_confirm, 'Callback', @f_icasel_confirm);
 set(h_icasel_reset, 'Callback', @f_icasel_reset);
 set(h_icasel_view_sources, 'Callback', @f_icasel_view_sources);
@@ -1221,9 +1250,13 @@ if set_chansep_to > 0
     refit(set_chansep_to);
 end
 
+
 % Hide disabled buttons
 if disable_ica
     set([h_icasel_title h_icasel_list h_icasel_confirm h_icasel_reset h_icasel_view_sources h_icasel_view_mixmat h_icasel_view_sepmat h_icasel_view_export], 'Visible', 'off');
+elseif ~isempty(ica_W)
+    %2024-10-10 If ICA matrices are in the options, auto-populate ICA.
+    f_icasel_confirm([], 'startup');
 end
 
 % Done with startup
@@ -1619,7 +1652,11 @@ f_hold_switch(-100000, []);
 
     function f_ica_switch(hObject, eventdata)
         if isequal(get(h_ica_switch, 'ForegroundColor'), fontcolor_on1)
-            set(h_icasel_list, 'Value', 1:length(get(h_icasel_list, 'String')));
+            if use_ltmat
+                set(h_icasel_list, 'Value', 1);
+            else
+                set(h_icasel_list, 'Value', 1:length(get(h_icasel_list, 'String')));
+            end
             f_icasel_confirm([], []);
         else
             set(h_hintbar, 'String', get(h_ica_switch, 'Tooltip'));
@@ -3250,9 +3287,18 @@ f_hold_switch(-100000, []);
 
                 % Applicable filters are: ICA, CAR, Notch, BPF, Env
                 tmp_af = {'ICA', 'CAR', 'Notch', 'BPF', 'Env'};
+                if use_ltmat
+                    tmp_af{1} = 'Custom';
+                end
                 tmp_ftr = false(1,5);
-                if length(selica) ~= size(ica_A,2)
-                    tmp_ftr(1) = 1;
+                if use_ltmat
+                    if length(selica) == 1 && selica > 1
+                        tmp_ftr(1) = 1;
+                    end
+                else
+                    if length(selica) ~= size(ica_A,2)
+                        tmp_ftr(1) = 1;
+                    end
                 end
                 if RerefFilter.state
                     tmp_ftr(2) = 1;
@@ -3377,6 +3423,11 @@ f_hold_switch(-100000, []);
     end
 
 
+    function f_icasel_list(hObject, eventdata)
+        f_icasel_confirm(hObject, eventdata);
+    end
+
+
     function f_icasel_confirm(hObject, eventdata)
         if FilterBusy
             return;
@@ -3428,11 +3479,27 @@ f_hold_switch(-100000, []);
             ica_sig = ica_W * Signal.';
             mica = size(ica_A,2);
             selica = mica;
-            icachans = string_to_cell(num2str(1:mica, 'i%i '), ' ');
-            set(h_icasel_list, 'String', icachans);
-            set(h_icasel_list, 'Value', 1:mica);
+
+            if use_ltmat
+                icachans = [{'orig'} string_to_cell(sprintf('ltmat %i,', 1:size(ltmat,3)),',')];
+                set(h_icasel_list, 'Max', 1); % Disable multi-select
+                set(h_icasel_title, 'String', 'Custom Transform', 'FontSize', 0.3); % Change title
+                set(h_icasel_list, 'String', icachans);
+                set(h_icasel_list, 'Value', 1);
+                selica = 1;
+                set(h_icasel_view_export, 'String', 'Export TM');
+                set(h_icasel_reset, 'Enable', 'off');
+                set(h_icasel_reset, 'Visible', 'off');
+                set(h_ica_switch, 'String', 'ltmat', 'FontSize', 0.8, 'Tooltip', 'Bottom right list. Select original or one of the linear transformations'); %Change button
+            else
+                icachans = string_to_cell(num2str(1:mica, 'i%i '), ' ');
+                set(h_icasel_list, 'String', icachans);
+                set(h_icasel_list, 'Value', 1:mica);
+                set(h_icasel_reset, 'Enable', 'on');
+            end
+
+            
             set(h_icasel_confirm, 'String', 'Mix', 'Enable', 'on');
-            set(h_icasel_reset, 'Enable', 'on');
             set(h_icasel_view_sources, 'Enable', 'on');
             set(h_icasel_view_mixmat, 'Enable', 'on');
             set(h_icasel_view_sepmat, 'Enable', 'on');
@@ -3440,7 +3507,9 @@ f_hold_switch(-100000, []);
             ICA_Initialized = 1;
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', ''); drawnow;
-            f_icasel_view_sources([], []);
+            if ~isequal(eventdata, 'startup')
+                f_icasel_view_sources([], []);
+            end
         else
             tmp = get(h_icasel_list, 'Value');
             if length(tmp) == length(selica) && min(tmp == selica) == 1
@@ -3449,8 +3518,8 @@ f_hold_switch(-100000, []);
             else
                 selica = tmp;
             end
-            if length(selica) == size(ica_A,2)
-                % All ICs selected
+            if length(selica) == size(ica_A,2) || (use_ltmat && isequal(selica,1))
+                % All ICs selected (or in the case of ltmat, "orig" is selected)
                 FilterBusy = 1;
                 set(h_bigtext, 'Visible', 'on', 'String', 'Mixing new ICs...'); drawnow;
                 Signal_postica = Signal;
@@ -3460,9 +3529,14 @@ f_hold_switch(-100000, []);
             else
                 FilterBusy = 1;
                 set(h_bigtext, 'Visible', 'on', 'String', 'Mixing new ICs...'); drawnow;
-                tmp = ica_A;
-                tmp(:,setdiff(1:size(ica_A,2),selica)) = 0;
-                Signal_postica = (tmp*ica_sig).';
+
+                if use_ltmat
+                    Signal_postica = (ltmat(:,:,selica-1)*Signal.').';
+                else
+                    tmp = ica_A;
+                    tmp(:,setdiff(1:size(ica_A,2),selica)) = 0;
+                    Signal_postica = (tmp*ica_sig).';
+                end
                 set(h_ica_switch, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1, 'Value', 1);
                 FilterBusy = 0;
                 set(h_bigtext, 'Visible', 'off', 'String', '');
@@ -3549,6 +3623,7 @@ f_hold_switch(-100000, []);
         assignin('caller', 'signalviewer_ica_W', ica_W);
         assignin('caller', 'signalviewer_ica_sig', ica_sig);
         assignin('caller', 'signalviewer_selica', selica);
+        assignin('caller', 'signalviewer_ltmat', ltmat);
         assignin('caller', 'signalviewer_ica_export_timestamp', now);
         set(h_hintbar, 'String', 'ICA variables exported to caller workspace.');
     end
