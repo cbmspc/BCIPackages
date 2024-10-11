@@ -1396,7 +1396,7 @@ f_hold_switch(-100000, []);
         
         switch Key
             case 'g'
-                uin = inputdlg('Center on specific time in seconds:');
+                uin = inputdlg('Center on specific time in seconds, or specify a time range:');
                 gotosec = str2double(uin);
                 if isfinite(gotosec)
                     if FilterBusy
@@ -1406,6 +1406,14 @@ f_hold_switch(-100000, []);
                     XLim = gotosec + [-1 1]*XRange/2;
                     set(axehand, 'XLim', XLim);
                     resnap_pan();
+                else
+                    % Maybe the user entered two numbers?
+                    gotosec = sscanf(uin{1}, '%g %g');
+                    if numel(gotosec) == 2 && isfinite(gotosec(1)) && isfinite(gotosec(2))
+                        XLim(1:2) = gotosec(1:2);
+                        set(axehand, 'XLim', XLim);
+                        resnap_pan();
+                    end
                 end
             case 'h'
                 %2024-10-09: New feature to hold the PSD (only works in the PSD window)
