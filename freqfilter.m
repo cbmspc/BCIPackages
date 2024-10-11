@@ -96,14 +96,19 @@ end
 
 function [yout, FilterInfo] = freqfilter_sub1 (y, Fs, Fc, Type, Method, ReflectLen)
 % 20180516 ReflectLen
-if ReflectLen > 0
-    ReflectLen = round(ReflectLen);
+% 20241011 Can specify the sign of reflection
+reflect_sign = 1;
+if ReflectLen ~= 0
+    if ReflectLen < 0
+        reflect_sign = -1;
+    end
+    ReflectLen = round(abs(ReflectLen));
     if ReflectLen >= size(y,1)
         ReflectLen = size(y,1) - 1;
     end
-    y = [ -flipud(y(1+(1:ReflectLen),:))
+    y = [ -reflect_sign*flipud(y(1+(1:ReflectLen),:))
            y
-          -flipud(y((size(y,1)-ReflectLen+1:size(y,1))-1,:)) ];
+          -reflect_sign*flipud(y((size(y,1)-ReflectLen+1:size(y,1))-1,:)) ];
     %y = [nan(ReflectLen,size(y,2)); y; nan(ReflectLen,size(y,2))];
 end
 
@@ -189,7 +194,7 @@ end
 
 
 % 20180516 ReflectLen
-if ReflectLen > 0
+if ReflectLen ~= 0
     yout = yout(ReflectLen+1:end-ReflectLen,:);
 end
 

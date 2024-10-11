@@ -167,6 +167,15 @@ stitch_mult = 2;
 % Stitching algorithm does a high pass on each segment before joining them
 % To turn the stitching algorithm off, pass in opts.stitch_mult = 0
 
+bridgenans_method = 'spline';
+% See methods in interp1 documentation
+
+nanaround_stitch_samples = ceil(0.0125 * SampleRate);
+% This many samples to the left and to the right of the signal are NaN'd,
+% including the edge itself (meaning if you set this to 0, nothing is
+% NaN'd), and the resulting signal is bridged_nan'd again using the method
+% specified above; this changes the signal. 
+
 blankaround_stitch_samples = round(0.035 * SampleRate);
 % This many samples to the left and to the right of the signal are NaN'd to
 % hide the stitching artifact for display only; does not affect filtering. 
@@ -299,6 +308,12 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
     end
     if isfield(opts, 'stitch_mult') && isnumeric(opts.stitch_mult) && numel(opts.stitch_mult) == 1 && isfinite(opts.stitch_mult) && opts.stitch_mult >= 0
         stitch_mult = opts.stitch_mult;
+    end
+    if isfield(opts, 'bridgenans_method') && ~isempty(opts.bridgenans_method) && ischar(opts.bridgenans_method)
+        bridgenans_method = opts.bridgenans_method;
+    end
+    if isfield(opts, 'nanaround_stitch_samples') && isnumeric(opts.nanaround_stitch_samples) && numel(opts.nanaround_stitch_samples) == 1 && isfinite(opts.nanaround_stitch_samples) && opts.nanaround_stitch_samples >= 0
+        nanaround_stitch_samples = opts.nanaround_stitch_samples;
     end
     if isfield(opts, 'blankaround_stitch_samples') && isnumeric(opts.blankaround_stitch_samples) && numel(opts.blankaround_stitch_samples) == 1 && isfinite(opts.blankaround_stitch_samples) && opts.blankaround_stitch_samples >= 0
         blankaround_stitch_samples = opts.blankaround_stitch_samples;
@@ -524,7 +539,7 @@ Signal = Signal(:,~chnc);
 ChanNames = ChanNames(~chnc);
 
 % Fix NaNs if any
-Signal = fix_nans_for_filtering(Signal);
+Signal = fix_nans_for_filtering(Signal, bridgenans_method);
 
 
 
@@ -3398,22 +3413,28 @@ f_hold_switch(-100000, []);
             for i = 1:imax
                 % Do a detrend
                 tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = detrend(Signal(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), 'linear');
-                
                 % Do a high-pass if stitch_mult > 0
                 if stitch_mult > 0
-                    reflect_len = averagesegmentduration * Fs / 2;
+                    reflect_len = - averagesegmentduration * Fs / 2;
                     Fcut_stitch = Fcut_minfreq;
                     FO_stitch = 2;
                     try
                         tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = freqfilter(tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), Fs, [Fcut_stitch, FO_stitch], 'high', 'butter', reflect_len);
+                        if nanaround_stitch_samples > 0
+                            tmp(round(EventTimePoints(i,1)) - 1 + [1:nanaround_stitch_samples],:) = NaN;
+                            tmp(round(EventTimePoints(i,2)) + 1 + [-nanaround_stitch_samples:-1],:) = NaN;
+                        end
                     catch
                         tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:);
                     end
                 end
-                
+
                 if ishandle(wh)
                     waitbar(i/imax, wh);
                 end
+            end
+            if nanaround_stitch_samples > 0
+                tmp = fix_nans_for_filtering(tmp, bridgenans_method);
             end
             Signal = tmp;
             if ishandle(wh)
@@ -3901,12 +3922,12 @@ end
 
 
 
-function y = fix_nans_for_filtering(y)
+function y = fix_nans_for_filtering(y, bridgenans_method)
 % 20180514 Remove NaNs before processing
 ny = isnan(y);
 
 if nnz(ny) > 0
-    y = bridge_nans(y, 'linear', '');
+    y = bridge_nans(y, bridgenans_method, '');
     
     % If any NaNs still exist at either ends, reflect each channel's data
     for ch = 1:size(y,2)
