@@ -659,6 +659,7 @@ InfoLabelMargin = 0.01;
 
 
 AxesPosition = [0.0300    0.0600    0.89    0.93];
+ICA_AxesPosition = [0.0300    0.0600    0.96    0.93];
 
 chansep = 100;
 
@@ -3581,7 +3582,10 @@ f_hold_switch(-100000, []);
             viewhand_ica_A_ax = get(tmp, 'Parent');
             tmp = get(viewhand_ica_A_ax, 'CLim');
             set(viewhand_ica_A_ax, 'CLim', max(abs(tmp))*[-1 1]);
-            set(viewhand_ica_A_ax, 'FontUnits', 'normalized', 'FontSize', 8);
+            set(viewhand_ica_A_ax, 'Position', ICA_AxesPosition);
+            colormap jet
+            colorbar
+            set(viewhand_ica_A_ax, 'FontUnits', 'normalized', 'FontSize', 0.02);
             xlabel('Sources');
             ylabel('Channels');
             set(viewhand_ica_A_ax, 'YTick', 1:size(ica_A,1));
@@ -3603,7 +3607,10 @@ f_hold_switch(-100000, []);
             viewhand_ica_W_ax = get(tmp, 'Parent');
             tmp = get(viewhand_ica_W_ax, 'CLim');
             set(viewhand_ica_W_ax, 'CLim', max(abs(tmp))*[-1 1]);
-            set(viewhand_ica_W_ax, 'FontUnits', 'normalized', 'FontSize', 8);
+            set(viewhand_ica_W_ax, 'Position', ICA_AxesPosition);
+            colormap jet
+            colorbar
+            set(viewhand_ica_W_ax, 'FontUnits', 'normalized', 'FontSize', 0.02);
             xlabel('Channels');
             ylabel('Sources');
             set(viewhand_ica_W_ax, 'YTick', 1:size(ica_W,1));
