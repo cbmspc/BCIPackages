@@ -1,9 +1,8 @@
-% timeseries = convert_rawdata_to_timeseries (rawdata)
-% Rawdata format is (chan, time, epoch)
+% rawdata = convert_timeseries_to_rawdata (timeseries, NumEpoch)
 % Time series is (time, chan)
-% This function stacks the epochs in time in the same order as they appear
-% in rawdata, and then transposes so that the output ends up in the 
-% (time, chan) orientation.
+% Rawdata format is (chan, time, epoch)
+% This function reverses the action done by convert_rawdata_to_timeseries
+%
 
 function rawdata = convert_timeseries_to_rawdata (timeseries, NumEpoch)
 NumChan = size(timeseries,2);
