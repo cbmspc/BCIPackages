@@ -65,8 +65,16 @@
 %   opts.pwelch_nfft = 4096
 %   NFFT for pwelch
 %
+%   opts.bridgenans_method = 'spline'
+%   Interpolation method (see documentation for interp1) used to fill in
+%   the NaN data points
+%
 %   opts.stitch_mult = 2
 %   Stitching algorithm does a high pass on each segment before joining them
+%
+%   opts.nanaround_stitch_samples = 4
+%   This many samples at and before/after each segment's edge are NaN'd.
+%   This changes the signal.
 %
 %   opts.blankaround_stitch_samples = 9
 %   This many samples to the left and to the right of the signal are NaN'd to
@@ -163,12 +171,12 @@ panfrac_default = 0.50;
 panfrac_default_cursor_mode = 0.80;
 % default to pan left/right this many screens when Cursor mode is ON
 
+bridgenans_method = 'spline';
+% See methods in interp1 documentation
+
 stitch_mult = 2;
 % Stitching algorithm does a high pass on each segment before joining them
 % To turn the stitching algorithm off, pass in opts.stitch_mult = 0
-
-bridgenans_method = 'spline';
-% See methods in interp1 documentation
 
 nanaround_stitch_samples = ceil(0.0125 * SampleRate);
 % This many samples to the left and to the right of the signal are NaN'd,
@@ -176,7 +184,7 @@ nanaround_stitch_samples = ceil(0.0125 * SampleRate);
 % NaN'd), and the resulting signal is bridged_nan'd again using the method
 % specified above; this changes the signal. 
 
-blankaround_stitch_samples = round(0.035 * SampleRate);
+blankaround_stitch_samples = ceil(0.02 * SampleRate);
 % This many samples to the left and to the right of the signal are NaN'd to
 % hide the stitching artifact for display only; does not affect filtering. 
 % Example: blankaround_stitch_samples = 15
@@ -3420,13 +3428,13 @@ f_hold_switch(-100000, []);
                     FO_stitch = 2;
                     try
                         tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = freqfilter(tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), Fs, [Fcut_stitch, FO_stitch], 'high', 'butter', reflect_len);
-                        if nanaround_stitch_samples > 0
-                            tmp(round(EventTimePoints(i,1)) - 1 + [1:nanaround_stitch_samples],:) = NaN;
-                            tmp(round(EventTimePoints(i,2)) + 1 + [-nanaround_stitch_samples:-1],:) = NaN;
-                        end
                     catch
                         tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:);
                     end
+                end
+                if nanaround_stitch_samples > 0
+                    tmp(round(EventTimePoints(i,1)) - 1 + [1:nanaround_stitch_samples],:) = NaN;
+                    tmp(round(EventTimePoints(i,2)) + 1 + [-nanaround_stitch_samples:-1],:) = NaN;
                 end
 
                 if ishandle(wh)
