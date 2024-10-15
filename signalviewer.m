@@ -10,11 +10,10 @@
 %      1x2 numeric array for start and end times, can be a mix of both), 
 %      and 2nd column a string
 %     EXAMPLE: opts.EventTimeStamps = {25, 'Experiment start'; [45 65], 'Idle Epoch'; 103.2, 'Stim 1'; [105 115], 'Stim 1 Response'};
-%
-%     Hint: EventTimeStamps may not work correctly if the signal is stitched from multiple epochs, 
-%           such as when the input Signal is a cell or 3D array. To work around this problem, 
-%           stitch the signal together before passing into signalviewer, such as by using 
-%           convert_rawdata_to_timeseries.m (converts from chan x time x epoch) or by using the cat function.
+%     Hint: If the signal is stitched from multiple epochs, EventTimeStamps
+%           must have the same length as the number of epochs, as only the
+%           label portion of EventTimeStamps is used (the event times are
+%           overwritten by the epoch start times)
 %
 %    ALTERNATE FORMAT SYNTAX (as examples below):
 %       opts.EventTimeStamps = [30 40; 45 45; 50 60; 60 70];
@@ -151,19 +150,16 @@ catch
 end
 
 
-if ~iscell(Signal) && size(Signal,3) > 1
+if ~iscell(Signal) && isnumeric(Signal) && size(Signal,3) > 1
     % Assume ch x time x trial
-    tmp = cell(size(Signal,3));
-    for i = 1:size(Signal,3)
+    tmp = cell(1,size(Signal,3));
+    for i = 1:size(Signal,3) %#ok<*FXUP>
         tmp{i} = Signal(:,:,i).';
     end
     Signal = tmp;
 end
 
 pwelch_nfft = [];
-% signalviewer_psd_pxx = [];
-% signalviewer_psd_fxx = [];
-% signalviewer_psd_channame = '';
 
 panfrac_default = 0.50;
 % default to pan left/right this many screens
@@ -369,42 +365,117 @@ elseif nargin >= 4
     end
 end
 
-StitchedSegmentNames = {};
+
+if iscell(Signal) && numel(Signal) ~= length(Signal)
+    %2024-10-15 If Signal is a cell, force it to be 1D
+    Signal = Signal(:).';
+end
+
+
+% This whole if statement happens if Signal is meant to be stitched, i.e.
+% it came in as a cell (each cell element is an epoch), or if it came in as
+% a 3D array (3rd dimension being the epochs).
+% EventTimeStamps must have the same length as Signal
 SignalIsStitched = 0;
-if iscell(Signal) 
-    
-    if exist('EventTimeStamps','var') %JL230523 added check to see if EventTimeStamps exists
-    % 2023-05-19 Special rule for opts.EventTimeStamps if it is all text.
-        if iscell(EventTimeStamps) && ...
-           numel(EventTimeStamps) == length(EventTimeStamps) &&...
-           min(cellfun(@ischar,EventTimeStamps))
-            StitchedSegmentNames = EventTimeStamps;
-            % This will be handled later when EventTimeStamps is reformatted
+if iscell(Signal)
+    NumEpochs = length(Signal);
+    if exist('EventTimeStamps', 'var') && length(EventTimeStamps) == NumEpochs
+        % Signal comprises epochs intended to be stitched together.
+        % EventTimeStamps must be an array with the same length as the
+        % number of epochs, or else it is disregarded completely. 
+
+        if size(EventTimeStamps,2) == NumEpochs && size(EventTimeStamps,1) == 2
+            % User has transposed EventTimeStamps. Fix it.
+            EventTimeStamps = EventTimeStamps.';
         end
-    end
-    
-    UserSuppliedEventNames = 0;
-    if exist('EventTimeStamps','var') && isnumeric(EventTimeStamps)
-        CellEvents = EventTimeStamps;
-        UserSuppliedEventNames = 1;
+
+        if iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs && min(cellfun(@ischar,EventTimeStamps))
+            % Special case when the user-supplied EventTimeStamps is a 1D
+            % cell array of strings. In this case, it is assumed that the
+            % user intends to label each epoch with the corresponding text.
+            % Does not matter if the user-supplied EventTimeStamps is
+            % horizontal or vertical.
+            StitchedSegmentNames = EventTimeStamps;
+            EventTimeStamps = cell(NumEpochs,2);
+            EventTimeStamps(:,2) = StitchedSegmentNames;
+        elseif iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs && min(cellfun(@isnumeric,EventTimeStamps))
+            % Special case when the user-supplied EventTimeStamps is a 1D
+            % cell array of numbers. In this case, it is assumed that the
+            % user intends to label each epoch with the corresponding
+            % numbers. Does not matter if the user-supplied EventTimeStamps
+            % is horizontal or vertical. This is similar to the case above,
+            % but with the extra step of converting to strings
+            StitchedSegmentNames = cellfun(@num2str,EventTimeStamps);
+            EventTimeStamps = cell(NumEpochs,2);
+            EventTimeStamps(:,2) = StitchedSegmentNames;
+        elseif isnumeric(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs
+            % Special case when the user-supplied EventTimeStamps is a 1D
+            % numeric array. In this case, it is assumed that the user
+            % intends to label each epoch with the corresponding numbers.
+            % Does not matter if the user-supplied EventTimeStamps is
+            % horizontal or vertical. This is similar to the two cases
+            % above, but with the extra step of converting to strings
+            StitchedSegmentNames = cellfun(@num2str,num2cell(EventTimeStamps),'UniformOutput',false);
+            EventTimeStamps = cell(NumEpochs,2);
+            EventTimeStamps(:,2) = StitchedSegmentNames;
+        else
+            % Not a completely valid entry. At least fix the format.
+            if iscell(EventTimeStamps)
+                % Salvage what we can
+                if size(EventTimeStamps,2) > 2
+                    EventTimeStamps = EventTimeStamps(:,1:2);
+                elseif size(EventTimeStamps,2) == 1
+                    EventTimeStamps(:,2) = EventTimeStamps(:,1);
+                end
+                if size(EventTimeStamps,1) > NumEpochs
+                    EventTimeStamps = EventTimeStamps(1:NumEpochs,:);
+                elseif size(EventTimeStamps,1) < NumEpochs
+                    EventTimeStamps(size(EventTimeStamps,1)+1:NumEpochs,:) = {};
+                end
+            else
+                % Completely rebuild
+                warning('EventTimeStamps does not have the same length as the number of epochs and is ignored.')
+                EventTimeStamps = cell(NumEpochs,2);
+                EventTimeStamps(:,2) = string_to_cell(sprintf('Epoch %i|', 1:NumEpochs), '|');
+            end
+        end
+
+        for i = 1:NumEpochs
+            if ~ischar(EventTimeStamps{i,2})
+                if isempty(EventTimeStamps{i,2})
+                    EventTimeStamps{i,2} = sprintf('Epoch %i', i);
+                elseif isnumeric(EventTimeStamps{i,2})
+                    EventTimeStamps{i,2} = num2str(EventTimeStamps{i,2});
+                else
+                    EventTimeStamps{i,2} = sprintf('Epoch %i', i);
+                end
+            end
+        end
+        
     else
-        CellEvents = 1:length(Signal);
+        % User supplied EventTimeStamps does not meet specification.
+        warning('EventTimeStamps does not have the same length as the number of epochs and is ignored.')
+        EventTimeStamps = cell(NumEpochs,2);
+        EventTimeStamps(:,2) = string_to_cell(sprintf('Epoch %i|', 1:NumEpochs), '|');
     end
-    EventTimeStamps = zeros(length(Signal),3);
+
+    EventTimeStamps_timeportion = nan(NumEpochs,2); %zeros(length(Signal),2);
     tmp = 0;
-    for i = 1:size(EventTimeStamps,1) %#ok<*FXUP>
-        EventTimeStamps(i,:) = [tmp, tmp + size(Signal{i},1) / SampleRate, CellEvents(i)];
+    for i = 1:NumEpochs
+        if size(Signal{i},1) == 0
+            % Skip labeling this empty event, but still increment count
+            continue
+        end
+        EventTimeStamps_timeportion(i,1:2) = [tmp, tmp + size(Signal{i},1) / SampleRate];
         tmp = tmp + size(Signal{i},1) / SampleRate;
     end
     
     % 2022-05-24: Keep the time points in each cell before merging
     SignalIsStitched = 1;
-    EventTimePoints = EventTimeStamps(:,1:2) * SampleRate;
+    EventTimePoints = EventTimeStamps_timeportion(:,1:2) * SampleRate;
     EventTimePoints(:,1) = EventTimePoints(:,1) + 1;
     
-    if ~UserSuppliedEventNames
-        EventTimeStamps = EventTimeStamps(:,1);
-    end
+    EventTimeStamps(:,1) = num2cell(EventTimeStamps_timeportion(:,1)); % Only care about the start times
     
     Signal = cat(1,Signal{:});
 else
@@ -783,14 +854,6 @@ if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps)
         % boundary format with augmented label
         tmp = EventTimeStamps;
         EventTimeStamps = {};
-        %Po240624 Event Time Stamps upgraded to allow ranges in events
-        %k = 0;
-        %for i = 1:size(tmp,1)
-        %    k = k + 1;
-        %    EventTimeStamps(k,:) = {tmp(i,1), sprintf('Event %g Start', tmp(i,3))};
-        %    k = k + 1;
-        %    EventTimeStamps(k,:) = {tmp(i,2), sprintf('Event %g End', tmp(i,3))};
-        %end
         for i = 1:size(tmp,1)
             EventTimeStamps(i,:) = {[tmp(i,1) tmp(i,2)], sprintf('Event %g', tmp(i,3))};
         end
@@ -798,14 +861,6 @@ if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps)
         % boundary format without augmented label
         tmp = EventTimeStamps;
         EventTimeStamps = {};
-        %Po240624 Event Time Stamps upgraded to allow ranges in events
-        %k = 0;
-        %for i = 1:size(tmp,1)
-        %    k = k + 1;
-        %    EventTimeStamps(k,:) = {tmp(i,1), sprintf('Event %i Start', i)};
-        %    k = k + 1;
-        %    EventTimeStamps(k,:) = {tmp(i,2), sprintf('Event %i End', i)};
-        %end
         for i = 1:size(tmp,1)
             EventTimeStamps(i,:) = {[tmp(i,1) tmp(i,2)], sprintf('Event %i', i)};
         end
@@ -823,12 +878,12 @@ if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps)
     
 end
 
-% 2023-05-19: Reformat EventTimeStamps if StitchedSegmentNames is specified
-if ~isempty(StitchedSegmentNames)
-    if size(EventTimeStamps,1) == length(StitchedSegmentNames) && min(cellfun(@ischar,EventTimeStamps(:,2))) && numel(StitchedSegmentNames) == length(StitchedSegmentNames) && min(cellfun(@ischar,StitchedSegmentNames))
-        EventTimeStamps(:,2) = StitchedSegmentNames;
-    end
-end
+% % 2023-05-19: Reformat EventTimeStamps if StitchedSegmentNames is specified
+% if ~isempty(StitchedSegmentNames)
+%     if size(EventTimeStamps,1) == length(StitchedSegmentNames) && min(cellfun(@ischar,EventTimeStamps(:,2))) && numel(StitchedSegmentNames) == length(StitchedSegmentNames) && min(cellfun(@ischar,StitchedSegmentNames))
+%         EventTimeStamps(:,2) = StitchedSegmentNames;
+%     end
+% end
 
 if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps) && iscell(EventTimeStamps) && size(EventTimeStamps,2) == 2
     EventEnable = 1;
@@ -3685,6 +3740,11 @@ f_hold_switch(-100000, []);
         assignin('caller', 'signalviewer_PlottedChanNames', ChanNames(selchan));
         assignin('caller', 'signalviewer_RerefChanNames', ChanNames(RerefFilter.chanidx));
         assignin('caller', 'signalviewer_SavedPointsTable', SavedPointsTable);
+        if exist('EventTimeStamps','var')
+            assignin('caller', 'signalviewer_EventTimeStamps', EventTimeStamps);
+        else
+            assignin('caller', 'signalviewer_EventTimeStamps', {});
+        end
 
         assignin('caller', 'signalviewer_psd_held_lpxx', psd_held_lpxx);
         assignin('caller', 'signalviewer_psd_held_fxx', psd_held_fxx);
