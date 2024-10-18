@@ -454,7 +454,9 @@ if iscell(Signal)
         
     else
         % User supplied EventTimeStamps does not meet specification.
-        warning('EventTimeStamps does not have the same length as the number of epochs and is ignored.')
+        if exist('EventTimeStamps', 'var') && ~isempty(EventTimeStamps)
+            warning('EventTimeStamps does not have the same length as the number of epochs and is ignored.')
+        end
         EventTimeStamps = cell(NumEpochs,2);
         EventTimeStamps(:,2) = string_to_cell(sprintf('Epoch %i|', 1:NumEpochs), '|');
     end
@@ -1463,7 +1465,9 @@ f_hold_switch(-100000, []);
                     resnap_pan();
                 else
                     % Maybe the user entered two numbers?
-                    gotosec = sscanf(uin{1}, '%g %g');
+                    if ~isempty(uin)
+                        gotosec = sscanf(uin{1}, '%g %g');
+                    end
                     if numel(gotosec) == 2 && isfinite(gotosec(1)) && isfinite(gotosec(2))
                         XLim(1:2) = gotosec(1:2);
                         set(axehand, 'XLim', XLim);
