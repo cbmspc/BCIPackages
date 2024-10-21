@@ -30,6 +30,12 @@ for s = 1:size(values,2)
     if exist('headcolors', 'var')
         Opts.headcolor = headcolors(mod(s-1,size(headcolors,1))+1,:,:);
     end
+    if exist('OtherOpts', 'var') && isstruct(OtherOpts) && isfield(OtherOpts, 'bordercolorlocations') && size(OtherOpts.bordercolorlocations,1) == size(values,2) && size(OtherOpts.bordercolorlocations,2) == 7
+        Opts.bordercolorlocation = OtherOpts.bordercolorlocations(mod(s-1,size(OtherOpts.bordercolorlocations,1))+1,:,:);
+    end
+    if exist('OtherOpts', 'var') && isstruct(OtherOpts) && isfield(OtherOpts, 'SuppressElectrodeLabelsPerSubplot') && numel(OtherOpts.SuppressElectrodeLabelsPerSubplot) == size(values,2) && iscell(OtherOpts.SuppressElectrodeLabelsPerSubplot{1})
+        Opts.SuppressElectrodeLabels = OtherOpts.SuppressElectrodeLabelsPerSubplot{s};
+    end
 
     % Only pass down channels that aren't infinity or nan
     thisvalue = values(:,s);
@@ -37,7 +43,6 @@ for s = 1:size(values,2)
     thisisfinite = isfinite(thisvalue);
     thisvalue = thisvalue(thisisfinite);
     thischannames = thischannames(thisisfinite);
-
     eeg_topoplot2(thisvalue, thischannames, Opts);
     %title(SubplotNames{s});
     title([SubplotNames{s} '       '], 'HorizontalAlignment','right','VerticalAlignment','cap')

@@ -13,6 +13,8 @@ FontSize = 11;
 FontName = 'VariableWidth';
 Npts = 512;
 axes_hand = [];
+bordercolor = [];
+borders_to_draw = false(1,4);
 
 if length(ChanNames) > 128
     FontSize = 6;
@@ -82,6 +84,13 @@ if exist('Opts', 'var') && isstruct(Opts)
     else
         headcolor = [0 0 0];
     end
+    if isfield(Opts, 'bordercolorlocation') && numel(Opts.bordercolorlocation) == 7
+        bordercolor = Opts.bordercolorlocation(1:3);
+        borders_to_draw = Opts.bordercolorlocation(4:7);
+    else
+        bordercolor = [];
+        borders_to_draw = false(1,4);
+    end
 end
 userdata.unixtime = unixtime;
 userdata.pwd = pwd;
@@ -133,7 +142,11 @@ set(gca,'DataAspectRatio',[1 1 1]);
 %     caxis(Clim);
 % end
 
+
 radius = -min(min(FlatXYCoords));
+if numel(bordercolor) == 3 && numel(borders_to_draw) == 4
+    drawrect(gca, [0 0], radius, 2, bordercolor, borders_to_draw);
+end
 drawcirc(gca, [0 0], radius, 2, headcolor);
 
 if ~isempty(axes_hand)
@@ -234,3 +247,29 @@ plot(ax, origin(1)+x, origin(2)+y, 'Color', kolor, 'LineWidth', linewidth);
 function drawnose(ax, radius, nosesize, linewidth, kolor)
 plot(ax, [0, -nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'Color', kolor, 'LineWidth', linewidth);
 plot(ax, [0, nosesize/2], [radius+nosesize*sqrt(2)/2, radius], 'Color', kolor, 'LineWidth', linewidth);
+
+function drawrect (ax, origin, radius, linewidth, kolor, edges_to_draw)
+fx = 1.095;
+fy = 1.095;
+fxe = 0.015;
+x = [origin(1)-radius*fx, origin(1)+radius*fx, origin(1)+radius*fx, origin(1)-radius*fx, origin(1)-radius*fx];
+y = [origin(2)-radius*fy, origin(2)-radius*fy, origin(2)+radius*fy, origin(2)+radius*fy, origin(2)-radius*fy];
+
+% Lines can expand into undrawn left or right edges
+for i = 1:length(edges_to_draw)
+    if ~edges_to_draw(i)
+        switch i
+            case 2
+                x([2 3]) = x([2 3]) + radius*fxe;
+            case 4
+                x([1 4 5]) = x([1 4 5]) - radius*fxe;
+        end
+    end
+end
+
+for i = 1:length(edges_to_draw)
+    if edges_to_draw(i)
+        ind = mod((i:i+1)-1,4)+1;
+        plot(ax, x(ind), y(ind), 'Color', kolor, 'LineWidth', linewidth);
+    end
+end
