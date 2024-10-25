@@ -149,6 +149,7 @@ catch
     lmoddate = '';
 end
 
+export_workspace_dest = 'base';
 
 if ~iscell(Signal) && isnumeric(Signal) && size(Signal,3) > 1
     % Assume ch x time x trial
@@ -3722,54 +3723,54 @@ f_hold_switch(-100000, []);
         if FilterBusy
             return;
         end
-        assignin('caller', 'signalviewer_ica_A', ica_A);
-        assignin('caller', 'signalviewer_ica_W', ica_W);
-        assignin('caller', 'signalviewer_ica_sig', ica_sig);
-        assignin('caller', 'signalviewer_selica', selica);
-        assignin('caller', 'signalviewer_ltmat', ltmat);
-        assignin('caller', 'signalviewer_ica_export_timestamp', now);
+        assignin(export_workspace_dest, 'signalviewer_ica_A', ica_A);
+        assignin(export_workspace_dest, 'signalviewer_ica_W', ica_W);
+        assignin(export_workspace_dest, 'signalviewer_ica_sig', ica_sig);
+        assignin(export_workspace_dest, 'signalviewer_selica', selica);
+        assignin(export_workspace_dest, 'signalviewer_ltmat', ltmat);
+        assignin(export_workspace_dest, 'signalviewer_ica_export_timestamp', now);
         set(h_hintbar, 'String', 'ICA variables exported to caller workspace.');
     end
 
 
     function f_signal_export(hObject, eventdata)
-        assignin('caller', 'signalviewer_Signal', Signal);
-        assignin('caller', 'signalviewer_Signal_postica', Signal_postica);
-        assignin('caller', 'signalviewer_Signal_postreref', Signal_postreref);
-        assignin('caller', 'signalviewer_Signal_postnotch', Signal_postnotch);
-        assignin('caller', 'signalviewer_Signal_postbutter', Signal_postbutter);
-        assignin('caller', 'signalviewer_Signal_postenvelope', Signal_postenvelope);
-        assignin('caller', 'signalviewer_ChanNames', ChanNames);
-        assignin('caller', 'signalviewer_selchan', selchan);
-        assignin('caller', 'signalviewer_PlottedChanNames', ChanNames(selchan));
-        assignin('caller', 'signalviewer_RerefChanNames', ChanNames(RerefFilter.chanidx));
-        assignin('caller', 'signalviewer_SavedPointsTable', SavedPointsTable);
+        assignin(export_workspace_dest, 'signalviewer_Signal', Signal);
+        assignin(export_workspace_dest, 'signalviewer_Signal_postica', Signal_postica);
+        assignin(export_workspace_dest, 'signalviewer_Signal_postreref', Signal_postreref);
+        assignin(export_workspace_dest, 'signalviewer_Signal_postnotch', Signal_postnotch);
+        assignin(export_workspace_dest, 'signalviewer_Signal_postbutter', Signal_postbutter);
+        assignin(export_workspace_dest, 'signalviewer_Signal_postenvelope', Signal_postenvelope);
+        assignin(export_workspace_dest, 'signalviewer_ChanNames', ChanNames);
+        assignin(export_workspace_dest, 'signalviewer_selchan', selchan);
+        assignin(export_workspace_dest, 'signalviewer_PlottedChanNames', ChanNames(selchan));
+        assignin(export_workspace_dest, 'signalviewer_RerefChanNames', ChanNames(RerefFilter.chanidx));
+        assignin(export_workspace_dest, 'signalviewer_SavedPointsTable', SavedPointsTable);
         if exist('EventTimeStamps','var')
-            assignin('caller', 'signalviewer_EventTimeStamps', EventTimeStamps);
+            assignin(export_workspace_dest, 'signalviewer_EventTimeStamps', EventTimeStamps);
         else
-            assignin('caller', 'signalviewer_EventTimeStamps', {});
+            assignin(export_workspace_dest, 'signalviewer_EventTimeStamps', {});
         end
 
-        assignin('caller', 'signalviewer_psd_held_lpxx', psd_held_lpxx);
-        assignin('caller', 'signalviewer_psd_held_fxx', psd_held_fxx);
-        assignin('caller', 'signalviewer_psd_held_Time1', psd_held_Time1);
-        assignin('caller', 'signalviewer_psd_held_Time2', psd_held_Time2);
-        assignin('caller', 'signalviewer_psd_held_chancolor', psd_held_chancolor);
-        assignin('caller', 'signalviewer_psd_held_channame', psd_held_channame);
-        assignin('caller', 'signalviewer_psd_held_filttext', psd_held_filttext);
+        assignin(export_workspace_dest, 'signalviewer_psd_held_lpxx', psd_held_lpxx);
+        assignin(export_workspace_dest, 'signalviewer_psd_held_fxx', psd_held_fxx);
+        assignin(export_workspace_dest, 'signalviewer_psd_held_Time1', psd_held_Time1);
+        assignin(export_workspace_dest, 'signalviewer_psd_held_Time2', psd_held_Time2);
+        assignin(export_workspace_dest, 'signalviewer_psd_held_chancolor', psd_held_chancolor);
+        assignin(export_workspace_dest, 'signalviewer_psd_held_channame', psd_held_channame);
+        assignin(export_workspace_dest, 'signalviewer_psd_held_filttext', psd_held_filttext);
 
-        assignin('caller', 'signalviewer_psd_lpxx', psd_now_lpxx);
-        assignin('caller', 'signalviewer_psd_pxx', psd_now_pxx);
-        assignin('caller', 'signalviewer_psd_fxx', psd_now_fxx);
-        assignin('caller', 'signalviewer_psd_Time1', psd_now_Time1);
-        assignin('caller', 'signalviewer_psd_Time2', psd_now_Time2);
-        assignin('caller', 'signalviewer_psd_chancolor', psd_now_chancolor);
-        assignin('caller', 'signalviewer_psd_channame', psd_now_channame);
-        assignin('caller', 'signalviewer_psd_filttext', psd_now_filttext);
+        assignin(export_workspace_dest, 'signalviewer_psd_lpxx', psd_now_lpxx);
+        assignin(export_workspace_dest, 'signalviewer_psd_pxx', psd_now_pxx);
+        assignin(export_workspace_dest, 'signalviewer_psd_fxx', psd_now_fxx);
+        assignin(export_workspace_dest, 'signalviewer_psd_Time1', psd_now_Time1);
+        assignin(export_workspace_dest, 'signalviewer_psd_Time2', psd_now_Time2);
+        assignin(export_workspace_dest, 'signalviewer_psd_chancolor', psd_now_chancolor);
+        assignin(export_workspace_dest, 'signalviewer_psd_channame', psd_now_channame);
+        assignin(export_workspace_dest, 'signalviewer_psd_filttext', psd_now_filttext);
         
-        assignin('caller', 'signalviewer_fighand_Number', get(fighand,'Number'));
-        assignin('caller', 'signalviewer_signalHashStr', signalHashStr);
-        assignin('caller', 'signalviewer_signal_export_timestamp', now);
+        assignin(export_workspace_dest, 'signalviewer_fighand_Number', get(fighand,'Number'));
+        assignin(export_workspace_dest, 'signalviewer_signalHashStr', signalHashStr);
+        assignin(export_workspace_dest, 'signalviewer_signal_export_timestamp', now);
         set(h_hintbar, 'String', 'Signal variables exported to caller workspace.');
     end
 
