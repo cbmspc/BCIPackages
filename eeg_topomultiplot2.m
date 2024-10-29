@@ -50,8 +50,8 @@ for s = 1:size(values,2)
 end
 
 try %#ok<TRYNC>
-    uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.96 0.80 0.04], 'String', OtherOpts.title, 'FontUnits', 'normalized', 'FontSize', 0.6, 'Visible', 'on', 'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0]);
-    uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.05 0.02 0.90 0.02], 'String', OtherOpts.footer, 'FontUnits', 'normalized', 'FontSize', 0.6, 'Visible', 'on', 'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0]);
+    uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.955 0.80 0.05], 'String', OtherOpts.title, 'FontUnits', 'normalized', 'FontSize', 0.7, 'Visible', 'on', 'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0]);
+    uicontrol(gcf, 'Style', 'text', 'Units', 'normalized', 'Position', [0.05 0.015 0.90 0.035], 'String', OtherOpts.footer, 'FontUnits', 'normalized', 'FontSize', 0.7, 'Visible', 'on', 'BackgroundColor', [1 1 1], 'ForegroundColor', [0 0 0]);
     %sgtitle(OtherOpts.title);
 end
 
