@@ -7,7 +7,7 @@ if ~exist(SaveDir, 'dir')
     return
 end
 
-if ~isempty(dir([SaveDir filesep DoneFileMask]))
+if exist('DoneFileMask','var') && ischar(DoneFileMask) && ~isempty(dir([SaveDir filesep DoneFileMask]))
     return
 end
 
