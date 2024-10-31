@@ -3729,7 +3729,7 @@ f_hold_switch(-100000, []);
         assignin(export_workspace_dest, 'signalviewer_selica', selica);
         assignin(export_workspace_dest, 'signalviewer_ltmat', ltmat);
         assignin(export_workspace_dest, 'signalviewer_ica_export_timestamp', now);
-        set(h_hintbar, 'String', 'ICA variables exported to caller workspace.');
+        set(h_hintbar, 'String', ['ICA variables exported to ' export_workspace_dest ' workspace.']);
     end
 
 
@@ -3771,7 +3771,7 @@ f_hold_switch(-100000, []);
         assignin(export_workspace_dest, 'signalviewer_fighand_Number', get(fighand,'Number'));
         assignin(export_workspace_dest, 'signalviewer_signalHashStr', signalHashStr);
         assignin(export_workspace_dest, 'signalviewer_signal_export_timestamp', now);
-        set(h_hintbar, 'String', 'Signal variables exported to caller workspace.');
+        set(h_hintbar, 'String', ['Signal variables exported to ' export_workspace_dest ' workspace.']);
     end
 
 
