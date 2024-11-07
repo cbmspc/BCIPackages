@@ -1,4 +1,4 @@
-% Sourced from c:\bin\matlab_packages\autosave.m
+% Modified version for UCI BCI Lab
 function tout = autosave(varargin)
 % AUTOSAVE automatically saves data in the base workspace
 % AUTOSAVE saves all of the variables in the base workspace every 10
@@ -71,10 +71,12 @@ POSSIBILITY OF SUCH DAMAGE.
 period = 30;
 filename = [feature('logdir') filesep 'matlab.mat'];
 saveargs = {'-v7.3', '-nocompression'};
-minimum_freespace_fraction_required = 0.25;
+minimum_freespace_fraction_required = 0.40;
+maximum_savefile_bytes = inf;
+maximum_variable_bytes = inf;
 
 % check inputs
-error(nargchk(0,3,nargin));
+narginchk(0,4);
 
 % handle STOP/START/DELETE
 if nargin == 1 && ischar(varargin{1})
@@ -128,6 +130,14 @@ switch nargin
         period = varargin{1};
         filename = varargin{2};
         saveargs = varargin{3};
+    case 4
+        period = varargin{1};
+        filename = varargin{2};
+        saveargs = varargin{3};
+        in4 = varargin{4};
+        minimum_freespace_fraction_required = in4(1);
+        maximum_savefile_bytes = in4(2);
+        maximum_variable_bytes = in4(3);
 end
 
 % check inputs. 
@@ -142,7 +152,7 @@ t = getappdata(0,'AutoSaveTimerHandle');
 
 if isempty(t) || ~isvalid(t)
     % create timer object
-    t = timer('TimerFcn',{@savedata,filename,minimum_freespace_fraction_required,saveargs},...
+    t = timer('TimerFcn',{@savedata,filename,minimum_freespace_fraction_required,maximum_savefile_bytes,maximum_variable_bytes,saveargs},...
         'Period',periodSeconds,...
         'ExecutionMode','fixedSpacing',...
         'Tag','AutoSaveTimer');
@@ -163,62 +173,51 @@ end
 
 %%%%%%%%%%%  save data  %%%%%%%%%%%
 
-function savedata(h,ev,filename,minimum_freespace_fraction_required,saveargs)
+function savedata(h,ev,filename,minimum_freespace_fraction_required,maximum_savefile_bytes,maximum_variable_bytes,saveargs) %#ok<INUSD>
 %SAVEDATA saves data from the base workspace
 
+tmp_whos = evalin('base', 'whos');
+[Folder, Filenamepart] = fileparts(filename);
+FileObj = java.io.File(Folder);
+usable_bytes = FileObj.getUsableSpace;
 % convert cell array to a single string
-if iscellstr(saveargs)
+if iscellstr(saveargs) %#ok<ISCLSTR>
     tmpsaveargs = '';
     for n = 1:length(saveargs)
-        tmpsaveargs = [tmpsaveargs ' ' saveargs{n}];
+        tmpsaveargs = [tmpsaveargs ' ' saveargs{n}]; %#ok<AGROW>
     end
     saveargs = tmpsaveargs;
 end
 
 % For matlabrc autosave, automatically delete >1.5-day old autosaves after MATLAB uptime > 2.5 hours
-[Folder, Filenamepart] = fileparts(filename);
 if isequal(Folder,feature('logdir')) && ~isempty(regexp(Filenamepart, '^matlabbaseautosave\d+', 'match', 'once'))
     if cputime > 9000
         tmp_list = dir([Folder filesep regexprep(Filenamepart, '\d+', '*')]);
         for i = 1:length(tmp_list)
-            if now - tmp_list(i).datenum > 1.5 && ~isempty(regexp(tmp_list(i).name, '^matlabbaseautosave\d+\.mat$', 'match', 'once'))
+            if now - tmp_list(i).datenum > 1.5 && ~isempty(regexp(tmp_list(i).name, '^matlabbaseautosave\d+\.mat$', 'match', 'once')) %#ok<TNOW1>
                 delete([Folder filesep tmp_list(i).name]);
             end
         end
     end
-
-    % while handling matlabrc autosave, calculate space requirement
-    tmp_whos = evalin('base', 'whos');
-    tmp_bytes = sum([tmp_whos.bytes]);
-    tmp_req = tmp_bytes / minimum_freespace_fraction_required;
-    FileObj = java.io.File(Folder);
-    usable_bytes = FileObj.getUsableSpace;
-
-    if tmp_req > usable_bytes
-        % Try to more aggressively delete old autosaves
-        tmp_list = dir([Folder filesep regexprep(Filenamepart, '\d+', '*')]);
-        for i = 1:length(tmp_list)
-            if now - tmp_list(i).datenum > 2/24 && ~isempty(regexp(tmp_list(i).name, '^matlabbaseautosave\d+\.mat$', 'match', 'once'))
-                delete([Folder filesep tmp_list(i).name]);
-                FileObj = java.io.File(Folder);
-                usable_bytes = FileObj.getUsableSpace;
-                if tmp_req <= usable_bytes
-                    break;
-                end
-            end
-        end
-    end
-    if tmp_bytes >= usable_bytes
-        % Cannot autosave after all.
-        return
-    end
-
-
 end
 
 % create string to execute that will save the data
-savestr = ['try save ' filename ' ' saveargs ';end'];
-evalin('base',savestr);
+if (isfinite(maximum_savefile_bytes) || isfinite(maximum_variable_bytes)) && ~isempty(tmp_whos)
+    if usable_bytes*minimum_freespace_fraction_required < maximum_savefile_bytes
+        maximum_savefile_bytes = usable_bytes*minimum_freespace_fraction_required;
+    end
+    tmp_whos_table = sortrows(struct2table(tmp_whos), 'bytes');
+    tmp_whos_table = tmp_whos_table(tmp_whos_table.bytes <= maximum_variable_bytes,:);
+    tmp_whos_table = tmp_whos_table(cumsum(tmp_whos_table.bytes) <= maximum_savefile_bytes,:);
+    tmp_saveargs = regexprep(regexprep(saveargs,'(\S+)','''$1'''),' ',',');
+    tmp_varnames = cell_to_string(regexprep(tmp_whos_table.name,'^(.*)$','''$1'''), ',');
+    savestr = sprintf('try save(''%s'',%s,%s);end', filename, tmp_varnames, tmp_saveargs);
+    evalin('base',savestr);
+else
+    savestr = ['try save ' filename ' ' saveargs ';end'];
+    evalin('base',savestr);
+end
+
 
 
 
@@ -242,6 +241,28 @@ msg = '';
 if isempty(saveargs)
     return
 end
-if ~ischar(saveargs) && ~iscellstr(saveargs)
+if ~ischar(saveargs) && ~iscellstr(saveargs) %#ok<ISCLSTR>
     msg = 'Third input must be a string array or cell array of strings.';
+end
+
+
+
+
+
+
+
+
+
+
+
+
+function s = cell_to_string (c, d)
+s = '';
+l = length(c);
+if l == 0
+    return
+end
+s = c{1};
+for i = 2:l
+    s = [s d c{i}]; %#ok<AGROW>
 end

@@ -79,7 +79,7 @@ end
 % If y is in rawdata or eegdata format, process each observation separately
 if iscell(y)
     for i = length(y):-1:1
-        [yout{i}, FilterInfo] = freqfilter_sub1 (y{i}, Fs, Fc, Type, Method, ReflectLen);
+        [yout{i}, FilterInfo] = freqfilter_sub1(y{i}, Fs, Fc, Type, Method, ReflectLen);
     end
 elseif size(y,3) > 1
     for i = size(y,3):-1:1
@@ -87,7 +87,7 @@ elseif size(y,3) > 1
         yout(:,:,i) = tmp.';
     end
 else
-    [yout, FilterInfo] = freqfilter_sub1 (y, Fs, Fc, Type, Method, ReflectLen);
+    [yout, FilterInfo] = freqfilter_sub1(y, Fs, Fc, Type, Method, ReflectLen);
 end
 
 
@@ -95,24 +95,51 @@ end
 
 
 function [yout, FilterInfo] = freqfilter_sub1 (y, Fs, Fc, Type, Method, ReflectLen)
-% 20180516 ReflectLen
-% 20241011 Can specify the sign of reflection
-reflect_sign = 1;
+ReflectLen = round(abs(ReflectLen));
+if numel(ReflectLen) > 1
+    ReflectLen = ReflectLen(1);
+end
+
+NumChan = size(y,2);
+
+% 20180516 ReflectLen (updated 20241104)
 if ReflectLen ~= 0
-    if ReflectLen < 0
-        reflect_sign = -1;
-    end
-    ReflectLen = round(abs(ReflectLen));
     if ReflectLen >= size(y,1)
         ReflectLen = size(y,1) - 1;
     end
-    y = [ -reflect_sign*flipud(y(1+(1:ReflectLen),:))
-           y
-          -reflect_sign*flipud(y((size(y,1)-ReflectLen+1:size(y,1))-1,:)) ];
-    %y = [nan(ReflectLen,size(y,2)); y; nan(ReflectLen,size(y,2))];
+    y1 = [  flipud(y(1+(1:ReflectLen),:))
+        y
+        flipud(y((size(y,1)-ReflectLen+1:size(y,1))-1,:)) ];
+    y2 = [ -flipud(y(1+(1:ReflectLen),:))
+        y
+        -flipud(y((size(y,1)-ReflectLen+1:size(y,1))-1,:)) ];
+    y3 = [  flipud(y(1+(1:ReflectLen),:))
+        y
+        -flipud(y((size(y,1)-ReflectLen+1:size(y,1))-1,:)) ];
+    y4 = [ -flipud(y(1+(1:ReflectLen),:))
+        y
+        flipud(y((size(y,1)-ReflectLen+1:size(y,1))-1,:)) ];
+
+
+    % 20241104: Automatically try all reflect combinations and choose the
+    % output with the least std
+    [youta, FilterInfo] = freqfilter_sub2([y1 y2 y3 y4], Fs, Fc, Type, Method, ReflectLen);
+    sd = reshape(nanstd(youta),[],4); %#ok<NANSTD>
+    
+    [~, best_reflect_method] = min(sd,[],2);
+
+    % best_reflect_method is as tall as the number of channels in y
+    for ch = NumChan:-1:1
+        yout(:,ch) = youta(:,(best_reflect_method(ch)-1)*NumChan+ch);
+    end
+else
+    [yout, FilterInfo] = freqfilter_sub2(y, Fs, Fc, Type, Method, ReflectLen);
 end
+FilterInfo.ReflectLen = ReflectLen;
 
 
+
+function [yout, FilterInfo] = freqfilter_sub2(y, Fs, Fc, Type, Method, ReflectLen)
 % 20180514 Remove NaNs before processing
 ny = isnan(y);
 
@@ -203,6 +230,9 @@ end
 
 
 
+
+
+
 function [yout, FilterInfo] = notch_filter(y, Fs, Fc)
 % Normal parameters: F_notch, Order, Q_factor
 if length(Fc) >= 3
@@ -264,7 +294,7 @@ if strcmp(Type,'low') || strcmp(Type,'high')
         F.stop = Fc(2);
         dB.pass = Fc(3);
         dB.stop = Fc(4);
-        [N Wn] = buttord(F.pass/(Fs/2), F.stop/(Fs/2), dB.pass, dB.stop);
+        [N, Wn] = buttord(F.pass/(Fs/2), F.stop/(Fs/2), dB.pass, dB.stop);
     elseif length(Fc) == 2
         % Specified only cutoff and order
         Wn = Fc(1)/(Fs/2);
@@ -282,42 +312,42 @@ if strcmp(Type,'low') || strcmp(Type,'high')
 elseif strcmp(Type,'band')
     if length(Fc) == 6
         % Specified passbands, stopbands, dB of pass, dB of stop
-        [yout FilterInfo] = butter_filter(y, Fs, Fc([1 3 5 6]), 'high', FilterInfo, FilterCommand);
-        [yout FilterInfo] = butter_filter(yout, Fs, Fc([2 4 5 6]), 'low', FilterInfo, FilterCommand);
+        [yout, FilterInfo] = butter_filter(y, Fs, Fc([1 3 5 6]), 'high', FilterInfo, FilterCommand);
+        [yout, FilterInfo] = butter_filter(yout, Fs, Fc([2 4 5 6]), 'low', FilterInfo, FilterCommand);
     elseif length(Fc) == 3
         % Specified only cutoffs and order
-        [yout FilterInfo] = butter_filter(y, Fs, Fc([1 3]), 'high', FilterInfo, FilterCommand);
-        [yout FilterInfo] = butter_filter(yout, Fs, Fc([2 3]), 'low', FilterInfo, FilterCommand);
+        [yout, FilterInfo] = butter_filter(y, Fs, Fc([1 3]), 'high', FilterInfo, FilterCommand);
+        [yout, FilterInfo] = butter_filter(yout, Fs, Fc([2 3]), 'low', FilterInfo, FilterCommand);
     elseif length(Fc) == 2
         % Specified only cutoffs. default to lowest order
-        [yout FilterInfo] = butter_filter(y, Fs, Fc(1), 'high', FilterInfo, FilterCommand);
-        [yout FilterInfo] = butter_filter(yout, Fs, Fc(2), 'low', FilterInfo, FilterCommand);
+        [yout, FilterInfo] = butter_filter(y, Fs, Fc(1), 'high', FilterInfo, FilterCommand);
+        [yout, FilterInfo] = butter_filter(yout, Fs, Fc(2), 'low', FilterInfo, FilterCommand);
     else
         % Unknown specs. Default to lowest order
-        [yout FilterInfo] = butter_filter(y, Fs, Fc(1), 'high', FilterInfo, FilterCommand);
-        [yout FilterInfo] = butter_filter(yout, Fs, Fc(2), 'low', FilterInfo, FilterCommand);
+        [yout, FilterInfo] = butter_filter(y, Fs, Fc(1), 'high', FilterInfo, FilterCommand);
+        [yout, FilterInfo] = butter_filter(yout, Fs, Fc(2), 'low', FilterInfo, FilterCommand);
         warning('FREQFILTER:WRONGFCPARM2','This is a band pass filter. Fc needs to have either 6, 3, or 2 elements. Defaulting to order 2N=2');
     end
 elseif strcmp(Type,'stop')
     if length(Fc) == 6
         % Specified passbands, stopbands, dB of pass, dB of stop
-        [yout1 FilterInfo] = butter_filter(y, Fs, Fc([1 3 5 6]), 'low', FilterInfo, FilterCommand);
-        [yout2 FilterInfo] = butter_filter(y, Fs, Fc([2 4 5 6]), 'high', FilterInfo, FilterCommand);
+        [yout1, FilterInfo] = butter_filter(y, Fs, Fc([1 3 5 6]), 'low', FilterInfo, FilterCommand);
+        [yout2, FilterInfo] = butter_filter(y, Fs, Fc([2 4 5 6]), 'high', FilterInfo, FilterCommand);
         yout = yout1 + yout2;
     elseif length(Fc) == 3
         % Specified only cutoffs and order
-        [yout1 FilterInfo] = butter_filter(y, Fs, Fc([1 3]), 'low', FilterInfo, FilterCommand);
-        [yout2 FilterInfo] = butter_filter(y, Fs, Fc([2 3]), 'high', FilterInfo, FilterCommand);
+        [yout1, FilterInfo] = butter_filter(y, Fs, Fc([1 3]), 'low', FilterInfo, FilterCommand);
+        [yout2, FilterInfo] = butter_filter(y, Fs, Fc([2 3]), 'high', FilterInfo, FilterCommand);
         yout = yout1 + yout2;
     elseif length(Fc) == 2
         % Specified only cutoffs. default to lowest order
-        [yout1 FilterInfo] = butter_filter(y, Fs, Fc(1), 'low', FilterInfo, FilterCommand);
-        [yout2 FilterInfo] = butter_filter(y, Fs, Fc(2), 'high', FilterInfo, FilterCommand);
+        [yout1, FilterInfo] = butter_filter(y, Fs, Fc(1), 'low', FilterInfo, FilterCommand);
+        [yout2, FilterInfo] = butter_filter(y, Fs, Fc(2), 'high', FilterInfo, FilterCommand);
         yout = yout1 + yout2;
     else
         % Unknown specs. Default to lowest order
-        [yout1 FilterInfo] = butter_filter(y, Fs, Fc(1), 'low', FilterInfo, FilterCommand);
-        [yout2 FilterInfo] = butter_filter(y, Fs, Fc(2), 'high', FilterInfo, FilterCommand);
+        [yout1, FilterInfo] = butter_filter(y, Fs, Fc(1), 'low', FilterInfo, FilterCommand);
+        [yout2, FilterInfo] = butter_filter(y, Fs, Fc(2), 'high', FilterInfo, FilterCommand);
         yout = yout1 + yout2;
         warning('FREQFILTER:WRONGFCPARM3','This is a band stop filter. Fc needs to have either 6, 3, or 2 elements. Defaulting to order 2N=2');
     end
@@ -344,7 +374,7 @@ end
 
 switch Type
     case 'low'
-        [B A] = butter(N, Wn, 'low');
+        [B, A] = butter(N, Wn, 'low');
         FilterInfo.ButterOrder(1) = N;
         h1=dfilt.df2(B,A);
         if ~isstable(h1)
@@ -353,7 +383,7 @@ switch Type
         end
         yout = FilterCommand(B, A, y);
     case 'high'
-        [B A] = butter(N, Wn, 'high');
+        [B, A] = butter(N, Wn, 'high');
         FilterInfo.ButterOrder(2) = N;
         h1=dfilt.df2(B,A);
         if ~isstable(h1)

@@ -64,15 +64,15 @@
 %   opts.pwelch_nfft = 4096
 %   NFFT for pwelch
 %
-%   opts.bridgenans_method = 'spline'
+%   opts.bridgenans_method = 'linear'
 %   Interpolation method (see documentation for interp1) used to fill in
 %   the NaN data points
 %
 %   opts.stitch_mult = 2
-%   Stitching algorithm does a high pass on each segment before joining them
+%   Stitching algorithm does a high pass on each epoch before joining them
 %
 %   opts.nanaround_stitch_samples = 4
-%   This many samples at and before/after each segment's edge are NaN'd.
+%   This many samples at and before/after each epoch's edge are NaN'd.
 %   This changes the signal.
 %
 %   opts.blankaround_stitch_samples = 9
@@ -168,11 +168,11 @@ panfrac_default = 0.50;
 panfrac_default_cursor_mode = 0.80;
 % default to pan left/right this many screens when Cursor mode is ON
 
-bridgenans_method = 'spline';
+bridgenans_method = 'pchip';
 % See methods in interp1 documentation
 
 stitch_mult = 2;
-% Stitching algorithm does a high pass on each segment before joining them
+% Stitching algorithm does a high pass on each epoch before joining them
 % To turn the stitching algorithm off, pass in opts.stitch_mult = 0
 
 nanaround_stitch_samples = ceil(0.0125 * SampleRate);
@@ -396,9 +396,9 @@ if iscell(Signal)
             % user intends to label each epoch with the corresponding text.
             % Does not matter if the user-supplied EventTimeStamps is
             % horizontal or vertical.
-            StitchedSegmentNames = EventTimeStamps;
+            StitchedEpochNames = EventTimeStamps;
             EventTimeStamps = cell(NumEpochs,2);
-            EventTimeStamps(:,2) = StitchedSegmentNames;
+            EventTimeStamps(:,2) = StitchedEpochNames;
         elseif iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs && min(cellfun(@isnumeric,EventTimeStamps))
             % Special case when the user-supplied EventTimeStamps is a 1D
             % cell array of numbers. In this case, it is assumed that the
@@ -406,9 +406,9 @@ if iscell(Signal)
             % numbers. Does not matter if the user-supplied EventTimeStamps
             % is horizontal or vertical. This is similar to the case above,
             % but with the extra step of converting to strings
-            StitchedSegmentNames = cellfun(@num2str,EventTimeStamps);
+            StitchedEpochNames = cellfun(@num2str,EventTimeStamps);
             EventTimeStamps = cell(NumEpochs,2);
-            EventTimeStamps(:,2) = StitchedSegmentNames;
+            EventTimeStamps(:,2) = StitchedEpochNames;
         elseif isnumeric(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs
             % Special case when the user-supplied EventTimeStamps is a 1D
             % numeric array. In this case, it is assumed that the user
@@ -416,9 +416,9 @@ if iscell(Signal)
             % Does not matter if the user-supplied EventTimeStamps is
             % horizontal or vertical. This is similar to the two cases
             % above, but with the extra step of converting to strings
-            StitchedSegmentNames = cellfun(@num2str,num2cell(EventTimeStamps),'UniformOutput',false);
+            StitchedEpochNames = cellfun(@num2str,num2cell(EventTimeStamps),'UniformOutput',false);
             EventTimeStamps = cell(NumEpochs,2);
-            EventTimeStamps(:,2) = StitchedSegmentNames;
+            EventTimeStamps(:,2) = StitchedEpochNames;
         else
             % Not a completely valid entry. At least fix the format.
             if iscell(EventTimeStamps)
@@ -511,7 +511,7 @@ Fs = SampleRate;
 % 2022-05-24
 Fcut_minfreq = Fs/10000;
 
-averagesegmentduration = [];
+averageepochduration = [];
 
 StitchSignalCell();
 
@@ -776,11 +776,15 @@ clf
 set(fighand, 'ToolBar', 'none', 'MenuBar', 'none');
 set(fighand, 'CloseRequestFcn', @f_main_close);
 if SignalIsStitched
-    tmp = sprintf('Signal is stitched from %g segments with %.2g s average length.', size(EventTimePoints,1), averagesegmentduration);
+    tmp = sprintf('Signal is stitched from %g epochs with %.2g s average length.', size(EventTimePoints,1), averageepochduration);
 else
     tmp = '';
 end
-set(fighand, 'Name', ['Signal Viewer: ' num2str(size(Signal,2)) ' channels, ' num2str(size(Signal,1)/Fs) ' seconds record duration, ' num2str(Fs) ' Hz sample rate. ' tmp ' Hash ' signalHashStr '.']);
+PSigName = '';
+if ~isempty(inputname(1))
+    PSigName = [' «' inputname(1) '»'];
+end
+set(fighand, 'Name', ['Signal Viewer:' PSigName ' ' num2str(size(Signal,2)) ' channels, ' num2str(size(Signal,1)/Fs) ' seconds record duration, ' num2str(Fs) ' Hz sample rate. ' tmp ' Hash ' signalHashStr '.']);
 hold on
 set(fighand,'Position',screensize);
 YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
@@ -881,13 +885,6 @@ if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps)
     
 end
 
-% % 2023-05-19: Reformat EventTimeStamps if StitchedSegmentNames is specified
-% if ~isempty(StitchedSegmentNames)
-%     if size(EventTimeStamps,1) == length(StitchedSegmentNames) && min(cellfun(@ischar,EventTimeStamps(:,2))) && numel(StitchedSegmentNames) == length(StitchedSegmentNames) && min(cellfun(@ischar,StitchedSegmentNames))
-%         EventTimeStamps(:,2) = StitchedSegmentNames;
-%     end
-% end
-
 if exist('EventTimeStamps','var') && ~isempty(EventTimeStamps) && iscell(EventTimeStamps) && size(EventTimeStamps,2) == 2
     EventEnable = 1;
 else
@@ -986,8 +983,11 @@ NotchFilter.state = 0;
 RerefFilter.state = 0;
 RerefFilter.type = 'car';
 RerefFilter.chanidx = [];
-NotchFilter.order = 4; % Must be even
-NotchFilter.qfactor = 10;
+NotchFilter.order = 0; % Must be even (0 disables)
+NotchFilter.qfactor = 16;
+NotchFilter.pendingqfactor = 16;
+notchordermax = 10;
+notchqfactormax = 999;
 ZscoreFilter.state = 0;
 ZscoreFilter.multiplier = 100;
 ZscoreFilter.off_chansep = chansep;
@@ -1047,7 +1047,7 @@ h_ica_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized'
 h_car_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.95 0.66 0.025 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'CAR', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'The currently selected channels are re-referenced and will not change until you click this button again.');
 h_car_chancount = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.66 0.020 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', '0ch', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.8);
 
-h_notch_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.925 0.64 0.034 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['Notch ' num2str(PowerLineFrequency) 'Hz'], 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_notch_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.925 0.64 0.034 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['Notch ' num2str(PowerLineFrequency) 'Hz'], 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9, 'Tooltip', 'Notch filter turns on automatically after entering a valid set of order and Q factor. Try entering order 4 and Q factor 16.');
 %h_notch_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.942 0.64 0.017 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_notch_order = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.959 0.64 0.010 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.order), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_notch_orderunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.969 0.64 0.010 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ord', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
@@ -1454,7 +1454,8 @@ f_hold_switch(-100000, []);
         
         switch Key
             case 'g'
-                uin = inputdlg('Center on specific time in seconds, or specify a time range:');
+                set(h_hintbar, 'String', '');
+                uin = inputdlg('Center on specific time in seconds, specify a time range, or enter "all":');
                 gotosec = str2double(uin);
                 if isfinite(gotosec)
                     if FilterBusy
@@ -1464,17 +1465,34 @@ f_hold_switch(-100000, []);
                     XLim = gotosec + [-1 1]*XRange/2;
                     set(axehand, 'XLim', XLim);
                     resnap_pan();
+                    set(h_hintbar, 'String', ['Zoomed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
                 else
                     % Maybe the user entered two numbers?
                     if ~isempty(uin)
+                        if strcmpi(uin{1}, 'all')
+                            uin{1} = sprintf('%g %g', floor(min(Time)), ceil(max(Time)));
+                        end
                         gotosec = sscanf(uin{1}, '%g %g');
                     end
                     if numel(gotosec) == 2 && isfinite(gotosec(1)) && isfinite(gotosec(2))
                         XLim(1:2) = gotosec(1:2);
                         set(axehand, 'XLim', XLim);
                         resnap_pan();
+                        set(h_hintbar, 'String', ['Zoomed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
                     end
                 end
+            case 'c'
+                %2024-11-06: Center on channel for PSD
+                set(h_hintbar, 'String', '');
+                tmp_answer = inputdlg('Choose a channel for PSD:', 'PSD chan', [1 40]);
+                
+                if isempty(tmp_answer) || isempty(tmp_answer{1})
+                    return
+                end
+                choose_psd_channel(tmp_answer{1});
+
+
+
             case 'h'
                 %2024-10-09: New feature to hold the PSD (only works in the PSD window)
                 if isequal(hObject, viewhand_psd)
@@ -1500,8 +1518,17 @@ f_hold_switch(-100000, []);
                         set(h_hintbar, 'String', 'Current PSD plot is held. Use arrow keys to move to a different time or channel to compare!');
                         end
                     end
+                else
+                    set(h_hintbar, 'String', 'PSD hold (the h button) only works in the PSD window.');
                 end
-
+            case 'p'
+                %2024-11-06: Quickly toggle PSD plot
+                if ~ishandle(viewhand_psd)
+                    f_psd_plot(hObject, []);
+                else
+                    set(h_hintbar, 'String', '');
+                    close(viewhand_psd);
+                end
             case 'leftarrow'
                 if Ctrl
                     f_xzoomout(hObject, []);
@@ -1632,6 +1659,88 @@ f_hold_switch(-100000, []);
                 
         end
         %set(h_hintbar, 'String', 'Ctrl left/right: change time scale. Ctrl up/down: change sensitivity. Shift left/right: scroll slowly. Alt left/right: go to events.');
+    end
+
+
+    function choose_psd_channel(chan)
+        found = false;
+        if ~found
+            for s = randperm(length(plothand))
+                if strcmp(getappdata(plothand(s), 'channame'), chan)
+                    selected_plothand = plothand(s);
+                    found = true;
+                    break
+                end
+            end
+        end
+        if ~found
+            for s = randperm(length(plothand))
+                if strcmpi(getappdata(plothand(s), 'channame'), chan)
+                    selected_plothand = plothand(s);
+                    found = true;
+                    break
+                end
+            end
+        end
+        if ~found && ~isempty(chan2idx(ChanNames, chan, 1))
+            if ~PlotHold
+                selchan = get(h_chansel_list, 'Value');
+                i = chan2idx(ChanNames,chan,1);
+                if numel(i) == 1 && ~any(selchan==i)
+                    selchan = union(selchan,i);
+                    set(h_chansel_list, 'Value', selchan);
+                    f_chansel_confirm([], []);
+                    for s = randperm(length(plothand))
+                        if strcmp(getappdata(plothand(s), 'channame'), chan)
+                            selected_plothand = plothand(s);
+                            found = true;
+                            break
+                        end
+                    end
+                    if ~found
+                        for s = randperm(length(plothand))
+                            if strcmpi(getappdata(plothand(s), 'channame'), chan)
+                                selected_plothand = plothand(s);
+                                found = true;
+                                break
+                            end
+                        end
+                    end
+                end
+            else
+                set(h_hintbar, 'String', 'Cannot center on an unselected channel when plotting is paused. Unpause first.');
+            end
+        end
+
+
+        if found
+            loc = 0 - chansep*getappdata(selected_plothand, 'chanind');
+            while loc > YLim(2)
+                % Located above the current pan area
+                YLim = YLim + chansep;
+            end
+            while loc < YLim(1)
+                % Located below the current pan area
+                YLim = YLim - chansep;
+            end
+            if ishandle(viewhand_psd)
+                update_psd();
+            else
+                f_psd_plot([], []);
+            end
+            MovementBusy = 1;
+            resnap_pan();
+            MovementBusy = 0;
+            yt = get(axehand, 'YTick');
+            ind = find(yt >= YLim(1) & yt <= YLim(2));
+            ytl = get(axehand, 'YTickLabel');
+            if ~isempty(ind)
+                set(h_hintbar, 'String', ['Panned up to ' ytl{ind(end)} ' -- ' ytl{ind(1)} ' (' num2str(length(ind)) ' channels)']);
+            else
+                set(h_hintbar, 'String', '');
+            end
+        end
+
     end
 
 
@@ -1808,66 +1917,33 @@ f_hold_switch(-100000, []);
     end
 
     function f_notch_switch(hObject, eventdata)
-        disable_filter_switches();
-        %set(h_notch_state, 'String', 'Wait'); drawnow;
-        if NotchFilter.state
-            NotchFilter.state = 0;
+        if isequal(get(h_notch_switch, 'ForegroundColor'), fontcolor_on1)
+            set(h_notch_order, 'String', '0');
+            f_notch_order([], []);
         else
-            NotchFilter.state = 1;
-        end
-        %reref_update();
-        notch_update();
-        bandpass_update();
-        envelope_update();
-        render_update();
-        enable_filter_switches();
-        if NotchFilter.state
-            set(h_hintbar, 'String', 'Turned on notch filter.');
-        else
-            set(h_hintbar, 'String', 'Turned off notch filter.');
+            set(h_hintbar, 'String', get(h_notch_switch, 'Tooltip'));
+            set(h_notch_switch, 'Value', 0);
         end
     end
 
     function f_notch_order(hObject, eventdata)
         disable_filter_switches();
-        ord = str2double(get(h_notch_order, 'String'));
-        if isfinite(ord) && mod(ord,2) == 0 && ord >= 2 && ord <= 10
-            %set(h_notch_state, 'String', 'Wait'); 
-            drawnow;
-            if ~isequal(NotchFilter.order,ord)
-                PerChannelFilterStates(2:end,:) = false; %Filter parameters changed. Invalidating.
-                NotchFilter.order = ord;
-            end
-            %reref_update();
-            notch_update();
-            bandpass_update();
-            envelope_update();
-            render_update();
-        else
-            set(h_notch_order, 'String', num2str(NotchFilter.order));
-        end
+        %Po241106 Automatically render filter if parameters are valid.
+        notch_update();
+        bandpass_update();
+        envelope_update();
+        render_update();
         enable_filter_switches();
         set(h_hintbar, 'String', '');
     end
 
     function f_notch_qfactor(hObject, eventdata)
         disable_filter_switches();
-        q = str2double(get(h_notch_qfactor, 'String'));
-        if isfinite(q) && q > 0
-            %set(h_notch_state, 'String', 'Wait'); 
-            drawnow;
-            if ~isequal(NotchFilter.qfactor,q)
-                PerChannelFilterStates(2:end,:) = false; %Filter parameters changed. Invalidating.
-                NotchFilter.qfactor = q;
-            end
-            %reref_update();
-            notch_update();
-            bandpass_update();
-            envelope_update();
-            render_update();
-        else
-            set(h_notch_qfactor, 'String', num2str(NotchFilter.qfactor));
-        end
+        %Po241106 Automatically render filter if parameters are valid.
+        notch_update();
+        bandpass_update();
+        envelope_update();
+        render_update();
         enable_filter_switches();
         set(h_hintbar, 'String', '');
     end
@@ -1913,6 +1989,31 @@ f_hold_switch(-100000, []);
 
 
     function notch_update()
+        ord = str2double(get(h_notch_order, 'String'));
+        qfactor = str2double(get(h_notch_qfactor, 'String'));
+        
+        if isfinite(ord) && mod(ord,2) == 1 && ord > 0
+            ord = ord + 1;
+        end
+
+        if isfinite(qfactor) && qfactor > 0 && qfactor <= notchqfactormax
+            NotchFilter.pendingqfactor = qfactor;
+        end
+        
+        if isfinite(ord) && mod(ord,2) == 0 && ord >= 2 && ord <= notchordermax && isfinite(qfactor) && qfactor > 0 && qfactor <= notchqfactormax
+            if ~isequal(NotchFilter.order,ord) || ~isequal(NotchFilter.qfactor,NotchFilter.pendingqfactor)
+                PerChannelFilterStates(2:end,:) = false; %Filter parameters changed. Invalidating.
+                NotchFilter.order = ord;
+                NotchFilter.qfactor = NotchFilter.pendingqfactor;
+            end
+            NotchFilter.state = 1;
+        else
+            % Entering an invalid notch parameter will turn it off
+            NotchFilter.order = 0;
+            NotchFilter.state = 0;
+            set(h_notch_order, 'String', num2str(NotchFilter.order));
+        end
+
         if NotchFilter.state
             FilterBusy = 1;
             set(h_bigtext, 'Visible', 'on', 'String', ['Preparing multi-harmonic notch filters...']); drawnow;
@@ -1947,6 +2048,8 @@ f_hold_switch(-100000, []);
             end
             set(h_bigtext, 'Visible', 'on', 'String', ['Finishing notch filter...']); drawnow;
             set(h_notch_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
+            set(h_notch_order, 'String', num2str(NotchFilter.order));
+            set(h_notch_qfactor, 'String', num2str(NotchFilter.pendingqfactor));
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', '');
         else
@@ -1955,6 +2058,8 @@ f_hold_switch(-100000, []);
                 PerChannelFilterStates(2:end,:) = false;
             end
             set(h_notch_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+            set(h_notch_order, 'String', num2str(NotchFilter.order));
+            set(h_notch_qfactor, 'String', num2str(NotchFilter.pendingqfactor));
         end
     end
 
@@ -2379,10 +2484,15 @@ f_hold_switch(-100000, []);
 
     function select_next_plothand()
         try
-            f = find(plothand(selchan) == selected_plothand);
+            f = find(selchan == getappdata(selected_plothand, 'chanind'));
             if ~isempty(f)
                 s = mod(f+1 -1,length(selchan))+1;
-                selected_plothand = plothand(selchan(s));
+                for i = randperm(length(plothand))
+                    if getappdata(plothand(i),'chanind') == selchan(s)
+                        selected_plothand = plothand(i);
+                        break
+                    end
+                end
                 while 0 - chansep*getappdata(selected_plothand, 'chanind') < YLim(1) && YLim(1) > -chansep*size(Signal,2)*3
                     YLim = YLim - chansep;
                 end
@@ -2394,10 +2504,15 @@ f_hold_switch(-100000, []);
     end
     function select_prev_plothand()
         try
-            f = find(plothand(selchan) == selected_plothand);
+            f = find(selchan == getappdata(selected_plothand, 'chanind'));
             if ~isempty(f)
                 s = mod(f-1 -1,length(selchan))+1;
-                selected_plothand = plothand(selchan(s));
+                for i = randperm(length(plothand))
+                    if getappdata(plothand(i),'chanind') == selchan(s)
+                        selected_plothand = plothand(i);
+                        break
+                    end
+                end
                 while 0 - chansep*getappdata(selected_plothand, 'chanind') > YLim(2) && YLim(2) < 0+chansep*size(Signal,2)*3
                     YLim = YLim + chansep;
                 end
@@ -2418,9 +2533,6 @@ f_hold_switch(-100000, []);
         if isequal(hObject, viewhand_psd)
             select_prev_plothand();
             update_psd();
-            %YRange = YLim(2)-YLim(1);
-            %YLim = YLim + YRange;
-            %set(axehand, 'YLim', YLim);
         else
             YRange = YLim(2)-YLim(1);
             YLim = YLim + YRange;
@@ -2447,9 +2559,6 @@ f_hold_switch(-100000, []);
         if isequal(hObject, viewhand_psd)
             select_next_plothand();
             update_psd();
-            %YRange = YLim(2)-YLim(1);
-            %YLim = YLim - YRange;
-            %set(axehand, 'YLim', YLim);
         else
             YRange = YLim(2)-YLim(1);
             YLim = YLim - YRange;
@@ -3135,7 +3244,7 @@ f_hold_switch(-100000, []);
             set(viewhand_psd_axe, 'YLimMode', 'auto');
             update_psd(1);
         end
-        set(h_hintbar, 'String', 'PSD updated. (Use arrow keys to scroll left/right in the PSD window. Press h to hold a PSD in plot.)');
+        set(h_hintbar, 'String', 'PSD updated. Arrow keys to scroll left/right/up/down. Press h to hold a PSD for comparison (press again to unhold). Press c to select another channel. Press p to toggle PSD on/off.');
     end
 
 
@@ -3475,12 +3584,15 @@ f_hold_switch(-100000, []);
 
 
     function StitchSignalCell()
+        if any(isnan(Signal(:)))
+            stitch_mult = 0;
+        end
         if SignalIsStitched
-            wh = waitbar(0, 'Stitching segments together...', 'Name', 'SignalViewer');
+            wh = waitbar(0, 'Stitching epochs together...', 'Name', 'SignalViewer');
             tmp = Signal;
-            averagesegmentduration = mean(diff(EventTimePoints,[],2)+1) / Fs;
+            averageepochduration = mean(diff(EventTimePoints,[],2)+1) / Fs;
             if stitch_mult > 0
-                Fcut_minfreq = 2*stitch_mult/averagesegmentduration;
+                Fcut_minfreq = 2*stitch_mult/averageepochduration;
                 if Fcut_minfreq < Fs / 10000
                     Fcut_minfreq = Fs / 10000;
                 end
@@ -3488,10 +3600,10 @@ f_hold_switch(-100000, []);
             imax = size(EventTimePoints,1); % Don't confuse this with EventTimeStamps. Time points are sample indices, not seconds.
             for i = 1:imax
                 % Do a detrend
-                tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = detrend(Signal(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), 'linear');
+                tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = detrend(Signal(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), 'linear', 'omitmissing');
                 % Do a high-pass if stitch_mult > 0
                 if stitch_mult > 0
-                    reflect_len = - averagesegmentduration * Fs / 2;
+                    reflect_len = - averageepochduration * Fs / 2;
                     Fcut_stitch = Fcut_minfreq;
                     FO_stitch = 2;
                     try
