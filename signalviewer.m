@@ -93,7 +93,14 @@
 %   channels first using opts.selectchannames
 %
 %   opts.notch = 60
-%   If specified, turns on the notch filter at the specified powerline frequency (and harmonics)
+%   If specified, turns on the notch filter at the specified frequency and
+%   the 2nd and 3rd harmonics. Order and Q factor can be adjusted after the
+%   viewer is loaded. Frequency can be changed in the viewer by clicking
+%   the Notch button.
+%
+%   opts.notch = [60 120 180]
+%   If a list is specified, turns on the notch filter at these frequencies.
+%   If a frequency is above Nyquist, it is automatically aliased.
 %
 %   opts.bandpass = [1 35]
 %   If specified, turns on Butterworth band-pass filter at the specified
@@ -226,6 +233,7 @@ lookradius_fraction = 0.015;
 psd_ylim_auto = 0;
 use_jet_colors = 0;
 psd_dblim_allchans = [inf -inf];
+psd_ylim_restrict = [-260 220];
 use_ltmat = 0;
 
 Ctrl = 0;
@@ -512,6 +520,7 @@ Fs = SampleRate;
 Fcut_minfreq = Fs/10000;
 
 averageepochduration = [];
+splitnotch_factors = [];
 
 StitchSignalCell();
 
@@ -673,7 +682,7 @@ InactiveYColor = [0.65 0.65 0.65];
 PlotHold = 0;
 
 
-PowerLineFrequency = 60;
+NotchFrequencies = 60;
 MaxFilterOrder = 4;
 FilterOrder = MaxFilterOrder;
 %FilterChunkSec = 600;
@@ -685,6 +694,11 @@ icachans = {};
 
 Nsch = length(ChanNames(selchan));
 Ntp = size(Signal,1);
+
+if ~SignalIsStitched
+    splitnotch_factors = 1 - 1./(1+exp((1:Ntp).'-Ntp/2));
+end
+
  
 PermittedXZoomRanges   = [0.001 0.005 0.01 0.05 0.1 0.5 1 2 5 10 20 30 60 120 300 600 1200 1800 3600:3600:6*3600 8*3600 12*3600 24*3600 7*24*3600];
 PermittedXZoomRanges = PermittedXZoomRanges(PermittedXZoomRanges > 1/Fs);
@@ -1047,10 +1061,10 @@ h_ica_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized'
 h_car_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.95 0.66 0.025 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'CAR', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'The currently selected channels are re-referenced and will not change until you click this button again.');
 h_car_chancount = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.975 0.66 0.020 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', '0ch', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.8);
 
-h_notch_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.925 0.64 0.034 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['Notch ' num2str(PowerLineFrequency) 'Hz'], 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9, 'Tooltip', 'Notch filter turns on automatically after entering a valid set of order and Q factor. Try entering order 4 and Q factor 16.');
+h_notch_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.925 0.64 0.025 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Notch', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'Notch filter turns on automatically after entering a valid set of order and Q factor. Try entering order 4 and Q factor 16.');
 %h_notch_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.942 0.64 0.017 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_notch_order = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.959 0.64 0.010 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.order), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_notch_orderunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.969 0.64 0.010 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'ord', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
+h_notch_order = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.95 0.64 0.010 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.order), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_notch_orderunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.96 0.64 0.019 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'order', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 h_notch_qfactor = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.98 0.64 0.010 0.017], 'BackgroundColor', [0.99 0.99 0.99], 'String', num2str(NotchFilter.qfactor), 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_notch_qfactorunit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.99 0.64 0.005 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Q', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 
@@ -1263,11 +1277,13 @@ if isfield(opts, 'car')
 end
 
 if isfield(opts, 'notch')
-    if ~isempty(opts.notch) && opts.notch > 0
-        if opts.notch >= 40 && opts.notch <= 300
-            PowerLineFrequency = opts.notch;
-        end
-        f_notch_switch(fighand, []);
+    if ~isempty(opts.notch) && isnumeric(opts.notch)
+        NotchFrequencies = opts.notch(:).';
+        NotchFrequencies(~(isfinite(NotchFrequencies) & NotchFrequencies > 0 & mod(NotchFrequencies,Fs/2) > 0)) = NaN;
+        NotchFrequencies = NotchFrequencies(~isnan(NotchFrequencies));
+        %f_notch_switch(fighand, []);
+        set(h_notch_order, 'String', '4');
+        f_notch_order(fighand, []);
     end
 end
 hasvalidbpf = 0;
@@ -1921,8 +1937,43 @@ f_hold_switch(-100000, []);
             set(h_notch_order, 'String', '0');
             f_notch_order([], []);
         else
-            set(h_hintbar, 'String', get(h_notch_switch, 'Tooltip'));
+            %2024-11-07 Allow the user to specify notch frequencies
+            tmp_query1 = {
+                'Enter a list of frequencies in Hz to notch (separated by space). If you enter only one frequency, the first three harmonics are also included automatically.'
+                ['Enter the Notch order. The order must be a positive even integer no more than ' num2str(notchordermax) '. Enter 0 to save the parameters without turning on the notch filter.']
+                ['Enter the Q factor. The Q factor must be a positive number no more than ' num2str(notchqfactormax) '. Q factors are scaled automatically.']
+                };
+            tmp_default1 = {
+                regexprep(num2str(NotchFrequencies), '\s+', ' ')
+                num2str(NotchFilter.order)
+                num2str(NotchFilter.qfactor)
+                };
+            tmp_answer = inputdlg(tmp_query1, 'Notch Filter Setup', [1 65], tmp_default1);
+            if ~isempty(tmp_answer) && ~isempty(tmp_answer{1})
+                b = regexp(tmp_answer{1}, '(\d*\.?\d*)', 'tokens');
+                if ~isempty(b)
+                    tmp_array = zeros(1,length(b));
+                    for i = 1:length(b)
+                        tmp_array(i) = str2double(b{i}{1});
+                    end
+                    tmp_array(~(isfinite(tmp_array) & tmp_array > 0 & mod(tmp_array,Fs/2) > 0)) = NaN;
+                end
+                tmp_array = unique(tmp_array(~isnan(tmp_array)));
+                NotchFrequencies = tmp_array;
+                tmp_additional = '';
+                if any(NotchFrequencies >= Fs/2)
+                    tmp_additional = '. Frequencies above Nyquist are adjusted for aliasing automatically.';
+                end
+                set(h_hintbar, 'String', ['Notch frequencies set to: ' num2str(NotchFrequencies) ' Hz' tmp_additional]);
+            else
+                set(h_hintbar, 'String', get(h_notch_switch, 'Tooltip'));
+            end
             set(h_notch_switch, 'Value', 0);
+            if ~isempty(tmp_answer) && ~isempty(tmp_answer{2}) && ~isempty(tmp_answer{3})
+                set(h_notch_qfactor, 'String', tmp_answer{3});
+                set(h_notch_order, 'String', tmp_answer{2});
+                f_notch_order(hObject, eventdata);
+            end
         end
     end
 
@@ -2015,18 +2066,35 @@ f_hold_switch(-100000, []);
         end
 
         if NotchFilter.state
+            notch_failed = false;
             FilterBusy = 1;
             set(h_bigtext, 'Visible', 'on', 'String', ['Preparing multi-harmonic notch filters...']); drawnow;
             clear d Hd
-            Funda = PowerLineFrequency;
-            for h = 1:floor(Fs/2/Funda)
-                % Create one for each harmonic
-                set(h_bigtext, 'Visible', 'on', 'String', ['Preparing ' num2str(Funda*h) ' Hz notch filter...']); drawnow;
-                d = fdesign.notch('N,F0,Q',NotchFilter.order,Funda*h/(Fs/2),NotchFilter.qfactor*h);
+            %2024-11-07: Notch filter to allow any list of frequencies and
+            %can automatically calculate from aliasing
+            if length(NotchFrequencies) == 1
+                % If unspecified, filter the first 3 harmonics
+                Freqs = NotchFrequencies(1)*(1:3);
+            else
+                Freqs = unique(NotchFrequencies(:)).';
+            end
+            % Get rid of frequencies exactly at multiples of Nyquist
+            Freqs(mod(Freqs, Fs/2) == 0) = NaN;
+            Freqs = Freqs(~isnan(Freqs));
+
+            % Aliasing formula
+            PerceivedFreqs = abs(Freqs - Fs .* round(Freqs ./ Fs));
+
+
+            for h = 1:length(Freqs)
+                % Create one for each frequency
+                set(h_bigtext, 'Visible', 'on', 'String', ['Preparing ' num2str(Freqs(h)) ' Hz notch filter...']); drawnow;
+                d = fdesign.notch('N,F0,Q',NotchFilter.order,PerceivedFreqs(h)/(Fs/2),NotchFilter.qfactor/Freqs(1)*Freqs(h));
                 Hd{h} = design(d);
             end
             warning('off', 'signal:filtfilt:ParseSOS');
             warning('off', 'signal:filtfilt:ParseB');
+
             for ch = size(Signal_postreref,2):-1:1
                 set(h_bigtext, 'Visible', 'on', 'String', ['Applying notch filters (' num2str(ch) ' chans to go)']); drawnow;
                 if PerChannelFilterStates(2,ch) % Po240528: Only if this channel hasn't been done
@@ -2040,16 +2108,56 @@ f_hold_switch(-100000, []);
                     continue
                 end
                 Signal_postnotch(:,ch) = Signal_postreref(:,ch);
-                for h = 1:length(Hd)
-                    Signal_postnotch(:,ch) = filtfilt(Hd{h}.sosMatrix,Hd{h}.ScaleValues,Signal_postnotch(:,ch));
+                try
+                    %2024-11-07 Notch in both directions and take the
+                    %better half respectively
+
+                    % Flip
+                    tmp_flipped = flipud(Signal_postnotch(:,ch));
+
+                    % Forward
+                    for h = 1:length(Hd)
+                        Signal_postnotch(:,ch) = filter(Hd{h},Signal_postnotch(:,ch));
+                    end
+
+                    % Reverse
+                    for h = 1:length(Hd)
+                        tmp_flipped = filter(Hd{h},tmp_flipped);
+                    end
+                    tmp_flipped = flipud(tmp_flipped);
+
+                    % Combine
+                    Signal_postnotch(:,ch) = Signal_postnotch(:,ch) .* splitnotch_factors + tmp_flipped .* (1-splitnotch_factors);
+
+                    % Original code:
+                    %for h = 1:length(Hd)
+                    %    Signal_postnotch(:,ch) = filtfilt(Hd{h}.sosMatrix,Hd{h}.ScaleValues,Signal_postnotch(:,ch));
+                    %end
+                    PerChannelFilterStates(2,ch) = true;
+                    PerChannelFilterStates(3:end,ch) = false; % Once this channel is notched, all subsequent filters on this channel are invalidated
+                catch ex
+                    warning(ex.identifier,'Notch filter crashed with this message: %s Notch filter will be turned off', ex.message);
+                    notch_failed = true;
+                    break
                 end
-                PerChannelFilterStates(2,ch) = true;
-                PerChannelFilterStates(3:end,ch) = false; % Once this channel is notched, all subsequent filters on this channel are invalidated
             end
-            set(h_bigtext, 'Visible', 'on', 'String', ['Finishing notch filter...']); drawnow;
-            set(h_notch_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
-            set(h_notch_order, 'String', num2str(NotchFilter.order));
-            set(h_notch_qfactor, 'String', num2str(NotchFilter.pendingqfactor));
+
+            if notch_failed
+                Signal_postnotch = Signal_postreref;
+                PerChannelFilterStates(2:end,:) = false;
+                set(h_bigtext, 'Visible', 'on', 'String', ['WARNING: Notch filter crashed.']); drawnow;
+                set(h_notch_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+                NotchFilter.order = 0;
+                NotchFilter.state = 0;
+                set(h_notch_order, 'String', num2str(NotchFilter.order));
+                set(h_notch_qfactor, 'String', num2str(NotchFilter.pendingqfactor));
+                set(h_hintbar, 'String', 'Notch filter crashed and is turned off.');
+            else
+                set(h_bigtext, 'Visible', 'on', 'String', ['Finishing notch filter...']); drawnow;
+                set(h_notch_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
+                set(h_notch_order, 'String', num2str(NotchFilter.order));
+                set(h_notch_qfactor, 'String', num2str(NotchFilter.pendingqfactor));
+            end
             FilterBusy = 0;
             set(h_bigtext, 'Visible', 'off', 'String', '');
         else
@@ -3242,6 +3350,11 @@ f_hold_switch(-100000, []);
             psd_dblim_allchans = [inf -inf];
             figure(viewhand_psd);
             set(viewhand_psd_axe, 'YLimMode', 'auto');
+            psd_ylim = get(viewhand_psd_axe, 'YLim');
+            psd_ylim = [max([psd_ylim(1) psd_ylim_restrict(1)]) min([psd_ylim(2) psd_ylim_restrict(2)])];
+            if ~isequal(psd_ylim, get(viewhand_psd_axe, 'YLim'))
+                set(viewhand_psd_axe, 'YLim', psd_ylim);
+            end
             update_psd(1);
         end
         set(h_hintbar, 'String', 'PSD updated. Arrow keys to scroll left/right/up/down. Press h to hold a PSD for comparison (press again to unhold). Press c to select another channel. Press p to toggle PSD on/off.');
@@ -3558,6 +3671,11 @@ f_hold_switch(-100000, []);
                 try  %#ok<*TRYNC>
                     set(viewhand_psd_axe, 'YLim', psd_dblim);
                 end
+                psd_ylim = get(viewhand_psd_axe, 'YLim');
+                psd_ylim = [max([psd_ylim(1) psd_ylim_restrict(1)]) min([psd_ylim(2) psd_ylim_restrict(2)])];
+                if ~isequal(psd_ylim, get(viewhand_psd_axe, 'YLim'))
+                    set(viewhand_psd_axe, 'YLim', psd_ylim);
+                end
 
                 psd_now_Time1 = Time(t1);
                 psd_now_Time2 = Time(t2);
@@ -3625,6 +3743,15 @@ f_hold_switch(-100000, []);
                 tmp = fix_nans_for_filtering(tmp, bridgenans_method);
             end
             Signal = tmp;
+
+            %2024-11-07 Also adjust splitnotch_factors
+            splitnotch_factors = zeros(EventTimePoints(end,2),1);
+            for i = 1:size(EventTimePoints,1)
+                tmp_a = EventTimePoints(i,1);
+                tmp_b = EventTimePoints(i,2);
+                splitnotch_factors(tmp_a:tmp_b) = 1 - 1./(1+exp((tmp_a:tmp_b).' - (tmp_a+tmp_b)/2));
+            end
+
             if ishandle(wh)
                 delete(wh);
             end
