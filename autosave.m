@@ -209,7 +209,7 @@ if (isfinite(maximum_savefile_bytes) || isfinite(maximum_variable_bytes)) && ~is
     tmp_whos_table = sortrows(struct2table(tmp_whos), 'bytes');
     tmp_whos_table = tmp_whos_table(tmp_whos_table.bytes <= maximum_variable_bytes,:);
     tmp_whos_table = tmp_whos_table(cumsum(tmp_whos_table.bytes) <= maximum_savefile_bytes,:);
-    tmp_saveargs = regexprep(regexprep(saveargs,'(\S+)','''$1'''),' ',',');
+    tmp_saveargs = regexprep(regexprep(regexprep(saveargs,'^\s+|\s+$',''),'(\S+)','''$1'''),' ',',');
     tmp_varnames = cell_to_string(regexprep(tmp_whos_table.name,'^(.*)$','''$1'''), ',');
     savestr = sprintf('try save(''%s'',%s,%s);end', filename, tmp_varnames, tmp_saveargs);
     evalin('base',savestr);
