@@ -18,9 +18,9 @@ CLength = zeros(1,length(x));
 k = 0;
 while ~isempty(x)
     k = k+1;
-    ContigGroups{k} = x(1:(find(diff(x) > 1 | diff(x) < 1)));
+    ContigGroups{k} = x(1:(find(diff(x) > 1 | diff(x) < 1,1)));
     CLength(k) = length(ContigGroups{k});
-    x = x(1+(find(diff(x) > 1 | diff(x) < 1)):end);
+    x = x(1+(find(diff(x) > 1 | diff(x) < 1,1)):end);
 end
 ContigGroups = ContigGroups(1:k-1);
 CLength = CLength(1:k-1);

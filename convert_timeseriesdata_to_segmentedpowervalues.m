@@ -32,9 +32,9 @@
 %    %Transposed because rawdata(:,:,1) is chan x time x 1 but this function expects time x chan.
 %    %Don't forget to take the logarithm if appropriate
 %
+% See the wrapper function convert_rawdata_to_segmentedpowervalues
 
-
-function segpow = convert_timeseriesdata_to_segmentedpowervalues (data, Fs, frange, trange, tsegsize, opts)
+function [segpow, segtimesamplesrange] = convert_timeseriesdata_to_segmentedpowervalues (data, Fs, frange, trange, tsegsize, opts)
 
 if numel(Fs) > 1
     Fs = Fs(1);
@@ -65,6 +65,11 @@ if ~isfield(opts,'detrend_n') || isempty(opts.detrend_n)
     opts.detrend_n = 'constant';
 end
 
+output_segtimesamplesrange_only = false;
+if isfield(opts, 'output_segtimesamplesrange_only') && numel(opts.output_segtimesamplesrange_only) == 1 && opts.output_segtimesamplesrange_only
+    output_segtimesamplesrange_only = true;
+end
+
 tstart = trange(1);
 tend = trange(2);
 
@@ -73,6 +78,9 @@ if tend > size(data,1)/Fs
 end
 
 data = detrend(data, opts.detrend_n);
+nseg = floor((tend-tstart)/tsegsize);
+segpow = nan(size(data,2),size(frange,1),size(nseg,1));
+segtimesamplesrange = nan(nseg,2);
 
 for band = 1:size(frange,1)
     % Filter then segment
@@ -84,7 +92,9 @@ for band = 1:size(frange,1)
     if frange(band,2) >= Fs/2
         fb(2) = 0;
     end    
-    if fb(1) && fb(2)
+    if output_segtimesamplesrange_only
+        banddata = data;
+    elseif fb(1) && fb(2)
         filtparm = [frange(band,1:2) opts.filtorder];
         filttype = 'pass';
         banddata = freqfilter(data, Fs, filtparm, filttype, opts.filtname);
@@ -101,14 +111,20 @@ for band = 1:size(frange,1)
     end
     
     % Segment
-    nseg = floor((tend-tstart)/tsegsize);
     for seg = nseg:-1:1
         ta = tstart + (seg-1)*tsegsize;
         tb = ta + tsegsize;
         ka = round(ta*Fs+1);
         kb = round(tb*Fs);
-        segbanddata = banddata(ka:kb,:);
-        segpow(:,band,seg) = mean(segbanddata.^2,1) / (frange(band,2)-frange(band,1));
+        segtimesamplesrange(seg,:) = [ka kb];
+        if ~output_segtimesamplesrange_only
+            segbanddata = banddata(ka:kb,:);
+            segpow(:,band,seg) = mean(segbanddata.^2,1) / (frange(band,2)-frange(band,1));
+        end
+    end
+
+    if output_segtimesamplesrange_only
+        break
     end
     
     
