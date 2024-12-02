@@ -1,6 +1,5 @@
 function restartmatlab(arg1)
 fprintf('Restarting MATLAB...\n');
-% finish.m will handle the autosave
 % matlabrc.m will handle the autorestore
 try
     tmp_aa = pathdef;
@@ -33,4 +32,11 @@ catch ex
     ex.message
     pause(10);
 end
-quit
+
+try
+    disp(getString(message('MATLAB:finishsav:SavingWorkspaceData')));
+    evalin('base', 'save([feature(''logdir'') filesep ''matlabexitsave'' num2str(java.lang.System.currentTimeMillis) ''.mat''], ''-v7.3'', ''-nocompression'');');
+    autosave delete
+catch
+end
+quit force

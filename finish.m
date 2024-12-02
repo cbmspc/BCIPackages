@@ -1,9 +1,19 @@
-% Sourced from c:\bin\matlab_packages\finish.m
-fprintf('MATLAB is exiting...');
-evalin('base', 'tmp_cwd = pwd;');
-evalin('base', 'tmp_custompath = path;');
-try
-    evalin('base', 'save([feature(''logdir'') filesep ''matlabexitsave'' num2str(java.lang.System.currentTimeMillis) ''.mat''], ''-v7.3'', ''-nocompression'');');
-    autosave delete
-catch
+function finish()
+listwhos = evalin('base','whos');
+if length(listwhos) < 2
+    return
 end
+optsa.Interpreter = 'tex';
+optsa.WindowStyle = 'modal';
+optsa.Default='Don''t exit';
+answer = questdlg(sprintf('\\fontsize{20}There are %i variables (%.2f MB) in the base workspace.\n\\color{black}Exit MATLAB \\color{orange}without \\color{black}saving?', length(listwhos), sum([listwhos.bytes])/1024^2), 'Exiting MATLAB', 'Exit without saving', 'Don''t exit', optsa);
+switch answer
+    case 'Exit without saving'
+        return
+    otherwise
+        error('User decided not to exit MATLAB.');
+
+end
+
+
+

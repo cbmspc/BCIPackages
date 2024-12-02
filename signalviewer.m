@@ -231,6 +231,7 @@ infolabels_text_highdeviations = 'Channel signal deviations (sorted high to low,
 
 lookradius_fraction = 0.015;
 psd_ylim_auto = 0;
+psd_xscale = 'linear';
 use_jet_colors = 0;
 psd_dblim_allchans = [inf -inf];
 psd_ylim_restrict = [-260 220];
@@ -1507,7 +1508,17 @@ f_hold_switch(-100000, []);
                 end
                 choose_psd_channel(tmp_answer{1});
 
-
+            case 'l'
+                %2024-11-19: New feature to switch to log10 frequency scale
+                %(only works in the PSD window)
+                if isequal(hObject, viewhand_psd)
+                    if strcmpi(psd_xscale, 'linear')
+                        psd_xscale = 'log';
+                    else
+                        psd_xscale = 'linear';
+                    end
+                    update_psd();
+                end
 
             case 'h'
                 %2024-10-09: New feature to hold the PSD (only works in the PSD window)
@@ -3544,6 +3555,10 @@ f_hold_switch(-100000, []);
             psd_lastchanname = '';
         end
         if ishandle(viewhand_psd)
+            if ~strcmpi(psd_xscale,get(viewhand_psd_axe,'XScale'))
+                set(viewhand_psd_axe, 'XScale', psd_xscale);
+            end
+
             if ~isempty(selected_plothand) && ishandle(selected_plothand)
                 psd_now_channame = getappdata(selected_plothand, 'channame');
                 chanind = getappdata(selected_plothand, 'chanind');
@@ -3577,11 +3592,17 @@ f_hold_switch(-100000, []);
                 if ~isempty(psd_held_lpxx) && numel(psd_held_lpxx) == numel(psd_held_fxx)
                     plotting_a_held_psd = 1;
                     plot(psd_held_fxx, psd_held_lpxx, 'Color', psd_held_chancolor, 'LineWidth', psd_held_linewidth);
+                    if strcmpi(psd_xscale, 'log')
+                        set(gca, 'XScale', psd_xscale);
+                    end
                     hold on
                     plot(psd_now_fxx, psd_now_lpxx, 'Color', psd_now_chancolor, 'LineWidth', psd_now_linewidth);
                     hold off
                 else
                     plot(psd_now_fxx, psd_now_lpxx, 'Color', psd_now_chancolor, 'LineWidth', psd_now_linewidth); %Po240712: PSD line color matches main window's line color
+                    if strcmpi(psd_xscale, 'log')
+                        set(gca, 'XScale', psd_xscale);
+                    end
                 end
                 xlabel('Frequency (Hz)');
                 ylabel('PSD (dB/Hz)');
@@ -3697,6 +3718,7 @@ f_hold_switch(-100000, []);
             else
                 set(viewhand_psd, 'Name', 'Select a channel first by clicking on its signal.');
             end
+
         end
     end
 

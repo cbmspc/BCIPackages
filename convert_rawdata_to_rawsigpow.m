@@ -38,9 +38,9 @@ Ntp = size(frange,1);
 
 rawsigpow = nan(Nch, Ntp, Ntr);
 %fprintf(' Converting time domain signals to spectral powers .. %3i%% done', 0);
-if Ntr > 100
-    fprintf(' Converting time domain signals to spectral powers ..');
-end
+% if Ntr > 100
+%     fprintf(' Converting time domain signals to spectral powers ..');
+% end
 
 if exist('rawdata','var')
     for tr = 1:Ntr
@@ -53,6 +53,6 @@ elseif exist('eegdata','var')
         %fprintf('\b\b\b\b\b\b\b\b\b%3i%% left', round(tr/Ntr*100));
     end
 end
-if Ntr > 100
-    fprintf(' done \n');
-end
+% if Ntr > 100
+%     fprintf(' done \n');
+% end
