@@ -24,33 +24,39 @@ if ~exist('frange','var') || isempty(frange)
 end
 
 if exist('rawdata','var')
-    [Nchan, Ntime, Ntrial] = size(rawdata);
+    [Nchan, Ntimepertrial, Ntrial] = size(rawdata);
+    Ntime = Ntimepertrial * Ntrial;
 elseif exist('eegdata','var')
-    [Ntime, Nchan] = size(eegdata{1});
+    Nchan = size(eegdata{1},2);
+    cout = cellfun(@size,eegdata,'UniformOutput',false);
+    sizes = cat(1,cout{:});
+    Ntime = sizes(:,1);
     Ntrial = length(eegdata);
 end
 
 Nfreq = size(frange,1);
 
-rawsigpow = nan(Nchan, Nfreq, Ntrial);
+%rawsigpow = nan(Nchan, Nfreq, Ntrial);
 %fprintf(' Converting time domain signals to spectral powers .. %3i%% done', 0);
 if Ntrial > 100
     fprintf(' Converting time domain signals to spectral powers ..');
 end
 
 % Concatenate to continuous time series
-signal = nan(Ntime*Ntrial,Nchan); 
+signal = nan(sum(Ntime),Nchan); 
 TimeRange = nan(Ntrial,2);
 
 if exist('rawdata','var')
     for tr = 1:Ntrial
-        signal((tr-1)*Ntime+[1:Ntime],:) = rawdata(:,:,tr).';
+        signal((tr-1)*Ntime+(1:Ntime),:) = rawdata(:,:,tr).';
         TimeRange(tr,:) = [tr-1, tr].*Ntime/Fs;
     end
 elseif exist('eegdata','var')
     for tr = 1:Ntrial
-        signal((tr-1)*Ntime+[1:Ntime],:) = eegdata{tr};
-        TimeRange(tr,:) = [tr-1, tr].*Ntime/Fs;
+        a = sum(Ntime(1:tr-1)) + 1;
+        b = sum(Ntime(1:tr-1)) + Ntime(tr);
+        signal(a:b,:) = eegdata{tr};
+        TimeRange(tr,:) = [a b]/Fs;
     end
 end
 % Run bqsignalpower

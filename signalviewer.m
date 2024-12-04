@@ -3767,10 +3767,10 @@ f_hold_switch(-100000, []);
             Signal = tmp;
 
             %2024-11-07 Also adjust splitnotch_factors
-            splitnotch_factors = zeros(EventTimePoints(end,2),1);
+            splitnotch_factors = zeros(round(EventTimePoints(end,2)),1);
             for i = 1:size(EventTimePoints,1)
-                tmp_a = EventTimePoints(i,1);
-                tmp_b = EventTimePoints(i,2);
+                tmp_a = round(EventTimePoints(i,1));
+                tmp_b = round(EventTimePoints(i,2));
                 splitnotch_factors(tmp_a:tmp_b) = 1 - 1./(1+exp((tmp_a:tmp_b).' - (tmp_a+tmp_b)/2));
             end
 

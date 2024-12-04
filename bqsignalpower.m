@@ -81,8 +81,8 @@ for b = 1:Nfreqbin
     signal_filtered_squared = signal_filtered.^2;
     
     for k = 1:Ntimebin
-        t1 = TimeIndexRange(k,1);
-        t2 = TimeIndexRange(k,2);
+        t1 = round(TimeIndexRange(k,1));
+        t2 = round(TimeIndexRange(k,2));
         signal_power(:,b,k) = mean(signal_filtered_squared(t1:t2,:),1);
     end
     %waitbar(b/Nfreqbin, wh, ['bqsignalpower Band ' num2str(b) '/' num2str(Nfreqbin)]);
