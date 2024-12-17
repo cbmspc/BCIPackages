@@ -5,11 +5,14 @@
 % 3) Calculate the power within each segment. There is one power value per
 %    channel per segment
 % 4) Output format: chan x band x segment
-% Note: All segments have equal size. Possible gap between last and tend.
+% Note: All segments ideally have equal size. Possible gap between last and tend.
+%   It is possible to have unequal segment sizes by setting tsegsize to
+%   larger than trange because a minimum of one segment will always be
+%   created for each trange.
 %
 %
-% Example: To convert the first epoch of rawdata (chan x time x epoch) that
-% is 10 seconds long per epoch into six segments:
+% Example 1: To convert the first epoch of rawdata (chan x time x epoch)
+% that is 10 seconds long per epoch into six segments:
 %   * excluded: first 0.5 seconds in the epoch
 %   * segment #1: 0.5 - 2.0 seconds into the one epoch
 %   * segment #2: 2.0 - 3.5 seconds into the one epoch
@@ -32,15 +35,36 @@
 %    %Transposed because rawdata(:,:,1) is chan x time x 1 but this function expects time x chan.
 %    %Don't forget to take the logarithm if appropriate
 %
+%
+%  Example 2: Convert a time series data "signal" into segment powers
+%   Reminder: signal is (time x chan)
+%   trange = [ 0 20
+%             30 35
+%             35 40
+%             50 60]; % four epochs in the signal. They don't 
+%                     % have to have the same length
+%   frange = [ 4  8
+%            [11 25 ]; % In Hz, the frequency bands
+%   tsegsize = 2; %seconds
+%   Example syntax: 
+%      opts.filtname = 'butter'
+%      [segpow, segtimesamplesrange, segepochindex] = convert_timeseriesdata_to_segmentedpowervalues(signal, Fs, frange, trange, tsegsize, opts);
+%      This will create a (chan x band x seg) output. The original epoch
+%      index (rows in trange) where each segment belonged is kept in
+%      segepochindex. The original time sample indices where each segment
+%      is cut from is kept in segtimesamplesrange.
+%      If an epoch is shorter than tsegsize, the segment for that epoch
+%      will be just that epoch.
+%
 % See the wrapper function convert_rawdata_to_segmentedpowervalues
 
-function [segpow, segtimesamplesrange] = convert_timeseriesdata_to_segmentedpowervalues (data, Fs, frange, trange, tsegsize, opts)
+function [segpow, segtimesamplesrange, segepochindex] = convert_timeseriesdata_to_segmentedpowervalues (data, Fs, frange, trange, tsegsize, opts)
 
 if numel(Fs) > 1
     Fs = Fs(1);
 end
 
-if exist('opts', 'var') && numel(opts) == 1 && isnumeric(opts)
+if exist('opts', 'var') && isscalar(opts) && isnumeric(opts)
     % Old style input for compatibility
     filtorder = opts;
     opts = struct;
@@ -66,21 +90,24 @@ if ~isfield(opts,'detrend_n') || isempty(opts.detrend_n)
 end
 
 output_segtimesamplesrange_only = false;
-if isfield(opts, 'output_segtimesamplesrange_only') && numel(opts.output_segtimesamplesrange_only) == 1 && opts.output_segtimesamplesrange_only
+if isfield(opts, 'output_segtimesamplesrange_only') && isscalar(opts.output_segtimesamplesrange_only) && opts.output_segtimesamplesrange_only
     output_segtimesamplesrange_only = true;
 end
 
-tstart = trange(1);
-tend = trange(2);
-
-if tend > size(data,1)/Fs
-    tend = size(data,1)/Fs;
-end
 
 data = detrend(data, opts.detrend_n);
-nseg = floor((tend-tstart)/tsegsize);
-segpow = nan(size(data,2),size(frange,1),size(nseg,1));
-segtimesamplesrange = nan(nseg,2);
+nepoch = size(trange,1);
+trange(trange(:,2) > size(data,1)/Fs,2) = size(data,1)/Fs;
+nseg = floor(diff(trange(:,1:2),[],2)/tsegsize);
+nseg(nseg==0) = 1;
+segpow = nan(size(data,2),size(frange,1),sum(nseg));
+segtimesamplesrange = nan(sum(nseg),2);
+segepochindex = nan(sum(nseg),1);
+
+
+frange(frange(:,1) < 0,1) = 0;
+frange(frange(:,2) > Fs/2,2) = Fs/2;
+
 
 for band = 1:size(frange,1)
     % Filter then segment
@@ -109,18 +136,36 @@ for band = 1:size(frange,1)
     else
         banddata = data;
     end
-    
-    % Segment
-    for seg = nseg:-1:1
-        ta = tstart + (seg-1)*tsegsize;
-        tb = ta + tsegsize;
-        ka = round(ta*Fs+1);
-        kb = round(tb*Fs);
-        segtimesamplesrange(seg,:) = [ka kb];
-        if ~output_segtimesamplesrange_only
-            segbanddata = banddata(ka:kb,:);
-            segpow(:,band,seg) = mean(segbanddata.^2,1) / (frange(band,2)-frange(band,1));
+
+    kseg = 0;
+    % Epoch
+    for epoch = 1:nepoch
+        tstart = trange(epoch,1);
+        tend = trange(epoch,2);
+
+        % Segment
+        for seg = 1:nseg(epoch)
+            kseg = kseg + 1;
+            ta = tstart + (seg-1)*tsegsize;
+            if isnan(ta)
+                ta = tstart;
+            end
+            tb = ta + tsegsize;
+            if tb > tend
+                tb = tend;
+            end
+            ka = round(ta*Fs+1);
+            kb = round(tb*Fs);
+            segtimesamplesrange(kseg,:) = [ka kb];
+            segepochindex(kseg) = epoch;
+            if ~output_segtimesamplesrange_only
+                segbanddata = banddata(ka:kb,:);
+                %2024-12-16: output is now calibrated to a sine wave
+                %segpow(:,band,kseg) = mean(segbanddata.^2,1) / (frange(band,2)-frange(band,1));
+                segpow(:,band,kseg) = mean(segbanddata.^2,1);
+            end
         end
+
     end
 
     if output_segtimesamplesrange_only
@@ -129,5 +174,4 @@ for band = 1:size(frange,1)
     
     
 end
-
 
