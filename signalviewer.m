@@ -3740,7 +3740,11 @@ f_hold_switch(-100000, []);
             imax = size(EventTimePoints,1); % Don't confuse this with EventTimeStamps. Time points are sample indices, not seconds.
             for i = 1:imax
                 % Do a detrend
-                tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = detrend(Signal(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), 'linear', 'omitmissing');
+                try
+                    tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = detrend(Signal(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), 'linear', 'omitmissing');
+                catch
+                    % If failed, tmp is just Signal in that segment
+                end
                 % Do a high-pass if stitch_mult > 0
                 if stitch_mult > 0
                     reflect_len = - averageepochduration * Fs / 2;
@@ -3749,12 +3753,20 @@ f_hold_switch(-100000, []);
                     try
                         tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = freqfilter(tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:), Fs, [Fcut_stitch, FO_stitch], 'high', 'butter', reflect_len);
                     catch
-                        tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:);
+                        try
+                            tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:) = tmp(round(EventTimePoints(i,1):EventTimePoints(i,2)),:);
+                        catch
+                            % If failed, tmp is just Signal in that segment
+                        end
                     end
                 end
                 if nanaround_stitch_samples > 0
-                    tmp(round(EventTimePoints(i,1)) - 1 + [1:nanaround_stitch_samples],:) = NaN;
-                    tmp(round(EventTimePoints(i,2)) + 1 + [-nanaround_stitch_samples:-1],:) = NaN;
+                    try
+                        tmp(round(EventTimePoints(i,1)) - 1 + [1:nanaround_stitch_samples],:) = NaN;
+                        tmp(round(EventTimePoints(i,2)) + 1 + [-nanaround_stitch_samples:-1],:) = NaN;
+                    catch
+                        % If failed, tmp is just Signal in that segment
+                    end
                 end
 
                 if ishandle(wh)
@@ -3771,7 +3783,11 @@ f_hold_switch(-100000, []);
             for i = 1:size(EventTimePoints,1)
                 tmp_a = round(EventTimePoints(i,1));
                 tmp_b = round(EventTimePoints(i,2));
-                splitnotch_factors(tmp_a:tmp_b) = 1 - 1./(1+exp((tmp_a:tmp_b).' - (tmp_a+tmp_b)/2));
+                try
+                    splitnotch_factors(tmp_a:tmp_b) = 1 - 1./(1+exp((tmp_a:tmp_b).' - (tmp_a+tmp_b)/2));
+                catch
+                    % If failed, tmp is just Signal in that segment
+                end
             end
 
             if ishandle(wh)
