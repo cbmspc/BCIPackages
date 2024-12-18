@@ -47,6 +47,9 @@
 %   (NchanOUT x NchanIN), such that transformedSignal.' = ltmat * originalSignal.'
 %     Use the 3rd dimension to specify more than one transformation matrix:
 %       Example: ltmat(:,:,1) = randn(15,15); ltmat(:,:,2) = randn(15,15)*10;
+%   opts.ltmat_do_not_detrend = 0 or 1
+%     By default, signal is detrended first to remove the mean (DC shift)
+%     for LTMAT. Set this to 1 to disable automatic detrending.
 %     
 %     For example, if signal has 15 channels, ltmat transforms the input
 %     one at a time: out(15x1) = ltmat(15x15) * in(15x1)
@@ -236,6 +239,7 @@ use_jet_colors = 0;
 psd_dblim_allchans = [inf -inf];
 psd_ylim_restrict = [-260 220];
 use_ltmat = 0;
+ltmat_do_not_detrend = 0;
 
 Ctrl = 0;
 Alt = 0;
@@ -291,6 +295,12 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
         opts.ica_W = eye(size(opts.ica_A,1));
         ltmat = opts.ltmat;
         use_ltmat = 1;
+        ltmat_do_not_detrend = 0;
+        if isfield(opts, 'ltmat_do_not_detrend') && isscalar(opts.ltmat_do_not_detrend)
+            if opts.ltmat_do_not_detrend
+                ltmat_do_not_detrend = 1;
+            end
+        end
     else
         ltmat = [];
     end
@@ -497,6 +507,9 @@ end
 
 Signal = double(Signal);
 
+if exist('ChanNames', 'var') && isstruct(ChanNames)
+    error('ChanNames must be specified (even if it is empty as {}). Correct syntax: signalviewer(Signal, SampleRate, ChanNames, Opts).');
+end
 
 if ~exist('ChanNames', 'var') || isempty(ChanNames)
     if size(Signal,1) == 1 && size(Signal,2) > 1
@@ -815,11 +828,13 @@ Time = (0:Ntp-1)/Fs;
 Time_min = 0;
 Time_max = (Ntp-1)/Fs;
 
+PipMarkerSize = 8;
+
 cursorlinehand = plot([0 0], [0 0], '-', 'LineWidth', 3, 'Color', [0.8 0.8 0.8]);
 for ch = Nsch:-1:1
-    plotpip1hand(ch) = plot(0, 0, '+', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
-    plotpip2hand(ch) = plot(0, 0, 'v', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
-    plotpip3hand(ch) = plot(0, 0, '^', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', 24, 'LineWidth', 2, 'Visible', 'off');
+    plotpip1hand(ch) = plot(0, 0, '+', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
+    plotpip2hand(ch) = plot(0, 0, 'v', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
+    plotpip3hand(ch) = plot(0, 0, '^', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
     plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - nanmean(Signal(t1:t2,selchan(ch))) - chansep*ch); %#ok<*NANMEAN>
     set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
     set(plothand(ch), 'ButtonDownFcn', @f_plothand_buttondown);
@@ -1948,14 +1963,35 @@ f_hold_switch(-100000, []);
             set(h_notch_order, 'String', '0');
             f_notch_order([], []);
         else
+
+            %2024-12-17 If PSD data tips have been used, maybe the user
+            %want to notch these?
+            psd_datatips = [];
+            psd_datatip_freqs = [];
+            if ishandle(viewhand_psd_axe)
+                try
+                    psd_datatips = findobj(viewhand_psd_axe, 'Type', 'DataTip');
+                    psd_datatip_freqs = unique(psd_now_fxx([psd_datatips(:).DataIndex]));
+                catch
+                    psd_datatips = [];
+                    psd_datatip_freqs = [];
+                end
+            end
+
+
             %2024-11-07 Allow the user to specify notch frequencies
             tmp_query1 = {
-                'Enter a list of frequencies in Hz to notch (separated by space). If you enter only one frequency, the first three harmonics are also included automatically.'
+                'Enter a list of frequencies in Hz to notch (separated by space). If you enter only one frequency, the first three harmonics are also included automatically. If PSD window is open, frequencies indicated by the datatips have been added to this list.'
                 ['Enter the Notch order. The order must be a positive even integer no more than ' num2str(notchordermax) '. Enter 0 to save the parameters without turning on the notch filter.']
                 ['Enter the Q factor. The Q factor must be a positive number no more than ' num2str(notchqfactormax) '. Q factors are scaled automatically.']
                 };
+            tmp_defaultnotchfreqs = NotchFrequencies;
+            if ~isempty(psd_datatip_freqs)
+                tmp_defaultnotchfreqs = unique(round([NotchFrequencies(:).' psd_datatip_freqs(:).']));
+            end
+            
             tmp_default1 = {
-                regexprep(num2str(NotchFrequencies), '\s+', ' ')
+                regexprep(num2str(tmp_defaultnotchfreqs), '\s+', ' ')
                 num2str(NotchFilter.order)
                 num2str(NotchFilter.qfactor)
                 };
@@ -2956,8 +2992,9 @@ f_hold_switch(-100000, []);
                     YDATA = YDATA - nanmedian(YDATA); %#ok<*NANMEDIAN>
                 end
 
-                %Po240611: NaN the traces above/below chansep
-                YDATA(YDATA>chansep/2*VerticalOverlapAllow | YDATA<-chansep/2*VerticalOverlapAllow) = NaN;
+                %Po241217: Cap the traces above/below chansep
+                YDATA(YDATA>chansep/2*VerticalOverlapAllow) = chansep/2*VerticalOverlapAllow;
+                YDATA(YDATA<-chansep/2*VerticalOverlapAllow) = -chansep/2*VerticalOverlapAllow;
 
                 set(plothand(ch), 'XData', Time4, 'YData', YDATA - chansep*ch, 'Visible', 'on');
                 if size(YDATA,1) <= MarkerZoomThreshold
@@ -3473,8 +3510,9 @@ f_hold_switch(-100000, []);
                         continue
                     end
                     set(plotpip2hand(ch), 'XData', xlocmin(ch), 'YData', YDATA_fullres(xindmin(ch)), 'Visible', 'on');
-                    setappdata(plottext_lmin_hand(ch), 'originalString', sprintf('%.4gs', xlocmin(ch)));
-                    %set(plottext_lmin_hand(ch), 'String', sprintf('%s LMin\n%.6gs\n%.6g%s',ChanNames{selchan(ch)}, xlocmin(ch), ylocmin(ch),tmpunit), 'Position', [xlocmin(ch) + xr/100, YDATA_fullres(xindmin(ch)), 0], 'Visible', 'on');
+                    %2024-12-17 Added more info to the local min display
+                    %setappdata(plottext_lmin_hand(ch), 'originalString', sprintf('%.4gs', xlocmin(ch)));
+                    setappdata(plottext_lmin_hand(ch), 'originalString', sprintf('%s @%.6gs=%.6g%s',ChanNames{selchan(ch)}, xlocmin(ch), ylocmin(ch),tmpunit));
 
                     if size(SavedPointsTable,2) >= 2 && size(SavedPointsTable,1) >= 1
                         tcpair = cell2mat(SavedPointsTable(:,1:2));
@@ -3504,8 +3542,10 @@ f_hold_switch(-100000, []);
                         continue
                     end
                     set(plotpip3hand(ch), 'XData', xlocmax(ch), 'YData', YDATA_fullres(xindmax(ch)), 'Visible', 'on');
-                    setappdata(plottext_lmax_hand(ch), 'originalString', sprintf('%.4gs', xlocmax(ch)));
-                    %set(plottext_lmax_hand(ch), 'String', sprintf('%s LMax\n%.6gs\n%.6g%s',ChanNames{selchan(ch)}, xlocmax(ch), ylocmax(ch),tmpunit), 'Position', [xlocmax(ch) + xr/100, YDATA_fullres(xindmax(ch)), 0], 'Visible', 'on');
+
+                    %2024-12-17 Added more info to the local max display
+                    %setappdata(plottext_lmax_hand(ch), 'originalString', sprintf('%.4gs', xlocmax(ch)));
+                    setappdata(plottext_lmax_hand(ch), 'originalString', sprintf('%s @%.6gs=%.6g%s',ChanNames{selchan(ch)}, xlocmax(ch), ylocmax(ch),tmpunit));
                     
                     if size(SavedPointsTable,2) >= 2 && size(SavedPointsTable,1) >= 1
                         tcpair = cell2mat(SavedPointsTable(:,1:2));
@@ -3779,7 +3819,9 @@ f_hold_switch(-100000, []);
             Signal = tmp;
 
             %2024-11-07 Also adjust splitnotch_factors
-            splitnotch_factors = zeros(round(EventTimePoints(end,2)),1);
+            %splitnotch_factors = zeros(round(EventTimePoints(end,2)),1);
+            %2024-12-17 Workaround NaN in the EventTimePoints
+            splitnotch_factors = zeros(round(max(max(EventTimePoints))),1);
             for i = 1:size(EventTimePoints,1)
                 tmp_a = round(EventTimePoints(i,1));
                 tmp_b = round(EventTimePoints(i,2));
@@ -3906,7 +3948,13 @@ f_hold_switch(-100000, []);
                 set(h_bigtext, 'Visible', 'on', 'String', 'Mixing new ICs...'); drawnow;
 
                 if use_ltmat
-                    Signal_postica = (ltmat(:,:,selica-1)*Signal.').';
+                    if ltmat_do_not_detrend
+                        tmp = Signal.';
+                    else
+                        tmp = detrend(Signal, 'constant', 'omitmissing').';
+                        
+                    end
+                    Signal_postica = (ltmat(:,:,selica-1)*tmp).';
                 else
                     tmp = ica_A;
                     tmp(:,setdiff(1:size(ica_A,2),selica)) = 0;
