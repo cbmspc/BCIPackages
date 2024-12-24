@@ -409,7 +409,7 @@ if iscell(Signal)
             EventTimeStamps = EventTimeStamps.';
         end
 
-        if iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs && min(cellfun(@ischar,EventTimeStamps))
+        if iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs && NumEpochs > 0 && min(cellfun(@ischar,EventTimeStamps))
             % Special case when the user-supplied EventTimeStamps is a 1D
             % cell array of strings. In this case, it is assumed that the
             % user intends to label each epoch with the corresponding text.
@@ -418,7 +418,7 @@ if iscell(Signal)
             StitchedEpochNames = EventTimeStamps;
             EventTimeStamps = cell(NumEpochs,2);
             EventTimeStamps(:,2) = StitchedEpochNames;
-        elseif iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs && min(cellfun(@isnumeric,EventTimeStamps))
+        elseif iscell(EventTimeStamps) && numel(EventTimeStamps) == length(EventTimeStamps) && numel(EventTimeStamps) == NumEpochs && NumEpochs > 0 && min(cellfun(@isnumeric,EventTimeStamps))
             % Special case when the user-supplied EventTimeStamps is a 1D
             % cell array of numbers. In this case, it is assumed that the
             % user intends to label each epoch with the corresponding
@@ -504,6 +504,9 @@ else
     EventTimePoints = [];
 end
 
+if isempty(Signal)
+    error('Signal is empty');
+end
 
 Signal = double(Signal);
 
@@ -812,7 +815,10 @@ PSigName = '';
 if ~isempty(inputname(1))
     PSigName = [' «' inputname(1) '»'];
 end
-set(fighand, 'Name', ['Signal Viewer:' PSigName ' ' num2str(size(Signal,2)) ' channels, ' num2str(size(Signal,1)/Fs) ' seconds record duration, ' num2str(Fs) ' Hz sample rate. ' tmp ' Hash ' signalHashStr '.']);
+if ~isempty(FooterMessage)
+    PSigName = [PSigName ' ' FooterMessage];
+end
+set(fighand, 'Name', [PSigName ' ' tmp ' Hash ' signalHashStr '.']);
 hold on
 set(fighand,'Position',screensize);
 YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
@@ -1144,7 +1150,7 @@ h_eventfont_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized
 h_windowhsize_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.975 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 h_windowhsize_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.985 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
-h_xspan_text = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.925 0.020 0.07 0.015], 'BackgroundColor', [0.7 0.7 0.9], 'String', 'full t range [0,12345]', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_xspan_text = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.925 0.000 0.07 0.035], 'BackgroundColor', [0.7 0.7 0.9], 'String', 'full t range [0,12345]', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.33);
 
 h_xspan_edittext1intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.01 0.020 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(1) =', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 h_xspan_edit1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.04 0.020 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -1262,7 +1268,8 @@ envelope_update();
 render_update();
 %set(h_bigtext, 'Visible', 'off', 'String', '');
 
-set(h_xspan_text, 'String', ['full t range [' num2str(round(min(Time))) ', ' num2str(round(max(Time))) '] s']);
+%set(h_xspan_text, 'String', ['full t range [' num2str(round(min(Time))) ', ' num2str(round(max(Time))) '] s']);
+set(h_xspan_text, 'String', sprintf('full t range [%i, %i] s\nSample rate %g Hz\n%i chans, %i epochs', round(min(Time)), round(max(Time)), Fs, length(ChanNames), size(EventTimePoints,1)));
 
 try
     pause(0.00001);
