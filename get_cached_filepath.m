@@ -1,6 +1,4 @@
 function filepath = get_cached_filepath(original_filepath, skipIfNotCached)
-max_num_cached_files = 100000;
-max_days_cached_files = 100;
 disk_space_cleanup_threshold = 512*1024^3;
 
 original_filepath = lower(original_filepath);
@@ -53,27 +51,28 @@ usable_bytes = FileObj.getUsableSpace;
 usable_bytes = usable_bytes - dinfo.bytes;
 deficient_bytes = 0;
 if usable_bytes < disk_space_cleanup_threshold
-    deficient_bytes = disk_space_cleanup_threshold - usable_bytes;
+    % Clear more so we don't need to check again so soon
+    deficient_bytes = floor(disk_space_cleanup_threshold*1.50 - usable_bytes); 
 end
 
-if exist(cachesubdir, 'dir')
+persistent lastchecked
+if ~isscalar(lastchecked)
+    lastchecked = 0;
+end
+
+if exist(cachesubdir, 'dir') && deficient_bytes > 0 && now - lastchecked > 0.05 %#ok<*TNOW1>
+    lastchecked = now;
     list_cached = dir([cachesubdir filesep '*-la.tmp']);
-    numfiles = length(list_cached);
     ld = [list_cached.datenum];
-    [ld, ind] = sort(ld);
+    [~, ind] = sort(ld);
     list_cached = list_cached(ind);
-    clear ind
+    clear ind ld
     lb = [list_cached.bytes];
     lb_cum = cumsum(lb);
-    if numfiles >= max_num_cached_files || any(now - ld > max_days_cached_files) || deficient_bytes > 0 %#ok<*TNOW1>
-        last_to_axe_by_count = numfiles - max_num_cached_files + 1;
-        last_to_axe_by_age = find(ld >= now - max_days_cached_files,1) - 1;
+    if deficient_bytes > 0
         last_to_axe_by_size = find(lb_cum >= deficient_bytes,1);
-        numtoaxe = max([last_to_axe_by_count, last_to_axe_by_age, last_to_axe_by_size]);
-        axethese = regexprep({list_cached(1:numtoaxe).name}, '-la.tmp$', '');
+        axethese = regexprep({list_cached(1:last_to_axe_by_size).name}, '-la.tmp$', '');
         if ~isempty(axethese)
-            rstate = recycle;
-            recycle('on');
             for i = 1:length(axethese)
                 if length(axethese{i}) < 32
                     warning('Something important is broken!');
@@ -82,7 +81,6 @@ if exist(cachesubdir, 'dir')
                 delete([cachesubdir filesep axethese{i} '.*']);
                 delete([cachesubdir filesep axethese{i} '-la.tmp']);
             end
-            recycle(rstate);
         end
     end
 end

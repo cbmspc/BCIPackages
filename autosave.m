@@ -177,6 +177,7 @@ function savedata(h,ev,filename,minimum_freespace_fraction_required,maximum_save
 %SAVEDATA saves data from the base workspace
 
 tmp_whos = evalin('base', 'whos');
+tmp_whos = tmp_whos(cellfun(@isempty,regexp({tmp_whos.class},'^matlab\.','match','once')));
 [Folder, Filenamepart] = fileparts(filename);
 FileObj = java.io.File(Folder);
 usable_bytes = FileObj.getUsableSpace;

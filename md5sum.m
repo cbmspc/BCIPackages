@@ -1,5 +1,5 @@
 function hash = md5sum (DataOrFile)
-if exist(DataOrFile, 'file')
+if ischar(DataOrFile) && exist(DataOrFile, 'file')
     hash = md5sumfile(DataOrFile);
 else
     Opt.Method = 'MD5';

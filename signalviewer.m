@@ -1387,14 +1387,14 @@ f_hold_switch(-100000, []);
     function f_fig_scrollwheel(hObject, eventdata)
         if eventdata.VerticalScrollCount < 0
             % Mouse whell scroll up
-                f_panleft(hObject, 0.10);
+                %f_panleft(hObject, 0.10);
                 %f_xzoomin(hObject, []);
                 %f_sepdown(hObject, []);
                 %autofit();
 
         elseif eventdata.VerticalScrollCount > 0
             % Mouse whell scroll down
-                f_panright(hObject, 0.10);
+                %f_panright(hObject, 0.10);
                 %f_xzoomout(hObject, []);
                 %f_sepup(hObject, []);
                 %autofit();
@@ -3017,6 +3017,9 @@ f_hold_switch(-100000, []);
                 end
                 update_psd();
                 update_infolabels();
+
+                set(h_chansel_title, 'String', sprintf('%i chans plotted', length(selchan)));
+
             else
                 set(plothand(ch), 'Visible', 'off');
             end
