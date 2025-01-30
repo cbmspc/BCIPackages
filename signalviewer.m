@@ -136,6 +136,9 @@
 %   opts.use_jet_colors = 1
 %   If specified, the jet color map is used for line colors instead of the "lines" map.
 %
+%   opts.fastdraw = 1
+%   If specified, turns on "Fast Draw" that subsamples the signal before
+%   plotting to speed up. Some details are lost in Fast Draw.
 %
 %   Signal Hash = The hash (currently using the MD5 hashing algorithm) of
 %   the input signal after correcting for orientation, stitching, etc. 
@@ -223,6 +226,7 @@ DecimalSecondsResolution = ceil(log10(SampleRate));
 VerticalOverlapAllow = 100;
 % 1 = Each channel stays in its own lane. 
 % 2 = Each channel can go 50% above or below.
+% 100 = Pretty much uncapped
 
 % Default channel names to be excluded from filtering
 nofiltchannames = {'TRIGGER', 'TRIG', 'D1', 'D2', 'DIGITAL', 'DIAG'};
@@ -236,6 +240,7 @@ lookradius_fraction = 0.015;
 psd_ylim_auto = 0;
 psd_xscale = 'linear';
 use_jet_colors = 0;
+fastdraw = 0;
 psd_dblim_allchans = [inf -inf];
 psd_ylim_restrict = [-260 220];
 use_ltmat = 0;
@@ -252,6 +257,10 @@ SavedPointsTable = {};
 % column 3: channel name
 % column 4: numerical value (after envelope filter)
 % column 5: whether this is min(2) or max(3)
+
+
+
+
 
 if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
 
@@ -275,7 +284,7 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
         fastica_interactivePCA = opts.fastica_interactivePCA;
     end
     
-    if isfield(opts, 'disable_ica') && numel(opts.disable_ica) == 1 && opts.disable_ica
+    if isfield(opts, 'disable_ica') && isscalar(opts.disable_ica) && opts.disable_ica
         disable_ica = true;
     end
 
@@ -330,19 +339,19 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
     else
         pwelch_nfft = [];
     end
-    if isfield(opts, 'stitch_mult') && isnumeric(opts.stitch_mult) && numel(opts.stitch_mult) == 1 && isfinite(opts.stitch_mult) && opts.stitch_mult >= 0
+    if isfield(opts, 'stitch_mult') && isnumeric(opts.stitch_mult) && isscalar(opts.stitch_mult) && isfinite(opts.stitch_mult) && opts.stitch_mult >= 0
         stitch_mult = opts.stitch_mult;
     end
     if isfield(opts, 'bridgenans_method') && ~isempty(opts.bridgenans_method) && ischar(opts.bridgenans_method)
         bridgenans_method = opts.bridgenans_method;
     end
-    if isfield(opts, 'nanaround_stitch_samples') && isnumeric(opts.nanaround_stitch_samples) && numel(opts.nanaround_stitch_samples) == 1 && isfinite(opts.nanaround_stitch_samples) && opts.nanaround_stitch_samples >= 0
+    if isfield(opts, 'nanaround_stitch_samples') && isnumeric(opts.nanaround_stitch_samples) && isscalar(opts.nanaround_stitch_samples) && isfinite(opts.nanaround_stitch_samples) && opts.nanaround_stitch_samples >= 0
         nanaround_stitch_samples = opts.nanaround_stitch_samples;
     end
-    if isfield(opts, 'blankaround_stitch_samples') && isnumeric(opts.blankaround_stitch_samples) && numel(opts.blankaround_stitch_samples) == 1 && isfinite(opts.blankaround_stitch_samples) && opts.blankaround_stitch_samples >= 0
+    if isfield(opts, 'blankaround_stitch_samples') && isnumeric(opts.blankaround_stitch_samples) && isscalar(opts.blankaround_stitch_samples) && isfinite(opts.blankaround_stitch_samples) && opts.blankaround_stitch_samples >= 0
         blankaround_stitch_samples = opts.blankaround_stitch_samples;
     end
-    if isfield(opts, 'sensitivity') && isnumeric(opts.sensitivity) && numel(opts.sensitivity) == 1 && isfinite(opts.sensitivity) && opts.sensitivity >= 0
+    if isfield(opts, 'sensitivity') && isnumeric(opts.sensitivity) && isscalar(opts.sensitivity) && isfinite(opts.sensitivity) && opts.sensitivity >= 0
         set_chansep_to = opts.sensitivity;
     end
     if isfield(opts, 'xlim') && isnumeric(opts.xlim) && numel(opts.xlim) == 2
@@ -352,14 +361,19 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
             set_xlim_to = [0 size(Signal,1)/SampleRate];
         end
     end
-    if isfield(opts, 'psd_ylim_auto') && numel(opts.psd_ylim_auto) == 1
+    if isfield(opts, 'psd_ylim_auto') && isscalar(opts.psd_ylim_auto)
         if opts.psd_ylim_auto
             psd_ylim_auto = 1;
         end
     end
-    if isfield(opts, 'use_jet_colors') && numel(opts.use_jet_colors) == 1
+    if isfield(opts, 'use_jet_colors') && isscalar(opts.use_jet_colors)
         if opts.use_jet_colors
             use_jet_colors = 1;
+        end
+    end
+    if isfield(opts, 'fastdraw') && isscalar(opts.fastdraw)
+        if opts.fastdraw
+            fastdraw = 1;
         end
     end
     if isfield(opts, 'nofiltchannames') && iscell(opts.nofiltchannames)
@@ -659,6 +673,7 @@ if isempty(ChanNames)
     error('There is nothing to plot. Either the input is an empty matrix or all channels are completely flat.');
 end
 
+wh = waitbar(0, 'Loading data...', 'Name', 'SignalViewer');
 try
     hashOpt.Method = 'MD5';
     hashOpt.Format = 'hex';
@@ -666,6 +681,8 @@ try
 catch
     signalHashStr = '';
 end
+
+try waitbar(0.2,wh); catch; end
 
 %[ChanNames,ix] = sort(ChanNames);
 %Signal = Signal(:,ix);
@@ -681,6 +698,8 @@ Signal_psd_source = Signal(:,1) * 0;
 
 PerChannelFilterStates = false(4,length(ChanNames)); % Reref, Notch, Butter, Envelope
 
+try waitbar(0.4,wh); catch; end
+
 % If a signal is known to be bandlimited due to low-pass and/or envelope
 % filter, reduce the number of points to plot to speed up
 SigBandwidth = Fs/2;
@@ -689,8 +708,9 @@ BLIM = 1;
 
 % If there are more signal points than horizontal screen resolution, reduce
 % the number of points to plot to speed up
-ScreenLimitedDownsampling = 1;
+ScreenLimitedDownsampling = 0;
 SLD_H = 32768;
+
 DefaultYColor = [0.15 0.15 0.15];
 BusyYColor = [1 0 0];
 InactiveYColor = [0.65 0.65 0.65];
@@ -772,12 +792,14 @@ EventPatchAlpha = 0.05;
 EventFontName = 'Calibri';
 EventFontSize = 16;
 EventFontWeight = 'bold';
-EventLineWidth = 0.5;
-EventLineStyle = '--';
+EventLineWidth = 0.1;
+EventLineStyle = ':';
 
 AxesFontName = 'Consolas';
 AxesFontSize = 12;
 CursorTextFontSize = 10;
+
+PlotLineWidth = 0.5;
 
 %InfoLabelFontName = 'Calibri';
 InfoLabelFontName = 'Consolas';
@@ -799,6 +821,9 @@ end
 if isempty(signalHashStr)
     signalHashStr = num2str(tmp);
 end
+
+try waitbar(0.4,wh); catch; end
+
 fighand = figure(tmp);
 if nargout > 0
     argout1 = fighand;
@@ -842,7 +867,7 @@ for ch = Nsch:-1:1
     plotpip2hand(ch) = plot(0, 0, 'v', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
     plotpip3hand(ch) = plot(0, 0, '^', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
     plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - nanmean(Signal(t1:t2,selchan(ch))) - chansep*ch); %#ok<*NANMEAN>
-    set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
+    set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:), 'LineWidth', PlotLineWidth);
     set(plothand(ch), 'ButtonDownFcn', @f_plothand_buttondown);
     setappdata(plothand(ch), 'chanind', selchan(ch));
     setappdata(plothand(ch), 'channame', ChanNames{selchan(ch)});
@@ -872,6 +897,8 @@ end
 
 set(axehand, 'FontUnits', 'normalized');
 AxesFontSize = get(axehand, 'FontSize');
+
+try waitbar(0.6,wh); catch; end
 
 %tmax = max(Time);
 %SigChunkRendered = false(ceil(tmax / FilterChunkSec),length(ChanNames));
@@ -1007,6 +1034,8 @@ end
 o_patches = findobj(get(axehand,'Children'),'Type','Patch');
 set(axehand,'Children',[setdiff(get(axehand,'Children'), o_patches); o_patches]);
 
+try waitbar(0.8,wh); catch; end
+
 BandPassFilter.state = 0;
 BandPassFilter.cutoff = [0 Fs/2];
 %HighPassFilter.state = 0;
@@ -1110,13 +1139,13 @@ h_evf_unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Positio
 h_zscore_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.925 0.58 0.030 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Zscore', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 %h_zscore_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.945 0.58 0.015 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_off, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
-h_fastdraw_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.965 0.58 0.030 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Value', 1, 'FontWeight', fontweight_on1, 'ForegroundColor', fontcolor_on1);
+h_fastdraw_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.965 0.58 0.030 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Value', 0, 'FontWeight', fontweight_off, 'ForegroundColor', fontcolor_off);
 %h_fastdraw_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.985 0.58 0.015 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_on, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
 h_chansel_warnconfirm = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.925 0.56 0.07 0.12], 'ForegroundColor', [1 1 0], 'BackgroundColor', [0.2, 0.2, 0.2], 'String', 'Apply or revert channel selection first.', 'FontUnits', 'normalized', 'FontSize', 0.15, 'Visible', 'off');
 
 
-h_chansel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.925 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5); %#ok<NASGU>
+h_chansel_title = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.925 0.525 0.030 0.030], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Plotted Channels', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.5);
 h_chansel_list = uicontrol(fighand, 'Style', 'listbox', 'Max', 2, 'Min', 0, 'Units', 'normalized', 'Position', [0.925 0.14 0.040, 0.380], 'FontUnits', 'pixel');
 h_chansel_commandentry = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.925 0.124 0.039 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Adv Select', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Tooltip', 'Enter regular expression patterns to step 1: select channels and then step 2: deselect channels. Leave blank to skip a step.');
 h_chansel_confirm = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.925 0.108 0.02 0.015], 'BackgroundColor', backgroundcolor_buttondefault, 'String', 'Apply', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
@@ -1143,12 +1172,14 @@ h_icasel_view_mixmat = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'norma
 h_icasel_view_sepmat = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.985 0.08 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 h_icasel_view_export = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.965 0.06 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Export ICA', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
-h_axesfont_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.925 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_axesfont_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.935 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_eventfont_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.95 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'E+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_eventfont_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'E-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_windowhsize_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.975 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W+', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
-h_windowhsize_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.985 0.04 0.01 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W-', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_axesfont_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.925 0.04 0.00875 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'A', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_axesfont_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.93375 0.04 0.00875 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'a', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_linewidth_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.9425 0.04 0.00875 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'L', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_linewidth_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.95125 0.04 0.00875 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'l', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_eventfont_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96 0.04 0.00875 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'E', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_eventfont_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.96785 0.04 0.00875 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'e', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_windowhsize_inc = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.9775 0.04 0.00875 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'W', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
+h_windowhsize_dec = uicontrol(fighand, 'Style', 'pushbutton', 'Units', 'normalized', 'Position', [0.98625 0.04 0.00875 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'w', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9);
 
 h_xspan_text = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.925 0.000 0.07 0.035], 'BackgroundColor', [0.7 0.7 0.9], 'String', 'full t range [0,12345]', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.33);
 
@@ -1243,6 +1274,8 @@ set(h_cursor_switch, 'Callback', @f_cursor_enable);
 set(h_signal_export, 'Callback', @f_signal_export);
 set(h_axesfont_inc, 'Callback', @f_axesfont_inc);
 set(h_axesfont_dec, 'Callback', @f_axesfont_dec);
+set(h_linewidth_inc, 'Callback', @f_linewidth_inc);
+set(h_linewidth_dec, 'Callback', @f_linewidth_dec);
 set(h_eventfont_inc, 'Callback', @f_eventfont_inc);
 set(h_eventfont_dec, 'Callback', @f_eventfont_dec);
 set(h_windowhsize_inc, 'Callback', @f_windowhsize_inc);
@@ -1260,6 +1293,8 @@ set(axehand, 'ButtonDownFcn', @f_axe_buttondown)
 set(fighand, 'KeyPressFcn', @f_fig_keypress);
 set(fighand, 'WindowScrollWheelFcn', @f_fig_scrollwheel);
 set(fighand,'Position',screensize);
+
+try delete(wh); catch; end
 
 reref_update();
 notch_update();
@@ -1287,6 +1322,11 @@ end
 %Po240614: Hold until startup is done
 f_hold_switch(-10000, []);
 
+if fastdraw
+    ScreenLimitedDownsampling = 1;
+    set(h_fastdraw_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
+end
+
 if ~isempty(set_selectchannames_to)
     selchan = chan2idx(ChanNames, set_selectchannames_to, 1);
     set(h_chansel_list, 'Value', selchan);
@@ -1294,7 +1334,7 @@ if ~isempty(set_selectchannames_to)
 end
 
 if isfield(opts, 'car')
-    if numel(opts.car) == 1 && opts.car
+    if isscalar(opts.car) && opts.car
         f_car_switch([], []);
     end
 end
@@ -1315,13 +1355,13 @@ if ~isfield(opts, 'bandpass') || numel(opts.bandpass) ~= 2 || ~isnumeric(opts.ba
 end
 
 if isfield(opts, 'highpass')
-    if numel(opts.highpass) == 1 && opts.highpass(1) > 0 && opts.highpass(1) < Fs/2
+    if isscalar(opts.highpass) && opts.highpass(1) > 0 && opts.highpass(1) < Fs/2
         opts.bandpass(1) = opts.highpass;
         hasvalidbpf = 1;
     end
 end
 if isfield(opts, 'lowpass')
-    if numel(opts.lowpass) == 1 && opts.lowpass(1) > 0 && opts.lowpass(1) < Fs/2
+    if isscalar(opts.lowpass) && opts.lowpass(1) > 0 && opts.lowpass(1) < Fs/2
         opts.bandpass(2) = opts.lowpass;
         hasvalidbpf = 1;
     end
@@ -1337,7 +1377,7 @@ if hasvalidbpf
 end
 
 if isfield(opts, 'envelope')
-    if numel(opts.envelope) == 1 && isnumeric(opts.envelope) && opts.envelope < Fs/2
+    if isscalar(opts.envelope) && isnumeric(opts.envelope) && opts.envelope < Fs/2
         set(h_evf_cutoff, 'String', num2str(opts.envelope));
         f_evf_cutoff([], []);
         f_evf_switch([], []);
@@ -1345,7 +1385,7 @@ if isfield(opts, 'envelope')
 end
 
 if isfield(opts, 'zscore')
-    if numel(opts.zscore) == 1 && opts.zscore
+    if isscalar(opts.zscore) && opts.zscore
         f_zscore_switch(-10000, []);
     end
 end
@@ -1382,6 +1422,7 @@ end
 
 % Done with startup
 f_hold_switch(-100000, []);
+figure(fighand);
 
 
     function f_fig_scrollwheel(hObject, eventdata)
@@ -1735,7 +1776,7 @@ f_hold_switch(-100000, []);
             if ~PlotHold
                 selchan = get(h_chansel_list, 'Value');
                 i = chan2idx(ChanNames,chan,1);
-                if numel(i) == 1 && ~any(selchan==i)
+                if isscalar(i) && ~any(selchan==i)
                     selchan = union(selchan,i);
                     set(h_chansel_list, 'Value', selchan);
                     f_chansel_confirm([], []);
@@ -1794,10 +1835,10 @@ f_hold_switch(-100000, []);
 
 
     function f_hold_switch(hObject, eventdata) %#ok<*INUSD>
-        if ~isempty(hObject) && numel(hObject) == 1 && hObject <= -100000
+        if ~isempty(hObject) && isscalar(hObject) && hObject <= -100000
             % This always disables plot hold
             PlotHold = 1;
-        elseif ~isempty(hObject) && numel(hObject) == 1 && hObject <= -10000
+        elseif ~isempty(hObject) && isscalar(hObject) && hObject <= -10000
             % This always enables plot hold
             PlotHold = 0;
         end
@@ -1833,7 +1874,7 @@ f_hold_switch(-100000, []);
             redraw();
         else
             set(h_verticaloverlapdisallow_switch, 'Value', 1, 'ForegroundColor', fontcolor_on2, 'FontWeight', fontweight_on2);
-            VerticalOverlapAllow = 2;
+            VerticalOverlapAllow = 1.2; % can go 10% over
             redraw();
         end
     end
@@ -1973,14 +2014,14 @@ f_hold_switch(-100000, []);
 
             %2024-12-17 If PSD data tips have been used, maybe the user
             %want to notch these?
-            psd_datatips = [];
+            %psd_datatips = [];
             psd_datatip_freqs = [];
             if ishandle(viewhand_psd_axe)
                 try
                     psd_datatips = findobj(viewhand_psd_axe, 'Type', 'DataTip');
                     psd_datatip_freqs = unique(psd_now_fxx([psd_datatips(:).DataIndex]));
                 catch
-                    psd_datatips = [];
+                    %psd_datatips = [];
                     psd_datatip_freqs = [];
                 end
             end
@@ -2126,7 +2167,7 @@ f_hold_switch(-100000, []);
             clear d Hd
             %2024-11-07: Notch filter to allow any list of frequencies and
             %can automatically calculate from aliasing
-            if length(NotchFrequencies) == 1
+            if isscalar(NotchFrequencies)
                 % If unspecified, filter the first 3 harmonics
                 Freqs = NotchFrequencies(1)*(1:3);
             else
@@ -3677,7 +3718,7 @@ f_hold_switch(-100000, []);
                 end
                 tmp_ftr = false(1,5);
                 if use_ltmat
-                    if length(selica) == 1 && selica > 1
+                    if isscalar(selica) && selica > 1
                         tmp_ftr(1) = 1;
                     end
                 else
@@ -3939,7 +3980,7 @@ f_hold_switch(-100000, []);
             end
         else
             tmp = get(h_icasel_list, 'Value');
-            if length(tmp) == length(selica) && min(tmp == selica) == 1
+            if length(tmp) == length(selica) && all(tmp == selica)
                 % No change
                 return;
             else
@@ -4126,6 +4167,20 @@ f_hold_switch(-100000, []);
         set([plottext_cursor_hand plottext_lmin_hand plottext_lmax_hand], 'FontUnits', 'normalized', 'FontSize', AxesFontSize);
         set([plotinfolabel1hand plotinfolabel2hand plotinfolabel3hand], 'FontUnits', 'normalized', 'FontSize', AxesFontSize*InfoLabelFontSizeScale);
         set(h_hintbar, 'String', sprintf('Axes font size set to %g units', AxesFontSize));
+    end
+
+    function f_linewidth_inc(hObject, eventdata)
+        PlotLineWidth = PlotLineWidth + .5;
+        set(plothand, 'LineWidth', PlotLineWidth);
+        set(h_hintbar, 'String', sprintf('Set line width to %g units', PlotLineWidth));
+    end
+
+    function f_linewidth_dec(hObject, eventdata)
+        if PlotLineWidth > .5
+            PlotLineWidth = PlotLineWidth - .5;
+        end
+        set(plothand, 'LineWidth', PlotLineWidth);
+        set(h_hintbar, 'String', sprintf('Set line width to %g units', PlotLineWidth));
     end
 
     function f_eventfont_inc(hObject, eventdata)

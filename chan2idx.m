@@ -3,7 +3,10 @@
 % sensors = the first matching channel in ChanNames for each element of Channels
 % allsensors = all matching channels in ChanNames for each element of Channels
 % SWnonzero = instead of leaving a 0 placeholder, omit the non-matched channels
-% SWregexp = use regular expression instead of exact match
+% SWregexp = use regular expression instead of exact match. 
+%      Note: sensors will include all matching channels instead of only the
+%            first matching channel. Nonmatching channels are not included
+%            as placeholders.
 function [sensors, allsensors] = chan2idx (ChanNames, Channels, SWnonzero, SWregexp)
 if ~iscell(ChanNames)
     if ischar(ChanNames)
@@ -43,3 +46,6 @@ if exist('SWnonzero','var') && ~isempty(SWregexp) && isscalar(SWregexp) && SWnon
     sensors = sensors(sensors>0);
 end
 
+if SWregexp
+    sensors = allsensors{:};
+end
