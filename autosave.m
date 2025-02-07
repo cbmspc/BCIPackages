@@ -1,4 +1,4 @@
-% Modified version for UCI BCI Lab
+% Modified by Po T Wang
 function tout = autosave(varargin)
 % AUTOSAVE automatically saves data in the base workspace
 % AUTOSAVE saves all of the variables in the base workspace every 10
@@ -175,7 +175,6 @@ end
 
 function savedata(h,ev,filename,minimum_freespace_fraction_required,maximum_savefile_bytes,maximum_variable_bytes,saveargs) %#ok<INUSD>
 %SAVEDATA saves data from the base workspace
-
 tmp_whos = evalin('base', 'whos');
 tmp_whos = tmp_whos(cellfun(@isempty,regexp({tmp_whos.class},'^matlab\.','match','once')));
 [Folder, Filenamepart] = fileparts(filename);
@@ -211,8 +210,9 @@ if (isfinite(maximum_savefile_bytes) || isfinite(maximum_variable_bytes)) && ~is
     tmp_whos_table = tmp_whos_table(tmp_whos_table.bytes <= maximum_variable_bytes,:);
     tmp_whos_table = tmp_whos_table(cumsum(tmp_whos_table.bytes) <= maximum_savefile_bytes,:);
     tmp_saveargs = regexprep(regexprep(regexprep(saveargs,'^\s+|\s+$',''),'(\S+)','''$1'''),' ',',');
-    tmp_varnames = cell_to_string(regexprep(tmp_whos_table.name,'^(.*)$','''$1'''), ',');
+    tmp_varnames = cell_to_string(regexprep({tmp_whos_table.name},'^(.*)$','''$1'''), ',');
     savestr = sprintf('try save(''%s'',%s,%s);end', filename, tmp_varnames, tmp_saveargs);
+
     evalin('base',savestr);
 else
     savestr = ['try save ' filename ' ' saveargs ';end'];

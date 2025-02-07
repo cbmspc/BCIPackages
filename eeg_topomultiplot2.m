@@ -6,6 +6,7 @@ else
 end
 
 Opts.fontsize = 4;
+Opts.normalizedfontsize = 0.03;
 Opts.nocolorbar = 1;
 Opts.nocontour = 1;
 Opts.npts = 64;
@@ -20,6 +21,8 @@ if exist('OtherOpts', 'var') && isstruct(OtherOpts)
     fns = fieldnames(OtherOpts);
     for i = 1:length(fns)
         if ~isfield(Opts, fns{i}) && ~strcmp(fns{i}, 'title') && ~strcmp(fns{i}, 'footer')
+            Opts.(fns{i}) = OtherOpts.(fns{i});
+        elseif strcmp(fns{i}, 'normalizedfontsize') || strcmp(fns{i}, 'fontsize')
             Opts.(fns{i}) = OtherOpts.(fns{i});
         end
     end
@@ -45,7 +48,7 @@ for s = 1:size(values,2)
     thischannames = thischannames(thisisfinite);
     eeg_topoplot2(thisvalue, thischannames, Opts);
     %title(SubplotNames{s});
-    title([SubplotNames{s} '       '], 'HorizontalAlignment','right','VerticalAlignment','cap')
+    title([SubplotNames{s} '       '], 'HorizontalAlignment','right','VerticalAlignment','cap','FontUnit','normalized','FontSize',0.06)
     pause(0.05);
 end
 

@@ -10,11 +10,13 @@ NumContourLevels = 10;
 OnlyShowElectrodes = ChanNames;
 SuppressElectrodeLabels = {};
 FontSize = 11;
+NormalizedFontSize = [];
 FontName = 'VariableWidth';
 Npts = 512;
 axes_hand = [];
 bordercolor = [];
 borders_to_draw = false(1,4);
+headcolor = [0 0 0];
 
 if length(ChanNames) > 128
     FontSize = 6;
@@ -66,6 +68,9 @@ if exist('Opts', 'var') && isstruct(Opts)
     end
     if isfield(Opts, 'fontsize') && ~isempty(Opts.fontsize)
         FontSize = Opts.fontsize;
+    end
+    if isfield(Opts, 'normalizedfontsize') && isscalar(Opts.normalizedfontsize)
+        NormalizedFontSize = Opts.normalizedfontsize;
     end
     if isfield(Opts, 'fontname') && ~isempty(Opts.fontname)
         FontName = Opts.fontname;
@@ -204,7 +209,9 @@ rcimap = chan2idx(upper(OnlyShowElectrodes), upper(ElecNames), 0);
 for i = 1:length(ElecNames)
     if ismember(upper(ElecNames{i}), upper(OnlyShowElectrodes)) && values(rcimap(i)) ~= 0
         if ~ismember(upper(ElecNames{i}), upper(SuppressElectrodeLabels))
-            if FontSize > 0
+            if ~isempty(NormalizedFontSize) && NormalizedFontSize > 0
+                text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+abs(MX*0.1)+0.1,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontUnit','normalized','FontSize',NormalizedFontSize,'FontName',FontName);
+            elseif FontSize > 0
                 text(FlatXYCoords(i,1),FlatXYCoords(i,2),MX+abs(MX*0.1)+0.1,ElecNames{i},'HorizontalAlignment','center','VerticalAlignment','middle','Color',[0 0 0],'FontWeight','bold','FontSize',FontSize,'FontName',FontName);
             end
         end
