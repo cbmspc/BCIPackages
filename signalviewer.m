@@ -175,11 +175,13 @@ end
 
 pwelch_nfft = [];
 
-panfrac_default = 0.50;
+panfrac_noncursor_mode = 1.00; % Default is panning left/right by 100% of the screen. This can be changed on the GUI
 % default to pan left/right this many screens
 
-panfrac_default_cursor_mode = 0.80;
+panfrac_cursor_mode = 0.80;
 % default to pan left/right this many screens when Cursor mode is ON
+
+hpanamount_mode = 0; % 0 = fraction of screen, 1 = seconds
 
 bridgenans_method = 'pchip';
 % See methods in interp1 documentation
@@ -741,6 +743,12 @@ PermittedXZoomRanges   = [0.001 0.005 0.01 0.05 0.1 0.5 1 2 5 10 20 30 60 120 30
 PermittedXZoomRanges = PermittedXZoomRanges(PermittedXZoomRanges > 1/Fs);
 PermittedChanSepRanges = [1e-6 2e-6 5e-6 1e-5 2e-5 5e-5 1e-4 2e-4 5e-4 .001 .002 .005 .01 .02 .05 .1 .2 .5 1 2 5 10 20 50 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000 1000000 2000000 5000000 10000000];
 XTickSpacingsAndUnits = {
+    1e-9    1e-9    'ns'
+    2e-9    1e-9    'ns'
+    10e-9   1e-9    'ns'
+    20e-9   1e-9    'ns'
+    100e-9  1e-9    'ns'
+    200e-9  1e-9    'ns'
     1e-6    1e-6    'us'
     2e-6    1e-6    'us'
     10e-6   1e-6    'us'
@@ -760,16 +768,17 @@ XTickSpacingsAndUnits = {
     10      1   's'
     20      1   's'
     30      1   's'
-    60      60  'm'
-    300     60  'm'
-    600     60  'm'
-    1200    60  'm'
-    1800    60  'm'
-    3600    3600    'h'
-    7200    3600    'h'
-    3600*4  3600    'h'
-    3600*8  3600    'h'
-    3600*24 86400    'd'
+    60      1   's'
+    300     1   's'
+    600     1   's'
+    1200    1   's'
+    1800    1   's'
+    3600    1   's'
+    7200    1   's'
+    3600*4  1   's'
+    3600*8  1   's'
+    3600*24 1   's'
+    3600*24*7 1 's'
 };
 XTickSpacings = cat(1,XTickSpacingsAndUnits{:,1});
 
@@ -983,7 +992,7 @@ end
         end
     end
 
-    [~,I] = sortrows(EventTimes);
+    [EventTimes,I] = sortrows(EventTimes);
     EventTimeStamps = EventTimeStamps(I,:);
 
     % try
@@ -1185,14 +1194,21 @@ h_xspan_text = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Posit
 
 h_xspan_edittext1intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.01 0.020 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(1) =', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 h_xspan_edit1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.04 0.020 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_xspan_edittext1unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.07 0.020 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
+h_xspan_samplenumber1intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.01 0.010 0.03 0.010], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'sample#', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
+h_xspan_samplenumber1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.04 0.010 0.03 0.010], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Enable', 'off');
+h_xspan_edittext1unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.07 0.020 0.004 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 's', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 
-h_lmoddate = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.10 0.020 0.095 0.012], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['SignalViewer version: ' lmoddate], 'FontUnits', 'normalized', 'FontSize', 0.8, 'FontName', 'Calibri', 'HorizontalAlignment', 'left'); %#ok<NASGU>
-h_hintbar = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.20 0.020 0.625 0.015], 'BackgroundColor', [0.7 0.9 0.7], 'String', '', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana', 'HorizontalAlignment', 'left');
+h_hpanamount_intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.075 0.020 0.048 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Arrow key step size: ', 'HorizontalAlignment', 'left', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.8); %#ok<NASGU>
+h_hpanamount_edit = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.125 0.020 0.020 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '100%', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.8); 
 
-h_xspan_edittext2intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.835 0.020 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
-h_xspan_edit2 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.865 0.020 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
-h_xspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.895 0.020 0.025 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'seconds', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
+h_lmoddate = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.0 0.000 0.095 0.009], 'BackgroundColor', [0.7 0.7 0.7], 'String', ['SignalViewer version: ' lmoddate], 'FontUnits', 'normalized', 'FontSize', 0.8, 'FontName', 'Calibri', 'HorizontalAlignment', 'left'); %#ok<NASGU>
+h_hintbar = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.15 0.020 0.705 0.015], 'BackgroundColor', [0.7 0.9 0.7], 'String', '', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'FontName', 'Verdana', 'HorizontalAlignment', 'left');
+
+h_xspan_edittext2intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.856 0.020 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'XLim(2) =', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
+h_xspan_edit2 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.886 0.020 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
+h_xspan_samplenumber2intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.856 0.010 0.03 0.01], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'sample#', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
+h_xspan_samplenumber2 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.886 0.010 0.03 0.01], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Enable', 'off');
+h_xspan_edittext2unit = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.916 0.020 0.004 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 's', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9); %#ok<NASGU>
 
 % h_yspan_edittext1intro = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.41 0.025 0.03 0.015], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Selected channel YMin =', 'FontUnits', 'normalized', 'FontSize', ControlFontSize);
 % h_yspan_edit1 = uicontrol(fighand, 'Style', 'edit', 'Units', 'normalized', 'Position', [0.44 0.025 0.03 0.015], 'BackgroundColor', [0.99 0.99 0.99], 'String', '00000', 'FontUnits', 'normalized', 'FontSize', ControlFontSize);
@@ -1234,6 +1250,7 @@ set(h_sepdown, 'Callback', @f_sepdown);
 set(h_hintbar, 'Enable', 'Inactive', 'ButtonDownFcn', @f_hintbar);
 set(h_xspan_edit1, 'Callback', @f_xspan_edit1);
 set(h_xspan_edit2, 'Callback', @f_xspan_edit2);
+set(h_hpanamount_edit, 'Callback', @f_hpanamount_edit);
 
 set(h_hold_switch, 'Callback', @f_hold_switch);
 set(h_verticaloverlapdisallow_switch, 'Callback', @f_verticaloverlapdisallow_switch);
@@ -1428,17 +1445,9 @@ figure(fighand);
     function f_fig_scrollwheel(hObject, eventdata)
         if eventdata.VerticalScrollCount < 0
             % Mouse whell scroll up
-                %f_panleft(hObject, 0.10);
-                %f_xzoomin(hObject, []);
-                %f_sepdown(hObject, []);
-                %autofit();
 
         elseif eventdata.VerticalScrollCount > 0
             % Mouse whell scroll down
-                %f_panright(hObject, 0.10);
-                %f_xzoomout(hObject, []);
-                %f_sepup(hObject, []);
-                %autofit();
         end
 
     end
@@ -1535,7 +1544,8 @@ figure(fighand);
         switch Key
             case 'g'
                 set(h_hintbar, 'String', '');
-                uin = inputdlg('Center on specific time in seconds, specify a time range, or enter "all":');
+                %uin = inputdlg('Center on specific time in seconds, specify a time range, or enter "all":');
+                uin = inputdlg('Center on specific time in seconds, specify a time range, or enter "all":', '', 1, {sprintf('%g   %g', XLim(1), XLim(2))});
                 gotosec = str2double(uin);
                 if isfinite(gotosec)
                     if FilterBusy
@@ -1658,15 +1668,14 @@ figure(fighand);
                             set(h_hintbar, 'String', ['Centered on event #' num2str(u) '/' num2str(Nevents) ' [' et ']'  ': ' EventTimeStamps{u,2} '.   Hint: Hold both Alt and Shift to align to the left instead of center.']);
                         end
                     elseif XLim(1) < min(EventTimes(:,1)) && XLim(1) > 0
-                        %f_panleft(hObject, 5.0);
                         set(h_hintbar, 'String', 'There are no more events to the left!');
                     end
                 elseif Alt && ~EventEnable
                     if XLim(1) > 0
-                        f_panleft(hObject, 5.0);
+                        f_panleft(hObject, 'bigger');
                     end
                 elseif Shift
-                    f_panleft(hObject, 0.10);
+                    f_panleft(hObject, 'smaller');
                 else
                     f_panleft(hObject, []);
                 end
@@ -1710,15 +1719,13 @@ figure(fighand);
                         end
                     elseif XLim(2) > max(EventTimes(:,1)) && XLim(2) < Time_max
                         set(h_hintbar, 'String', 'There are no more events to the right!');
-                        %f_panright(hObject, 5.0);
-                        %fprintf('a');
                     end
                 elseif Alt && ~EventEnable
                     if XLim(2) < Time_max
-                        f_panright(hObject, 5.0);
+                        f_panright(hObject, 'bigger');
                     end
                 elseif Shift
-                    f_panright(hObject, 0.10);
+                    f_panright(hObject, 'smaller');
                 else
                     f_panright(hObject, []);
                 end
@@ -2649,15 +2656,24 @@ figure(fighand);
         if FilterBusy || MovementBusy || XLim(1) == Time_min
             return;
         end
-        if ~isempty(eventdata) && isnumeric(eventdata) && eventdata > 0 && eventdata < 10
-            panfrac = eventdata;
+        panfrac = panfrac_noncursor_mode;
+        panmod = 1;
+        if ~isempty(eventdata)
+            switch eventdata
+                case 'bigger'
+                    panmod = 10;
+                case 'smaller'
+                    panmod = 0.1;
+            end
         elseif CursorEnable
-            panfrac = panfrac_default_cursor_mode;
-        else
-            panfrac = panfrac_default;
+            panfrac = panfrac_cursor_mode;
         end
         XRange = XLim(2)-XLim(1);
-        XLim = XLim - XRange*panfrac;
+        if hpanamount_mode == 1
+            XLim = XLim - panfrac*panmod;
+        else
+            XLim = XLim - XRange*panfrac*panmod;
+        end
         set(axehand, 'XLim', XLim);
         MovementBusy = 1;
         resnap_pan();
@@ -2669,15 +2685,24 @@ figure(fighand);
         if FilterBusy || MovementBusy || XLim(2) == Time_max
             return;
         end
-        if ~isempty(eventdata) && isnumeric(eventdata) && eventdata > 0 && eventdata < 10
-            panfrac = eventdata;
+        panfrac = panfrac_noncursor_mode;
+        panmod = 1;
+        if ~isempty(eventdata)
+            switch eventdata
+                case 'bigger'
+                    panmod = 10;
+                case 'smaller'
+                    panmod = 0.1;
+            end
         elseif CursorEnable
-            panfrac = panfrac_default_cursor_mode;
-        else
-            panfrac = panfrac_default;
-        end        
+            panfrac = panfrac_cursor_mode;
+        end
         XRange = XLim(2)-XLim(1);
-        XLim = XLim + XRange*panfrac;
+        if hpanamount_mode == 1
+            XLim = XLim + panfrac*panmod;
+        else
+            XLim = XLim + XRange*panfrac*panmod;
+        end
         set(axehand, 'XLim', XLim);
         MovementBusy = 1;
         resnap_pan();
@@ -2798,7 +2823,8 @@ figure(fighand);
 
     function f_xspan_edit1(hObject, eventdata)
         if FilterBusy || MovementBusy
-            set(h_xspan_edit1, 'String', XLim(1));
+            set(h_xspan_edit1, 'String', num2str(XLim(1)));
+            set(h_xspan_samplenumber1, 'String', num2str(max(1,XLim(1)*SampleRate+1)));
             return;
         end
         v = str2double(get(h_xspan_edit1, 'String'));
@@ -2821,7 +2847,8 @@ figure(fighand);
 
     function f_xspan_edit2(hObject, eventdata)
         if FilterBusy || MovementBusy
-            set(h_xspan_edit2, 'String', XLim(2));
+            set(h_xspan_edit2, 'String', num2str(XLim(2)));
+            set(h_xspan_samplenumber2, 'String', num2str(min(Ntp,XLim(2)*SampleRate+1)));
             return;
         end
         v = str2double(get(h_xspan_edit2, 'String'));
@@ -2838,6 +2865,95 @@ figure(fighand);
         resnap_pan();
         MovementBusy = 0;
         set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
+    end
+
+
+    function f_hpanamount_edit(hObject, eventdata)
+        try
+            uin = get(h_hpanamount_edit,'String');
+            uin = regexprep(uin, '\s+$', '');
+            uin = regexprep(uin, 'weeks', 'w');
+            uin = regexprep(uin, 'week', 'w');
+            uin = regexprep(uin, 'wks', 'w');
+            uin = regexprep(uin, 'wk', 'w');
+            uin = regexprep(uin, 'days', 'd');
+            uin = regexprep(uin, 'day', 'd');
+            uin = regexprep(uin, 'hours', 'h');
+            uin = regexprep(uin, 'hour', 'h');
+            uin = regexprep(uin, 'hrs', 'h');
+            uin = regexprep(uin, 'hr', 'h');
+            uin = regexprep(uin, 'minutes', 'm');
+            uin = regexprep(uin, 'minute', 'm');
+            uin = regexprep(uin, 'mins', 'm');
+            uin = regexprep(uin, 'min', 'm');
+            uin = regexprep(uin, 'seconds', 's');
+            uin = regexprep(uin, 'second', 's');
+            uin = regexprep(uin, 'secs', 's');
+            uin = regexprep(uin, 'sec', 's');
+            uin = regexprep(uin, 'milliseconds', 'ms');
+            uin = regexprep(uin, 'millisecond', 'ms');
+            uin = regexprep(uin, 'millisec', 'ms');
+            uin = regexprep(uin, 'microseconds', 'us');
+            uin = regexprep(uin, 'microsecond', 'us');
+            uin = regexprep(uin, 'microsec', 'us');
+            uin = regexprep(uin, 'nanoseconds', 'ns');
+            uin = regexprep(uin, 'nanosecond', 'ns');
+            uin = regexprep(uin, 'nanosec', 'ns');
+            uin = regexprep(uin, 'picoseconds', 'ps');
+            uin = regexprep(uin, 'picosecond', 'ps');
+            uin = regexprep(uin, 'picosec', 'ps');
+            uin = cell_to_string(regexp(uin, '[0123456789.smunphdwe-% ]', 'match'), '');
+            % Get the unit part
+            uinb = regexp(uin, '^([0123456789e-]+)\s?([pnmshdw%]+)$', 'tokens', 'once');
+            if ~isempty(uinb)
+                uinunit = uinb{2};
+                uinval = uinb{1};
+            else
+                uinunit = 's';
+                uinval = uin;
+            end
+
+            % Try parse the value part
+            uinval = str2double(uinval);
+            if isnan(uinval) || uinval < 0
+                error('cannot parse');
+            end
+            if isequal(uinunit, '%')
+                panfrac_noncursor_mode = uinval/100;
+                hpanamount_mode = 0;
+                set(h_hpanamount_edit, 'String', sprintf('%g%s',uinval,uinunit));
+                set(h_hintbar, 'String', sprintf('Left and Right arrow keys will now pan the chart by %g%% of screen. (You can still hold Shift to pan 1/10th of the normal amount.)', uinval));
+            else
+                switch uinunit
+                    case 'ps'
+                        uinval = uinval * 1e-12;
+                    case 'ns'
+                        uinval = uinval * 1e-9;
+                    case 'us'
+                        uinval = uinval * 1e-6;
+                    case 'ms'
+                        uinval = uinval * 1e-3;
+                    case 'm'
+                        uinval = uinval * 60;
+                    case 'h'
+                        uinval = uinval * 3600;
+                    case 'd'
+                        uinval = uinval * 86400;
+                    case 'w'
+                        uinval = uinval * 86400*7;
+                end
+                panfrac_noncursor_mode = uinval;
+                hpanamount_mode = 1;
+                set(h_hpanamount_edit, 'String', sprintf('%gs',uinval));
+                set(h_hintbar, 'String', sprintf('Left and Right arrow keys will now pan the chart by %g seconds. (You can still hold Shift to pan 1/10th of the normal amount.)', uinval));
+            end
+        catch
+            uin = '100%';
+            panfrac_noncursor_mode = 1.00;
+            hpanamount_mode = 0;
+            set(h_hpanamount_edit,'String',uin);
+            set(h_hintbar, 'String', sprintf('Left and Right arrow keys will now pan the chart by %g%% of screen. (You can still hold Shift to pan 1/10th of the normal amount.)', panfrac_noncursor_mode*100));
+        end
     end
 
 
@@ -2919,7 +3035,9 @@ figure(fighand);
         XLim(2) = XLim(1) + XRange;
         set(axehand, 'XLim', XLim, 'YLim', YLim);
         set(h_xspan_edit1, 'String', num2str(XLim(1)));
+        set(h_xspan_samplenumber1, 'String', num2str(max(1,XLim(1)*SampleRate+1)));
         set(h_xspan_edit2, 'String', num2str(XLim(2)));
+        set(h_xspan_samplenumber2, 'String', num2str(min(Ntp,XLim(2)*SampleRate+1)));
         redraw();
         
     end
@@ -2965,7 +3083,9 @@ figure(fighand);
         
         set(axehand, 'XLim', XLim, 'YLim', YLim);
         set(h_xspan_edit1, 'String', num2str(XLim(1)));
+        set(h_xspan_samplenumber1, 'String', num2str(max(1,XLim(1)*SampleRate+1)));
         set(h_xspan_edit2, 'String', num2str(XLim(2)));
+        set(h_xspan_samplenumber2, 'String', num2str(min(Ntp,XLim(2)*SampleRate+1)));
         redraw();
 
     end

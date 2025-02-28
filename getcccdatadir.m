@@ -88,6 +88,7 @@ atype = 0;
 
 pc{1,1} = {
     'D:'
+    '\\ucibciserver.stemcell.uci.edu\Research_ncc135p'
     'D:\SnapMirror\ncc135p_data'
     'D:\SnapMirror\ncc11bw_data'
     'E:'

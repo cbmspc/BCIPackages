@@ -1,4 +1,4 @@
-function savework()
+function saveworkclear()
 if exist([getusername() '-workspace.mat'], 'file')
     d = dir([getusername() '-workspace.mat']);
     if now - d.datenum < 3/86400 %#ok<*TNOW1>
@@ -27,7 +27,7 @@ if wsize > 1e9
     end
 
 end
-fprintf('\n\n********** SAVING YOUR WORKSPACE **********\nSaving workspace variables to disk. Please wait.\n');
+fprintf('\n\n********** SAVING YOUR WORKSPACE AND CLEARING WHEN SAVED **********\nSaving workspace variables to disk. Please wait.\n');
 etimeminutes = wsize/10e6/60*1.1;
 if wsize > 300e6
     fprintf('Because you are saving ~%s MB of data, this can take a while (estimated %.1f minutes)...', addComma(ceil(wsize/1024^2*1.1)), etimeminutes);
@@ -38,9 +38,9 @@ if wsize > 300e6
 end
 
 ccd = cd;
-evalin('base', 'save([getusername() ''-workspace.mat''], ''-v7.3'', ''-nocompression'');');
+evalin('base', 'save([getusername() ''-workspace.mat''], ''-v7.3'', ''-nocompression''); clear;');
 
-fprintf('\n Done! Saved in %s\n********** WORKSPACE SAVED **********\n\n', ccd);
+fprintf('\n Done! Saved in %s\n********** WORKSPACE SAVED AND CLEARED **********\n\n', ccd);
 
 return
 
