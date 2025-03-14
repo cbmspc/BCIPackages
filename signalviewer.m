@@ -32,6 +32,12 @@
 %       the color of line (or patch) and text label for each event. Note that the colors will 
 %       still be whitened according to the transparency settings.
 %
+%   opts.EventColorRules = Regular Expression rules (Nx2 cell array: first column is the rule, second column is the RGB triplet) to automatically color based on the event names
+%     Example: opts.EventColorRules = {'^Idle' [1.0 0.5 0.0]; '^Move' [0 0 1]}
+%
+%   opts.EventLineRules = Regular Expression rules (Nx3 cell array: first column is the rule, second column is the LineWidth (a number), third column is the LineStyle (a character)) to automatically set based on the event names
+%     Example: opts.EventLineRules = {'^Idle' 3 ':'; '^Move' 2 '--'}
+%
 %   opts.ica_W = ICA separating matrix with orientation (Nsource x Nchan), i.e. ica_W * Signal.' = Source.'
 %   opts.ica_A = ICA mixing matrix with orientation (Nchan x Nsource), i.e. ica_A * Source.' = Signal.'
 %    Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', ...
@@ -675,7 +681,7 @@ if isempty(ChanNames)
     error('There is nothing to plot. Either the input is an empty matrix or all channels are completely flat.');
 end
 
-wh = waitbar(0, 'Loading data...', 'Name', 'SignalViewer');
+fprintf('SignalViewer: Loading data... ');
 try
     hashOpt.Method = 'MD5';
     hashOpt.Format = 'hex';
@@ -683,8 +689,8 @@ try
 catch
     signalHashStr = '';
 end
-
-try waitbar(0.2,wh); catch; end
+fprintf('done.\n');
+fprintf('              Allocating filter memories... ');
 
 %[ChanNames,ix] = sort(ChanNames);
 %Signal = Signal(:,ix);
@@ -699,8 +705,9 @@ Signal_postdecimation = Signal(:,1); % This is for each channel's rendering only
 Signal_psd_source = Signal(:,1) * 0;
 
 PerChannelFilterStates = false(4,length(ChanNames)); % Reref, Notch, Butter, Envelope
+fprintf('done.\n');
 
-try waitbar(0.4,wh); catch; end
+fprintf('              Setting up plot elements... ');
 
 % If a signal is known to be bandlimited due to low-pass and/or envelope
 % filter, reduce the number of points to plot to speed up
@@ -831,8 +838,6 @@ if isempty(signalHashStr)
     signalHashStr = num2str(tmp);
 end
 
-try waitbar(0.4,wh); catch; end
-
 fighand = figure(tmp);
 if nargout > 0
     argout1 = fighand;
@@ -840,6 +845,8 @@ end
 clf
 set(fighand, 'ToolBar', 'none', 'MenuBar', 'none');
 set(fighand, 'CloseRequestFcn', @f_main_close);
+
+
 if SignalIsStitched
     tmp = sprintf('Signal is stitched from %g epochs with %.2g s average length.', size(EventTimePoints,1), averageepochduration);
 else
@@ -907,7 +914,8 @@ end
 set(axehand, 'FontUnits', 'normalized');
 AxesFontSize = get(axehand, 'FontSize');
 
-try waitbar(0.6,wh); catch; end
+fprintf('done.\n');
+fprintf('              Labeling events... ');
 
 %tmax = max(Time);
 %SigChunkRendered = false(ceil(tmax / FilterChunkSec),length(ChanNames));
@@ -969,6 +977,8 @@ if EventEnable
     EventTimes = nan(Nevents,2);
     tmp2 = ceil(Nevents/2)*2;
     EventKolors = jet(tmp2);
+    EventLineWidths = repmat(EventLineWidth, [Nevents 1]);
+    EventLineStyles = repmat({EventLineStyle}, [Nevents 1]);
     tmp = 1:tmp2;
     tmp = reshape([tmp(tmp2/2+1:end); tmp(1:tmp2/2)], 1, []);
     EventKolors = EventKolors(tmp,:);
@@ -976,13 +986,33 @@ if EventEnable
     %Po240712: Make them darker so easier to see
     EventKolors = EventKolors * 2/3;
 
-if isfield(opts, 'EventColors') && isnumeric(opts.EventColors) && isequal(size(EventKolors),size(opts.EventColors)) && isreal(opts.EventColors) && min(min(opts.EventColors)) >= 0
-    if max(max(opts.EventColors)) <= 1
-        EventKolors = opts.EventColors;
-    else
-        EventKolors = opts.EventColors ./ max(max(opts.EventColors));
+    if isfield(opts, 'EventColors') && isnumeric(opts.EventColors) && isequal(size(EventKolors),size(opts.EventColors)) && isreal(opts.EventColors) && min(min(opts.EventColors)) >= 0
+        if max(max(opts.EventColors)) <= 1
+            EventKolors = opts.EventColors;
+        else
+            EventKolors = opts.EventColors ./ max(max(opts.EventColors));
+        end
+    elseif isfield(opts, 'EventColorRules') && iscell(opts.EventColorRules) && size(opts.EventColorRules,2) == 2
+        for i = 1:size(opts.EventColorRules,1)
+            foundind = find(~cellfun(@isempty,regexp(EventTimeStamps(:,2), opts.EventColorRules{i,1}, 'match', 'once')));
+            for j = 1:length(foundind)
+                EventKolors(foundind(j),:) = opts.EventColorRules{i,2};
+                if max(max(EventKolors(foundind(j),:))) > 1
+                    EventKolors(foundind(j),:) = EventKolors(foundind(j),:) ./ max(max(EventKolors(foundind(j),:)));
+                end
+            end
+        end
     end
-end
+
+    if isfield(opts, 'EventLineRules') && iscell(opts.EventLineRules) && size(opts.EventLineRules,2) == 3
+        for i = 1:size(opts.EventLineRules,1)
+            foundind = find(~cellfun(@isempty,regexp(EventTimeStamps(:,2), opts.EventLineRules{i,1}, 'match', 'once')));
+            for j = 1:length(foundind)
+                EventLineWidths(foundind(j),1) = opts.EventLineRules{i,2};
+                EventLineStyles(foundind(j),1) = opts.EventLineRules(i,3);
+            end
+        end
+    end
 
     for i = 1:Nevents
         tmp = EventTimeStamps{i,1};
@@ -994,6 +1024,9 @@ end
 
     [EventTimes,I] = sortrows(EventTimes);
     EventTimeStamps = EventTimeStamps(I,:);
+    EventKolors = EventKolors(I,:);
+    EventLineWidths = EventLineWidths(I,:);
+    EventLineStyles = EventLineStyles(I,:);
 
     % try
     %     EventTimeStamps = sortrows(EventTimeStamps);
@@ -1006,12 +1039,16 @@ end
     % Initial y positions for event text labels (redraw will overwrite the positions later)
     YPos = sort(mean(YLim)+diff(YLim)/20*([-8:2:8]), 'descend');
     NYPos = length(YPos);
-    for i = 1:size(EventTimeStamps,1)
+    imax = size(EventTimeStamps,1);
+    ndigits = floor(log10(imax))+1;
+    fprintf(['%' num2str(ndigits) 'i/%' num2str(ndigits) 'i '], 0, imax);
+    tlastreported = now;
+    for i = 1:imax
         %eventplothand(i) = plot( EventTimeStamps{i,1}*[1 1], [-10000000*(Nsch+1), 10000000], '-', 'Color', EventKolor ); %#ok<NASGU>
         if EventTimes(i,1) == EventTimes(i,2)
             EventKolor = EventKolors(mod(i-1,size(EventKolors,1))+1,:);
-            EventKolor = EventKolor/2+0.50;
-            eventplothand(i) = plot( EventTimes(i,1)*[1 1], [-10000000*(Nsch+1), 10000000], 'LineStyle', EventLineStyle, 'Color', EventKolor, 'LineWidth', EventLineWidth );
+            %EventKolor = EventKolor/2+0.50;
+            eventplothand(i) = plot( EventTimes(i,1)*[1 1], [-10000000*(Nsch+1), 10000000], 'LineStyle', EventLineStyles{i}, 'Color', EventKolor, 'LineWidth', EventLineWidths(i) );
         else
             EventKolor = EventKolors(mod(i-1,size(EventKolors,1))+1,:);
             eventplothand(i) = patch( [EventTimes(i,1) EventTimes(i,2) EventTimes(i,2) EventTimes(i,1)], [-10000000*(Nsch+1), -10000000*(Nsch+1), 10000000, 10000000], '-', 'FaceColor', EventKolor, 'EdgeColor', 'none', 'FaceAlpha', EventPatchAlpha); 
@@ -1035,15 +1072,22 @@ end
         %    EventTextKolor = [0 0 0];
         %end
         eventtexthand(i) = text( EventTimes(i,1), YPos(mod(i-1,NYPos)+1), [larrow EventTimeStamps{i,2} rarrow], 'FontName', EventFontName, 'FontUnits', 'pixel', 'FontSize', EventFontSize, 'FontWeight', EventFontWeight, 'HorizontalAlignment', horali, 'BackgroundColor', EventTextBackgroundKolor, 'Color', EventTextKolor);
+        if now - tlastreported > 1/86400
+            fprintf([repmat('\b',[1 ndigits*2+2]) '%' num2str(ndigits) 'i/%' num2str(ndigits) 'i '], i, imax);
+            tlastreported = now;
+        end
     end
     set(eventtexthand(i), 'Visible', 'off');
+    fprintf([repmat('\b',[1 ndigits*2+2]) '%' num2str(ndigits) 'i/%' num2str(ndigits) 'i '], i, imax);
 end
+
 
 %2024-10-03: Move patches to background so that user can still click on traces for PSD.
 o_patches = findobj(get(axehand,'Children'),'Type','Patch');
 set(axehand,'Children',[setdiff(get(axehand,'Children'), o_patches); o_patches]);
 
-try waitbar(0.8,wh); catch; end
+fprintf('done.\n');
+fprintf('              Setting up buttons... ');
 
 BandPassFilter.state = 0;
 BandPassFilter.cutoff = [0 Fs/2];
@@ -1311,7 +1355,7 @@ set(fighand, 'KeyPressFcn', @f_fig_keypress);
 set(fighand, 'WindowScrollWheelFcn', @f_fig_scrollwheel);
 set(fighand,'Position',screensize);
 
-try delete(wh); catch; end
+
 
 reref_update();
 notch_update();
@@ -1438,6 +1482,11 @@ elseif ~isempty(ica_W)
 end
 
 % Done with startup
+
+fprintf('done.\n');
+fprintf('              Done with startup: Figure %i.\n', get(fighand, 'Number'));
+
+
 f_hold_switch(-100000, []);
 figure(fighand);
 
@@ -3939,7 +3988,6 @@ figure(fighand);
             stitch_mult = 0;
         end
         if SignalIsStitched
-            wh = waitbar(0, 'Stitching epochs together...', 'Name', 'SignalViewer');
             tmp = Signal;
             averageepochduration = mean(diff(EventTimePoints,[],2)+1) / Fs;
             if stitch_mult > 0
@@ -3980,9 +4028,6 @@ figure(fighand);
                     end
                 end
 
-                if ishandle(wh)
-                    waitbar(i/imax, wh);
-                end
             end
             if nanaround_stitch_samples > 0
                 tmp = fix_nans_for_filtering(tmp, bridgenans_method);
@@ -4003,9 +4048,6 @@ figure(fighand);
                 end
             end
 
-            if ishandle(wh)
-                delete(wh);
-            end
             clear tmp
         end
     end
