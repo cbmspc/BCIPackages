@@ -24,7 +24,7 @@ for i = 1:VN
 end
 
 underhand = axes('Position', [HLS/2, VLS/2, 1-(HLS+HRS)/1.5, 1-(VLS+VUS)/1.5]);
-set(underhand, 'XTick', [], 'YTick', [], 'Color', UnderAxesColor);
+set(underhand, 'XTick', [], 'YTick', [], 'Color', UnderAxesColor, 'XLim', [HLS/2, HLS/2+1-(HLS+HRS)/1.5], 'YLim', [VLS/2, VLS/2+1-(VLS+VUS)/1.5]);
 handle_backgroundlayer = underhand;
 
 if nargout >= 3
