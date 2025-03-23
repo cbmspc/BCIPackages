@@ -117,7 +117,7 @@ sig1 = sig1-mean(sig1);
 sig2 = sig2-mean(sig2);
 
 if exist('LagLimit','var') && ~isempty(LagLimit)
-    if length(LagLimit) == 1
+    if isscalar(LagLimit)
         LagLimit = abs(LagLimit);
         LagLimit = [-1 1]*LagLimit;
     end
@@ -132,7 +132,7 @@ if SWliteral
     Lags = LagLimit(1):LagLimit(2);
     c = zeros(1,length(Lags));
     lags = c;
-    parfor i = 1:length(Lags)
+    for i = 1:length(Lags)
         lag = round(Lags(i));
         
         if lag > 0
@@ -167,9 +167,9 @@ if SWliteral
 else
     
     if ~isempty(maxlag)
-        [c lags] = xcov(sig1,sig2,maxlag,'coeff');
+        [c, lags] = xcov(sig1,sig2,maxlag,'coeff');
     else
-        [c lags] = xcov(sig1,sig2,'coeff');
+        [c, lags] = xcov(sig1,sig2,'coeff');
     end
     
 end
@@ -179,7 +179,7 @@ c(lags>max(LagLimit)) = -inf;
 
 lcpair = [lags(:), c(:)];
 
-[c i] = max(c);
+[c, i] = max(c);
 lag = round(lags(i));
 
 if lag > 0

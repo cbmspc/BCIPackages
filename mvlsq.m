@@ -121,8 +121,8 @@ end
 try
     if cv
         Y_hat = nan(size(Y));
-        parfor i = 1:size(X,1)
-            b_train = calc_coef(X([1:i-1,i+1:end],:), Y([1:i-1,i+1:end],:), fast, f([1:i-1,i+1:end],:)); %#ok<PFBNS>
+        for i = 1:size(X,1)
+            b_train = calc_coef(X([1:i-1,i+1:end],:), Y([1:i-1,i+1:end],:), fast, f([1:i-1,i+1:end],:)); 
             Y_hat(i,:) = X(i,:)*b_train;
         end
     else
@@ -273,32 +273,22 @@ if cv
     for v = 1:size(Y,2)
         B(:,v) = nlinfit(X, Y(:,v), modelfun, B0, opts);
         Y_hat = nan(size(Y));
-        parfor i = 1:n
-            B_train = nlinfit(X([1:i-1,i+1:end],:), Y([1:i-1,i+1:end],v), modelfun, B0, opts); %#ok<PFBNS>
+        for i = 1:n
+            B_train = nlinfit(X([1:i-1,i+1:end],:), Y([1:i-1,i+1:end],v), modelfun, B0, opts); 
             Y_hat(i,v) = modelfun(B_train, X(i,:));
         end
     end
     Resid = Y - Y_hat;
-%     COD = nan(1,size(Y,2));
-%     for v = 1:size(Y,2)
-%         c = corrcoef(Y_hat(f(:,v),v), Y(f(:,v),v));
-%         COD(1,v) = c(1,2)^2;
-%     end
 else
     B = nan(size(B0,1),size(Y,2));
     Y_hat = nan(size(Y));
     rmse = nan(1,size(Y,2));
-    parfor v = 1:size(Y,2)
+    for v = 1:size(Y,2)
         [B(:,v), ~, ~, ~, MSE] = nlinfit(X, Y(:,v), modelfun, B0, opts);
         Y_hat(:,v) = modelfun(B(:,v), X);
         rmse(v) = sqrt(MSE);
     end
     Resid = Y - Y_hat;
-    %for v = size(Y,2):-1:1
-    %    SS_res = sum(Resid(f(:,v),v).^2);
-    %    SS_tot = sum((Y(f(:,i),v)-mean(Y(f(:,i),v),1)).^2);
-    %    COD(1,v) = 1 - SS_res./SS_tot;
-    %end
 end
 Covar = Resid'*Resid/size(Y,1);
 if cv
