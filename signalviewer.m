@@ -669,6 +669,7 @@ Signal = Signal(:,~chnc);
 ChanNames = ChanNames(~chnc);
 
 % Fix NaNs if any
+Signal_nonfinite = ~isfinite(Signal);
 Signal = fix_nans_for_filtering(Signal, bridgenans_method);
 
 
@@ -3177,6 +3178,7 @@ figure(fighand);
                 else
                     lcomlist = [];
                 end
+
                 if ~isempty(lcomlist)
                     tmp = Signal_postenvelope(:,selchan(ch));
                     for i2 = 1:length(lcomlist)
@@ -3190,6 +3192,9 @@ figure(fighand);
                 else
                     Signal_postdecimation = Signal_postenvelope(t1:BLIM:t2,selchan(ch));
                 end
+
+                %Po250324: NaN the regions where there used to be nan
+                Signal_postdecimation(Signal_nonfinite(t1:BLIM:t2,selchan(ch)),:) = NaN;
                 
                 Time4 = Time(t1:BLIM:t2);
                 if ScreenLimitedDownsampling && length(Time4) > 2*SLD_H
@@ -3202,6 +3207,8 @@ figure(fighand);
                 
                 YDATA = Signal_postdecimation;
                 sd(ch) = std(YDATA);
+
+                
                 
                 if ZscoreFilter.state
                     YDATA = nanzscore(YDATA)*ZscoreFilter.multiplier;
