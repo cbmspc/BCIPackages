@@ -591,6 +591,8 @@ viewhand_ica_A = ceil(rand*1000000000);
 viewhand_ica_W = ceil(rand*1000000000);
 viewhand_psd = ceil(rand*1000000000);
 viewhand_psd_axe = -1;
+psd_held_hand = [];
+psd_now_hand = [];
 %viewhand_psd_peak = -1;
 psd_held_lpxx = [];
 psd_held_fxx = [];
@@ -3858,15 +3860,15 @@ figure(fighand);
                 plotting_a_held_psd = 0;
                 if ~isempty(psd_held_lpxx) && numel(psd_held_lpxx) == numel(psd_held_fxx)
                     plotting_a_held_psd = 1;
-                    plot(psd_held_fxx, psd_held_lpxx, 'Color', psd_held_chancolor, 'LineWidth', psd_held_linewidth);
+                    psd_held_hand = plot(psd_held_fxx, psd_held_lpxx, 'Color', psd_held_chancolor, 'LineWidth', psd_held_linewidth);
                     if strcmpi(psd_xscale, 'log')
                         set(gca, 'XScale', psd_xscale);
                     end
                     hold on
-                    plot(psd_now_fxx, psd_now_lpxx, 'Color', psd_now_chancolor, 'LineWidth', psd_now_linewidth);
+                    psd_now_hand = plot(psd_now_fxx, psd_now_lpxx, 'Color', psd_now_chancolor, 'LineWidth', psd_now_linewidth);
                     hold off
                 else
-                    plot(psd_now_fxx, psd_now_lpxx, 'Color', psd_now_chancolor, 'LineWidth', psd_now_linewidth); %Po240712: PSD line color matches main window's line color
+                    psd_now_hand = plot(psd_now_fxx, psd_now_lpxx, 'Color', psd_now_chancolor, 'LineWidth', psd_now_linewidth); %Po240712: PSD line color matches main window's line color
                     if strcmpi(psd_xscale, 'log')
                         set(gca, 'XScale', psd_xscale);
                     end
@@ -4340,16 +4342,32 @@ figure(fighand);
 
     function f_linewidth_inc(hObject, eventdata)
         PlotLineWidth = PlotLineWidth + .5;
+        psd_held_linewidth = psd_held_linewidth + .5;
+        psd_now_linewidth = psd_now_linewidth + .5;
         set(plothand, 'LineWidth', PlotLineWidth);
         set(h_hintbar, 'String', sprintf('Set line width to %g units', PlotLineWidth));
+        if ishandle(psd_held_hand)
+            set(psd_held_hand, 'LineWidth', psd_held_linewidth);
+        end
+        if ishandle(psd_now_hand)
+            set(psd_now_hand, 'LineWidth', psd_now_linewidth);
+        end
     end
 
     function f_linewidth_dec(hObject, eventdata)
         if PlotLineWidth > .5
             PlotLineWidth = PlotLineWidth - .5;
+            psd_held_linewidth = psd_held_linewidth - .5;
+            psd_now_linewidth = psd_now_linewidth - .5;
         end
         set(plothand, 'LineWidth', PlotLineWidth);
         set(h_hintbar, 'String', sprintf('Set line width to %g units', PlotLineWidth));
+        if ishandle(psd_held_hand)
+            set(psd_held_hand, 'LineWidth', psd_held_linewidth);
+        end
+        if ishandle(psd_now_hand)
+            set(psd_now_hand, 'LineWidth', psd_now_linewidth);
+        end
     end
 
     function f_eventfont_inc(hObject, eventdata)
