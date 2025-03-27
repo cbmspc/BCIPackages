@@ -95,6 +95,7 @@ function Hash = datahash(Data, Opt)
 % 011: 26-May-2012 15:57, Fails for binary input and empty data.
 %
 % 2018-06-30: Modified by Po to allow data larger than Java heap size.
+% 2025-03-27: Modified by Po to allow these data types: datetime, string, table
 
 % Main function: ===============================================================
 % Java is needed:
@@ -301,6 +302,10 @@ function Engine = CoreHash(Data, Engine)
 
 SplitUpdate([uint8(class(Data)), typecast(size(Data), 'uint8')], Engine);
 
+if istable(Data)                  % Get hash for all cell elements:
+   Data = table2cell(Data);
+end
+
 if isstruct(Data)                    % Hash for all array elements and fields:
    F      = sort(fieldnames(Data));  % Ignore order of fields
    Engine = CoreHash(F, Engine);     % Catch the fieldnames
@@ -323,6 +328,10 @@ elseif isnumeric(Data)
    end
 elseif islogical(Data)               % TYPECAST cannot handle LOGICAL
    SplitUpdate(typecast(uint8(Data(:)), 'uint8'), Engine);
+elseif isstring(Data)
+   SplitUpdate(typecast(uint16(char(Data(:))), 'uint8'), Engine);
+elseif isdatetime(Data)
+   SplitUpdate(typecast(datetime2unixtime(Data(:)), 'uint8'), Engine);
 elseif ischar(Data)                  % TYPECAST cannot handle CHAR
    SplitUpdate(typecast(uint16(Data(:)), 'uint8'), Engine);
 elseif isa(Data, 'function_handle')

@@ -3,6 +3,9 @@
 
 function U = datetime2unixtime(D)
 D2 = datetime(0, 'ConvertFrom', 'epochtime', 'TimeZone', 'Etc/UTC');
+if isempty(D.TimeZone)
+    D.TimeZone = 'local';
+end
 Dur = D - D2;
 U = seconds(Dur);
 
