@@ -40,7 +40,11 @@ end
 keeplist = {};
 
 whos_smalllist = whos_keeplist([whos_keeplist.bytes] <= parts_bytes_threshold);
-evalin(workspace, ['save(''' [pathname filesep smallfilename] ''',''' cell_to_string([{whos_smalllist.name} {'-mat'} {'-v7.3'} {'-nocompression'}],''',''') ''');']);
+if ~isempty(whos_smalllist)
+    evalin(workspace, ['save(''' [pathname filesep smallfilename] ''',''' cell_to_string([{whos_smalllist.name} {'-mat'} {'-v7.3'} {'-nocompression'}],''',''') ''');']);
+else
+    fclose(fopen([pathname filesep smallfilename],'w'));
+end
 keeplist = [keeplist; {smallfilename}];
 
 whos_largelist = whos_keeplist([whos_keeplist.bytes] > parts_bytes_threshold);
