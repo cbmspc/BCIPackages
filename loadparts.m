@@ -8,6 +8,9 @@ workspace = 'base';
 if ~endsWith(filepath, '.mat')
     error('Filepath must end with .mat');
 end
+if ~isfile(filepath)
+    error('File does not exist: %s', filepath);
+end
 [pathname, filename, fileext] = fileparts(filepath);
 if ~isfolder(pathname)
     error('Not a folder: %s', pathname);
@@ -19,9 +22,11 @@ end
 filename = regexprep(filename, '--small', '');
 
 dlist = dir([pathname filesep filename '--*' fileext]);
+dlist = [dlist; dir([pathname filesep filename fileext])];
 [~,i] = sort([dlist.bytes],'descend');
 dlist = dlist(i);
 for i = 1:length(dlist)
-    evalin(workspace, sprintf('load(''%s'');',get_cached_filepath([dlist(i).folder filesep dlist(i).name])));
+    if dlist(i).bytes > 0
+        evalin(workspace, sprintf('load(''%s'');',get_cached_filepath([dlist(i).folder filesep dlist(i).name])));
+    end
 end
-
