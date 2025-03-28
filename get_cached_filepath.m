@@ -40,7 +40,7 @@ cachesubdir = cachedir;
 cachefile = [cachesubdir filesep hashed_dinfo dotfile_extension];
 lastaccessedfile = [cachesubdir filesep hashed_dinfo '-la.tmp'];
 
-if ~exist(cachedir, 'dir')
+if ~isfolder(cachedir)
     % Can't create the cache dir. Something is wrong
     filepath = original_filepath;
     return
@@ -60,7 +60,7 @@ if ~isscalar(lastchecked)
     lastchecked = 0;
 end
 
-if exist(cachesubdir, 'dir') && deficient_bytes > 0 && now - lastchecked > 0.05 %#ok<*TNOW1>
+if isfolder(cachesubdir) && deficient_bytes > 0 && now - lastchecked > 0.05 %#ok<*TNOW1>
     lastchecked = now;
     list_cached = dir([cachesubdir filesep '*-la.tmp']);
     ld = [list_cached.datenum];
@@ -86,7 +86,7 @@ if exist(cachesubdir, 'dir') && deficient_bytes > 0 && now - lastchecked > 0.05 
 end
 
 
-if exist(cachesubdir, 'dir') && exist(cachefile, 'file')
+if isfolder(cachesubdir) && isfile(cachefile)
     filepath = cachefile;
     linfo = dir(cachefile);
     if linfo.bytes ~= dinfo.bytes || linfo.datenum ~= dinfo.datenum
@@ -105,10 +105,10 @@ elseif skipIfNotCached
     filepath = original_filepath;
 else
     % We cache it right now!
-    if ~exist(cachesubdir, 'dir')
+    if ~isfolder(cachesubdir)
         mkdir(cachesubdir);
     end
-    if ~exist(cachesubdir, 'dir')
+    if ~isfolder(cachesubdir)
         % Can't create the cache dir. Something is wrong
         filepath = original_filepath;
         return

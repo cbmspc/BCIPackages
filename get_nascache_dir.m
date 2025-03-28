@@ -1,4 +1,5 @@
 function d = get_nascache_dir()
+d = '';
 common_cachedir = 'D:\ProgramData\AppData\Local\NASCache\CacheStorage';
 
 if exist(common_cachedir, 'dir' )
