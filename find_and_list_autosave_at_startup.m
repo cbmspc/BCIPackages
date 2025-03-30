@@ -29,6 +29,8 @@ else
     clear tmp_*
     % If there is no exit save, see if there was an autosave
     tmp_autosavelist = dir([feature('logdir') filesep 'matlabbaseautosave*.mat']);
+    tmp_regtokens = regexp({tmp_autosavelist.name}, '^matlabbaseautosave(\d+)\.mat$', 'tokens', 'once');
+    tmp_autosavelist = tmp_autosavelist(~cellfun(@isempty,tmp_regtokens) & ([tmp_autosavelist.bytes] > 128 | [tmp_autosavelist.bytes] == 0));
     if length(tmp_autosavelist) > 1
         %fprintf('\x25c8 %i autosave files from previous MATLAB instances are available. Click <a href="matlab: uiopen(''%s'')">here</a> to choose and load into workspace.\n', length(tmp_autosavelist), [feature('logdir') filesep 'matlabbaseautosave*.mat']);
         fprintf('\x25c8 Found one or more autosave files, which may contain workspace variables lost due to a crash or reboot:\n');
@@ -37,7 +39,7 @@ else
         tmp_k = 0;
         for tmp_i = 1:length(tmp_autosavelist)
             tmp_regtokens = regexp(tmp_autosavelist(tmp_i).name, '^matlabbaseautosave(\d+)\.mat$', 'tokens', 'once');
-            if ~isempty(tmp_regtokens) && (tmp_autosavelist(tmp_i).bytes > 128 || tmp_autosavelist(tmp_i).bytes == 0)
+            if ~isempty(tmp_regtokens)
                 tmp_dt = datetime(str2double(tmp_regtokens{1}) / 1000, 'ConvertFrom', 'epochtime', 'TimeZone', 'Etc/UTC');
                 tmp_dt.TimeZone = 'local';
                 tmp_dt.Format = "eee dd-MMM-uuuu HH:mm:ss.SSS";
