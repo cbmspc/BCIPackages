@@ -25,8 +25,10 @@ dlist = dir([pathname filesep filename '--*' fileext]);
 dlist = [dlist; dir([pathname filesep filename fileext])];
 [~,i] = sort([dlist.bytes],'descend');
 dlist = dlist(i);
+fprintf('Loading workspace variables from %s: ', filepath);
 for i = 1:length(dlist)
     if dlist(i).bytes > 0
         evalin(workspace, sprintf('load(''%s'');',get_cached_filepath([dlist(i).folder filesep dlist(i).name])));
     end
 end
+fprintf('done.\n');

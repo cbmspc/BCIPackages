@@ -3,6 +3,14 @@ listwhos = evalin('base','whos');
 if length(listwhos) < 2
     return
 end
+if sum([listwhos.bytes]) <= 104857600 && isfile(getappdata(0, 'g_matlabbaseworkspaceautosavefile'))
+    % Up to 100 MB: Just autosave and quit.
+    try 
+        saveparts(getappdata(0, 'g_matlabbaseworkspaceautosavefile'), listwhos.name);
+        return
+    catch
+    end
+end
 optsa.Interpreter = 'tex';
 optsa.WindowStyle = 'modal';
 optsa.Default='Don''t exit';
