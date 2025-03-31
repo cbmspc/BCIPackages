@@ -30,7 +30,7 @@ end
 fprintf('\n\n********** SAVING YOUR WORKSPACE **********\nSaving workspace variables to disk. Please wait.\n');
 etimeminutes = wsize/10e6/60*1.1;
 if wsize > 300e6
-    fprintf('Because you are saving ~%s MB of data, this can take a while (estimated %.1f minutes)...', addComma(ceil(wsize/1024^2*1.1)), etimeminutes);
+    fprintf('Because you are saving ~%s MB of data, this can take a while (estimated %.1f minutes)...', addThousandsCommaSeparators(ceil(wsize/1024^2*1.1)), etimeminutes);
     % try
     %     system(['explorer.exe "' cd '"']);
     % catch
@@ -38,14 +38,11 @@ if wsize > 300e6
 end
 
 ccd = cd;
-evalin('base', 'save([getusername() ''-workspace.mat''], ''-v7.3'', ''-nocompression'');');
+%evalin('base', 'save([getusername() ''-workspace.mat''], ''-v7.3'', ''-nocompression'');');
+evalin('base', 'saveparts([cd filesep getusername() ''-workspace.mat'']);');
 
 fprintf('\n Done! Saved in %s\n********** WORKSPACE SAVED **********\n\n', ccd);
 
 return
 
 
-function numOut = addComma(numIn)
-%https://www.mathworks.com/matlabcentral/answers/96131-is-there-a-format-in-matlab-to-display-numbers-such-that-commas-are-automatically-inserted-into-the
-jf=java.text.DecimalFormat; % comma for thousands, three decimal places
-numOut= char(jf.format(numIn)); % omit "char" if you want a string out

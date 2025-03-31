@@ -3279,6 +3279,13 @@ figure(fighand);
             YPos = YLim(1)+(YLim(2)-YLim(1))/100*[1 2 3];
             YPos = YPos(YPos>YLim(1) & YPos<YLim(2));
             %YPos = stagger_odds_evens(YPos);
+
+
+            linevisible = get(eventplothand, 'Visible');
+            if any([linevisible{:}] == 0)
+                set(eventplothand, 'Visible', 'on');
+            end
+
             if isempty(YPos)
                 YPos = sort(mean(YLim)+diff(YLim)/20*([-8:2:8]), 'descend');
             end
@@ -3557,9 +3564,12 @@ figure(fighand);
 
 
     function f_eventlabels_showhide(hObject, eventdata)
-        visible = get(eventtexthand, 'Visible');
-        if any([visible{:}] == 1)
+        textvisible = get(eventtexthand, 'Visible');
+        linevisible = get(eventplothand, 'Visible');
+        if any([textvisible{:}] == 1)
             set(eventtexthand, 'Visible', 'off');
+        elseif any([linevisible{:}] == 1)
+            set(eventplothand, 'Visible', 'off');
         else
             redraw();
         end
