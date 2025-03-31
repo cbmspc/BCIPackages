@@ -4088,8 +4088,10 @@ figure(fighand);
             set(h_icasel_confirm, 'Enable', 'off', 'String', 'Wait');
             set(h_bigtext, 'Visible', 'on', 'String', sprintf('ICA: Calculating ICs... Progress can be monitored in the command window.\nNote that ICA uses all channels, including those not currently selected for plotting.')); drawnow;
             try
-                fprintf('Running FastICA with these paramters: \n  stabilization = %s\n  maxNumIterations = %g\n  approach = %s\n  g = %s\n', fastica_stabilization, fastica_maxNumIterations, fastica_approach, fastica_g);
-                [~, ica_A, ica_W] = fastica(Signal.', 'stabilization', fastica_stabilization, 'maxNumIterations', fastica_maxNumIterations, 'approach', fastica_approach, 'g', fastica_g, 'interactivePCA', fastica_interactivePCA);
+                fprintf('Running FastICA on Signal with NaN removed and with these parameters: \n  stabilization = %s\n  maxNumIterations = %g\n  approach = %s\n  g = %s\n', fastica_stabilization, fastica_maxNumIterations, fastica_approach, fastica_g);
+                tmp_finites = Signal(~any(Signal_nonfinite,2),:).';
+                [~, ica_A, ica_W] = fastica(tmp_finites, 'stabilization', fastica_stabilization, 'maxNumIterations', fastica_maxNumIterations, 'approach', fastica_approach, 'g', fastica_g, 'interactivePCA', fastica_interactivePCA);
+                clear tmp_finites
             catch exception
                 ica_A = [];
                 ica_W = [];
