@@ -751,7 +751,8 @@ end
  
 PermittedXZoomRanges   = [0.001 0.005 0.01 0.05 0.1 0.5 1 2 5 10 20 30 60 120 300 600 1200 1800 3600:3600:6*3600 8*3600 12*3600 24*3600 7*24*3600];
 PermittedXZoomRanges = PermittedXZoomRanges(PermittedXZoomRanges > 1/Fs);
-PermittedChanSepRanges = [1e-6 2e-6 5e-6 1e-5 2e-5 5e-5 1e-4 2e-4 5e-4 .001 .002 .005 .01 .02 .05 .1 .2 .5 1 2 5 10 20 50 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000 1000000 2000000 5000000 10000000];
+%PermittedChanSepRanges = [1e-6 2e-6 5e-6 1e-5 2e-5 5e-5 1e-4 2e-4 5e-4 .001 .002 .005 .01 .02 .05 .1 .2 .5 1 2 5 10 20 50 100 200 500 1000 2000 5000 10000 20000 50000 100000 200000 500000 1000000 2000000 5000000 10000000];
+PermittedChanSepRanges = [(1:9)*1e-6, (1:9)*1e-5, (1:9)*1e-4, (1:9)*1e-3, (1:9)*1e-2, (1:9)*1e-1, (1:9)*1e0, (1:9)*1e1, (1:9)*1e2, (1:9)*1e3, (1:9)*1e4, (1:9)*1e5, (1:9)*1e6, 1e7];
 XTickSpacingsAndUnits = {
     1e-9    1e-9    'ns'
     2e-9    1e-9    'ns'
@@ -4294,6 +4295,7 @@ figure(fighand);
 
     function f_signal_export(hObject, eventdata)
         assignin(export_workspace_dest, 'signalviewer_Signal', Signal);
+        assignin(export_workspace_dest, 'signalviewer_Signal_nonfinite', Signal_nonfinite);
         assignin(export_workspace_dest, 'signalviewer_Signal_postica', Signal_postica);
         assignin(export_workspace_dest, 'signalviewer_Signal_postreref', Signal_postreref);
         assignin(export_workspace_dest, 'signalviewer_Signal_postnotch', Signal_postnotch);
