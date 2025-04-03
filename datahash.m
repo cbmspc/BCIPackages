@@ -96,6 +96,7 @@ function Hash = datahash(Data, Opt)
 %
 % 2018-06-30: Modified by Po to allow data larger than Java heap size.
 % 2025-03-27: Modified by Po to allow these data types: datetime, string, table
+% 2025-04-03: Modified by Po: Use isfile instead of exist
 
 % Main function: ===============================================================
 % Java is needed:
@@ -144,7 +145,7 @@ if nArg == 2
                '*** %s: 1st input is not a file name', mfilename);
          end
          
-         if exist(Data, 'file') ~= 2
+         if ~isfile(Data, 'file')
             error(['JSimon:', mfilename, ':FileNotFound'], ...
                '*** %s: File not found: %s.', mfilename, Data);
          end
