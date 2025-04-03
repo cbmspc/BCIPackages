@@ -145,7 +145,7 @@ if nArg == 2
                '*** %s: 1st input is not a file name', mfilename);
          end
          
-         if ~isfile(Data, 'file')
+         if ~isfile(Data)
             error(['JSimon:', mfilename, ':FileNotFound'], ...
                '*** %s: File not found: %s.', mfilename, Data);
          end
