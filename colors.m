@@ -1,5 +1,6 @@
 function colors (Number_of_colors)
-color_dir = strrep(cell_to_string({matlabroot 'toolbox' 'matlab' 'graphics' 'color'}, '|'), '|', filesep);
+findjet = dir([matlabroot filesep 'toolbox' filesep 'matlab' filesep 'graphics' filesep '**' filesep 'jet.m']);
+color_dir = findjet.folder;
 if exist(color_dir, 'dir')
     dirlist = dir([color_dir filesep '*.m']);
     flist = regexprep({dirlist.name}, '\.m$', '');
@@ -24,7 +25,7 @@ fprintf('Creating color bars for %i different maps...\n', length(flist));
 fighand = figure('Name', 'Colors!', 'ToolBar', 'none', 'MenuBar', 'none', 'NumberTitle', 'off', 'Color', [0 0 0]);
 
 N = 63;
-if exist('Number_of_colors','var') && ~isempty(Number_of_colors) && numel(Number_of_colors) == 1 && isnumeric(Number_of_colors)
+if exist('Number_of_colors','var') && ~isempty(Number_of_colors) && isscalar(Number_of_colors) && isnumeric(Number_of_colors)
     Number_of_colors = round(abs(Number_of_colors));
     if Number_of_colors > 0
         N = Number_of_colors;
