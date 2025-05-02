@@ -362,11 +362,15 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
     if isfield(opts, 'sensitivity') && isnumeric(opts.sensitivity) && isscalar(opts.sensitivity) && isfinite(opts.sensitivity) && opts.sensitivity >= 0
         set_chansep_to = opts.sensitivity;
     end
-    if isfield(opts, 'xlim') && isnumeric(opts.xlim) && numel(opts.xlim) == 2
-        if isfinite(opts.xlim(1)) && isfinite(opts.xlim(2)) && opts.xlim(1) < opts.xlim(2)
-            set_xlim_to = opts.xlim;
-        elseif opts.xlim(1) == -inf && opts.xlim(2) == inf
-            set_xlim_to = [0 size(Signal,1)/SampleRate];
+    if isfield(opts, 'xlim')
+        if isnumeric(opts.xlim) && numel(opts.xlim) == 2
+            if isfinite(opts.xlim(1)) && isfinite(opts.xlim(2)) && opts.xlim(1) < opts.xlim(2)
+                set_xlim_to = opts.xlim;
+            elseif opts.xlim(1) == -inf && opts.xlim(2) == inf
+                set_xlim_to = [-inf inf];
+            end
+        elseif ischar(opts.xlim) && strcmpi(opts.xlim,'all')
+            set_xlim_to = [-inf inf];
         end
     end
     if isfield(opts, 'psd_ylim_auto') && isscalar(opts.psd_ylim_auto)
@@ -1460,8 +1464,13 @@ end
 set(fighand, 'HandleVisibility', 'callback');
 
 if set_xlim_to(1) ~= XLim(1) || set_xlim_to(2) ~= XLim(2)
-    XLim(1) = set_xlim_to(1);
-    XLim(2) = set_xlim_to(2);
+    if isfinite(set_xlim_to(1)) && isfinite(set_xlim_to(2))
+        XLim(1) = set_xlim_to(1);
+        XLim(2) = set_xlim_to(2);
+    else
+        XLim(1) = 0;
+        XLim(2) = size(Signal,1)/SampleRate;
+    end
     set(axehand, 'XLim', XLim);
     MovementBusy = 1;
     resnap_pan();
