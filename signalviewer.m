@@ -146,6 +146,10 @@
 %   If specified, turns on "Fast Draw" that subsamples the signal before
 %   plotting to speed up. Some details are lost in Fast Draw.
 %
+%   opts.saveas = full path to a file ending in .png
+%   If specified, at the end of opening the signal viewer, automatically
+%   saves the current view into the png file. The file must not already exist.
+%
 %   Signal Hash = The hash (currently using the MD5 hashing algorithm) of
 %   the input signal after correcting for orientation, stitching, etc. 
 %   Note that SampleRate, ChanNames, Events, and other options are not
@@ -1502,6 +1506,14 @@ fprintf('              Done with startup: Figure %i.\n', get(fighand, 'Number'))
 
 f_hold_switch(-100000, []);
 figure(fighand);
+
+if isfield(opts,'saveas') && ischar(opts.saveas) && ~isfile(opts.saveas) && length(opts.saveas) > 4 && strcmpi(opts.saveas(end-3:end),'.png')
+    try
+        saveas(fighand, opts.saveas);
+    catch
+        warning('Unable to save into %s', opts.saveas);
+    end
+end
 
 
     function f_fig_scrollwheel(hObject, eventdata)
