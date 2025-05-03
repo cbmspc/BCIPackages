@@ -150,6 +150,11 @@
 %   If specified, at the end of opening the signal viewer, automatically
 %   saves the current view into the png file. The file must not already exist.
 %
+%   opts.screensize = [1 1 2560 1440]
+%   If specified, override the default screensize detection
+%   get(groot,'ScreenSize'). This is useful if you want to screenshots to
+%   have the same size between different computers
+%
 %   Signal Hash = The hash (currently using the MD5 hashing algorithm) of
 %   the input signal after correcting for orientation, stitching, etc. 
 %   Note that SampleRate, ChanNames, Events, and other options are not
@@ -841,7 +846,10 @@ ICA_AxesPosition = [0.0300    0.0600    0.96    0.93];
 
 chansep = 100;
 
-screensize = get(groot,'Screensize');
+screensize = get(groot,'ScreenSize');
+if isfield(opts, 'screensize') && length(opts.screensize) == 4
+    screensize = opts.screensize;
+end
 tmp = mod(ceil(unixtimemillis()),604800000)+100000001;
 while ishandle(tmp)
     tmp = tmp + 1;
@@ -1379,16 +1387,19 @@ render_update();
 %set(h_xspan_text, 'String', ['full t range [' num2str(round(min(Time))) ', ' num2str(round(max(Time))) '] s']);
 set(h_xspan_text, 'String', sprintf('full t range [%i, %i] s\nSample rate %g Hz\n%i chans, %i epochs', round(min(Time)), round(max(Time)), Fs, length(ChanNames), size(EventTimePoints,1)));
 
-try
-    pause(0.00001);
-    set(fighand, 'WindowState', 'maximized');
-catch
+if isfield(opts, 'screensize') && length(opts.screensize) == 4
+else
     try
         pause(0.00001);
-        oldWarningState = warning('off', 'MATLAB:ui:javacomponent:FunctionToBeRemoved');
-        frame_h = get(handle(fighand),'JavaFrame'); %#ok<JAVFM>
-        set(frame_h,'Maximized',1);
-        warning(oldWarningState);
+        set(fighand, 'WindowState', 'maximized');
+    catch
+        try
+            pause(0.00001);
+            oldWarningState = warning('off', 'MATLAB:ui:javacomponent:FunctionToBeRemoved');
+            frame_h = get(handle(fighand),'JavaFrame'); %#ok<JAVFM>
+            set(frame_h,'Maximized',1);
+            warning(oldWarningState);
+        end
     end
 end
 
