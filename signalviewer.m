@@ -38,6 +38,9 @@
 %   opts.EventLineRules = Regular Expression rules (Nx3 cell array: first column is the rule, second column is the LineWidth (a number), third column is the LineStyle (a character)) to automatically set based on the event names
 %     Example: opts.EventLineRules = {'^Idle' 3 ':'; '^Move' 2 '--'}
 %
+%   opts.EventFontSize = Event font size in points.
+%     Example: opts.EventFontSize = 16
+%
 %   opts.ica_W = ICA separating matrix with orientation (Nsource x Nchan), i.e. ica_W * Signal.' = Source.'
 %   opts.ica_A = ICA mixing matrix with orientation (Nchan x Nsource), i.e. ica_A * Source.' = Signal.'
 %    Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', ...
@@ -1005,6 +1008,11 @@ if EventEnable
 
     %Po240712: Make them darker so easier to see
     EventKolors = EventKolors * 2/3;
+
+    %Po250505
+    if isfield(opts, 'EventFontSize') && isscalar(opts.EventFontSize) && isnumeric(opts.EventFontSize) && opts.EventFontSize > 0 && isfinite(opts.EventFontSize)
+        EventFontSize = opts.EventFontSize;
+    end
 
     if isfield(opts, 'EventColors') && isnumeric(opts.EventColors) && isequal(size(EventKolors),size(opts.EventColors)) && isreal(opts.EventColors) && min(min(opts.EventColors)) >= 0
         if max(max(opts.EventColors)) <= 1
