@@ -1,6 +1,10 @@
-function savework()
-if exist([getusername() '-workspace.mat'], 'file')
-    d = dir([getusername() '-workspace.mat']);
+function savework(username)
+if ~exist('username', 'var') || isempty(username) || ~ischar(username)
+    username = getusername();
+end
+username = sanitizefilename(username);
+if exist([username '-workspace.mat'], 'file')
+    d = dir([username '-workspace.mat']);
     if now - d.datenum < 3/86400 %#ok<*TNOW1>
         error('Cannot save now. There is another instance of MATLAB currently saving into the same file.');
     end
@@ -38,8 +42,8 @@ if wsize > 300e6
 end
 
 ccd = cd;
-%evalin('base', 'save([getusername() ''-workspace.mat''], ''-v7.3'', ''-nocompression'');');
-evalin('base', 'saveparts([cd filesep getusername() ''-workspace.mat'']);');
+%evalin('base', 'save([username ''-workspace.mat''], ''-v7.3'', ''-nocompression'');');
+evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat'']);']);
 
 fprintf('\n Done! Saved in %s\n********** WORKSPACE SAVED **********\n\n', ccd);
 

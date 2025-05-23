@@ -1,7 +1,10 @@
-function loadwork()
-
-if isfile([getusername() '-workspace.mat'])
-    filename = [getusername() '-workspace.mat'];
+function loadwork(username)
+if ~exist('username', 'var') || isempty(username) || ~ischar(username)
+    username = getusername();
+end
+username = sanitizefilename(username);
+if isfile([username '-workspace.mat'])
+    filename = [username '-workspace.mat'];
 elseif isfile('matlab.mat')
     filename = 'matlab.mat';
 else

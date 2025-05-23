@@ -49,6 +49,6 @@ else
             end
         end
     end
-    clear tmp_autosavelist tmp_i tmp_regtokens tmp_dt tmp_bytes tmp_k
+    clear tmp_autosavelist tmp_autosavelistall tmp_i tmp_regtokens tmp_dt tmp_bytes tmp_k
 end
 fprintf('\n\n');
