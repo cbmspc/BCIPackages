@@ -34,6 +34,8 @@ function Hash = datahash(Data, Opt)
 %             'bin':   [Data] is a numerical, LOGICAL or CHAR array. Only the
 %                      binary contents of the array is considered, such that
 %                      e.g. empty arrays of different type reply the same hash.
+%             'tempfile': (Only variable up to 2 GB) Saves the data into a
+%                         temporary mat file (-v7 format) and hash the file
 %             Default: 'array'.
 %
 % OUTPUT:
@@ -138,6 +140,19 @@ if nArg == 2
    
    % Check if the Input type is specified - default: 'array':
    if isfield(Opt, 'Input')
+      if strcmpi(Opt.Input, 'tempfile')
+          w = whos('Data');
+          b = java.io.File(feature('logdir')).getUsableSpace;
+          if w.bytes < 2^31 && b > w.bytes
+              tempfilepath = [feature('logdir') filesep 'deephash-' num2str(feature('GetPid')) '-' num2str(prod(w.size)) '-' num2str(w.bytes) '.tmp'];
+              save(tempfilepath, 'Data', '-mat', '-v7', '-nocompression');
+              Opt.Input = 'File';
+              Data = tempfilepath;
+          else
+              Opt.Input = 'array';
+          end
+      end
+
       if strcmpi(Opt.Input, 'File')
          isFile = true;
          if ischar(Data) == 0
@@ -179,6 +194,9 @@ if isFile
    if FID < 0
       error(['JSimon:', mfilename, ':CannotOpen'], ...
          '*** %s: Cannot open file: %s.', mfilename, Data);
+   end
+   if exist('tempfilepath','var') && isfile(tempfilepath)
+       fseek(FID, 116, 0);
    end
    Data = fread(FID, Inf, '*uint8');
    fclose(FID);
@@ -244,6 +262,11 @@ switch OutFormat
       error(['JSimon:', mfilename, ':BadOutFormat'], ...
          '*** %s: [Opt.Format] must be: HEX, hex, uint8, double, base64.', ...
          mfilename);
+end
+
+
+if exist('tempfilepath','var') && isfile(tempfilepath)
+    delete(tempfilepath);
 end
 
 % return;

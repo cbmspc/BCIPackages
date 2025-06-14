@@ -1,6 +1,9 @@
-function savework(username)
+function savework(username, clearaftersave)
 if ~exist('username', 'var') || isempty(username) || ~ischar(username)
     username = getusername();
+end
+if ~exist('clearaftersave','var') || ~isscalar(clearaftersave)
+    clearaftersave = false;
 end
 username = sanitizefilename(username);
 if exist([username '-workspace.mat'], 'file')
@@ -15,7 +18,7 @@ if isempty(w)
     return
 end
 wsize = sum([w.bytes]);
-if wsize > 1e9
+if wsize > 10e9
     optsa.Interpreter = 'tex';
     optsa.WindowStyle = 'modal';
     optsa.Default='Save them all';
@@ -32,7 +35,8 @@ if wsize > 1e9
 
 end
 fprintf('\n\n********** SAVING YOUR WORKSPACE **********\nSaving workspace variables to disk. Please wait.\n');
-etimeminutes = wsize/10e6/60*1.1;
+%etimeminutes = wsize/10e6/60*1.1;
+etimeminutes = wsize/17187500/60;
 if wsize > 300e6
     fprintf('Because you are saving ~%s MB of data, this can take a while (estimated %.1f minutes)...', addThousandsCommaSeparators(ceil(wsize/1024^2*1.1)), etimeminutes);
     % try
@@ -42,10 +46,17 @@ if wsize > 300e6
 end
 
 ccd = cd;
-%evalin('base', 'save([username ''-workspace.mat''], ''-v7.3'', ''-nocompression'');');
-evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat'']);']);
+if clearaftersave
+    evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose''); clear;']);
+else
+    evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose'');']);
+end
 
-fprintf('\n Done! Saved in %s\n********** WORKSPACE SAVED **********\n\n', ccd);
+donestat = 'SAVED';
+if clearaftersave
+    donestat = 'SAVED AND CLEARED';
+end
+fprintf('\n Done! Saved in %s\nTo load this, go to the same folder and type loadwork\n********** WORKSPACE %s **********\n\n', ccd, donestat);
 
 return
 

@@ -24,15 +24,15 @@ if ~isempty(evalin('base','whos'))
             fprintf('Clearing workspace and then loading...\n');
             evalin('base', 'clear');
             evalin('base', ['loadparts(''' cd filesep filename ''');']);
-            fprintf('Loaded all variables from %s.\n', [cd filesep filename]);
+            fprintf('Loaded all variables from %s.\n', filename);
         case 'Merge variables'
             fprintf('Loading...\n');
             evalin('base', ['loadparts(''' cd filesep filename ''');']);
-            fprintf('Loaded all variables from %s.\n', [cd filesep filename]);
+            fprintf('Loaded all variables from %s.\n', filename);
     end
 
 else
     fprintf('Loading...\n');
     evalin('base', ['loadparts(''' cd filesep filename ''');']);
-    fprintf('Loaded all variables from %s.\n', [cd filesep filename]);
+    fprintf('Loaded all variables from %s.\n', filename);
 end

@@ -1,4 +1,4 @@
-function [sphand, underhand, rsphand, handles_left_subplots_2dmatrix, handle_backgroundlayer, handles_right_subplots_2dmatrix] = subplotcompact(VN, HN)
+function [sphand, underhand, rsphand, handles_left_subplots_2dmatrix, handle_backgroundlayer, handles_right_subplots_2dmatrix] = subplotcompact(VN, HN, Opt)
 
 HLS = 0.05;
 HRS = 0.05;
@@ -6,6 +6,27 @@ HIS = 0.00;
 VUS = 0.05;
 VLS = 0.05;
 VIS = 0.00;
+
+if exist('Opt','var') && isstruct(Opt)
+    if validate1(Opt,'LeftMargin')
+        HLS = Opt.LeftMargin;
+    end
+    if validate1(Opt,'RightMargin')
+        HRS = Opt.RightMargin;
+    end
+    if validate1(Opt,'HorizontalSeparation')
+        HIS = Opt.HorizontalSeparation;
+    end
+    if validate1(Opt,'TopMargin')
+        VUS = Opt.TopMargin;
+    end
+    if validate1(Opt,'BottomMargin')
+        VLS = Opt.BottomMargin;
+    end
+    if validate1(Opt,'VerticalSeparation')
+        VIS = Opt.VerticalSeparation;
+    end
+end
 
 Hsize = (1.00 - HLS - HRS - (HN-1)*HIS) / HN;
 Vsize = (1.00 - VLS - VUS - (VN-1)*VIS) / VN;
@@ -45,5 +66,13 @@ for k = reshape(flipud(reshape(1:VN*HN, HN, [])), 1, [])
     j = floor((k-1)/HN)+1;
     sphand(k) = axes('Position', [Posx(i), Posy(j), Hsize, Vsize], 'Color', LeftAxesColor);
     handles_left_subplots_2dmatrix(j,i) = sphand(k);
+end
+
+
+
+function v = validate1(Opt, fieldstring)
+v = false;
+if isfield(Opt,fieldstring) && isscalar(Opt.(fieldstring)) && isnumeric(Opt.(fieldstring)) && Opt.(fieldstring) >= 0
+    v = true;
 end
 

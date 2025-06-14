@@ -35,6 +35,14 @@ if ~exist('skipIfNotCached','var') || isempty(skipIfNotCached) || ~isscalar(skip
 end
 
 cachedir = get_nascache_dir();
+
+if startsWith(original_filepath,lower(cachedir))
+    % It is already a NAS cache
+    filepath = original_filepath;
+    return
+end
+
+
 %cachesubdir = [cachedir filesep hashed_dinfo_first4];
 cachesubdir = cachedir;
 cachefile = [cachesubdir filesep hashed_dinfo dotfile_extension];
