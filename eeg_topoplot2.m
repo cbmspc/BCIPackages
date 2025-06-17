@@ -156,6 +156,7 @@ drawcirc(gca, [0 0], radius, 2, headcolor);
 
 if ~isempty(axes_hand)
     SurfHand = surf(axes_hand, xi, yi, zi, 'EdgeColor', 'none');
+    colormap jet
     [~, ContourHand] = contour(axes_hand, xi, yi, zi, NumContourLevels, 'LineWidth', 2);
 else
     SurfHand = surf(xi, yi, zi, 'EdgeColor', 'none');

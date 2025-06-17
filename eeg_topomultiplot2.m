@@ -12,9 +12,9 @@ Opts.nocontour = 1;
 Opts.npts = 64;
 
 if exist('GridDim', 'var') && length(GridDim) == 2 && size(values,2) == GridDim(1) * GridDim(2)
-    [hands, ~] = subplotcompact(GridDim(1), GridDim(2));
+    [hands, underhand] = subplotcompact(GridDim(1), GridDim(2));
 else
-    [hands, ~] = subplotcompact(floor(sqrt(size(values,2))), ceil(sqrt(size(values,2))));
+    [hands, underhand] = subplotcompact(floor(sqrt(size(values,2))), ceil(sqrt(size(values,2))));
 end
 
 if exist('OtherOpts', 'var') && isstruct(OtherOpts)
@@ -27,6 +27,11 @@ if exist('OtherOpts', 'var') && isstruct(OtherOpts)
         end
     end
 end
+
+set(underhand, 'CLim', Opts.clim);
+axes(underhand); 
+colormap jet
+colorbar
 
 for s = 1:size(values,2)
     Opts.axes_hand = hands(s);
