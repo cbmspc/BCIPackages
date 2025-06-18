@@ -31,7 +31,7 @@ else
     tmp_autosavelistall = dir([feature('logdir') filesep 'matlabbaseautosave*.mat']);
     tmp_regtokens = regexp({tmp_autosavelistall.name}, '^matlabbaseautosave(\d+)\.mat$', 'tokens', 'once');
     tmp_autosavelist = tmp_autosavelistall(~cellfun(@isempty,tmp_regtokens) & ([tmp_autosavelistall.bytes] > 128 | [tmp_autosavelistall.bytes] == 0));
-    if length(tmp_autosavelist) > 1
+    if ~isempty(tmp_autosavelist)
         %fprintf('\x25c8 %i autosave files from previous MATLAB instances are available. Click <a href="matlab: uiopen(''%s'')">here</a> to choose and load into workspace.\n', length(tmp_autosavelist), [feature('logdir') filesep 'matlabbaseautosave*.mat']);
         fprintf('\x25c8 Found one or more autosave files, which may contain workspace variables lost due to a crash or reboot:\n');
         [~,tmp_i] = sort([tmp_autosavelist.datenum],'descend');
@@ -45,7 +45,7 @@ else
                 tmp_dt.Format = "eee dd-MMM-uuuu HH:mm:ss.SSS";
                 tmp_bytes = sum([tmp_autosavelistall(startsWith({tmp_autosavelistall.name},['matlabbaseautosave' tmp_regtokens{1}])).bytes]);
                 tmp_k = tmp_k + 1;
-                fprintf('   %i.\t<a href="matlab: loadparts(''%s'');">%s</a> (~%s MB) last saved %s. Click the link to load.\n', tmp_k, [tmp_autosavelist(tmp_i).folder filesep tmp_autosavelist(tmp_i).name], tmp_dt, addThousandsCommaSeparators(round(tmp_bytes/1024^2,1)), datestr(tmp_autosavelist(tmp_i).datenum,'ddd dd-mmm-yyyy HH:MM:ss')); %#ok<DATST>
+                fprintf('   %i.\t<a href="matlab: loadparts(''%s'');">%s</a> (%s) last saved %s. Click the link to load.\n', tmp_k, [tmp_autosavelist(tmp_i).folder filesep tmp_autosavelist(tmp_i).name], tmp_dt, addByteString(tmp_bytes), datestr(tmp_autosavelist(tmp_i).datenum,'ddd dd-mmm-yyyy HH:MM:ss')); %#ok<DATST>
             end
         end
     end
