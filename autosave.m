@@ -70,8 +70,8 @@ POSSIBILITY OF SUCH DAMAGE.
 % defaults
 period = 30;
 filename = [feature('logdir') filesep 'matlab.mat'];
-saveargs = {'-v7.3', '-nocompression'};
-minimum_freespace_fraction_required = 0.40;
+saveargs = {'-mat', '-v7.3', '-nocompression'};
+minimum_freespace_fraction_required = 0.50;
 maximum_savefile_bytes = inf;
 maximum_variable_bytes = inf;
 
@@ -183,6 +183,9 @@ FileObj = java.io.File(Folder);
 usable_bytes = FileObj.getUsableSpace;
 % convert cell array to a single string
 if iscellstr(saveargs) %#ok<ISCLSTR>
+    if ~ismember(saveargs,{'-mat'})
+        saveargs = [{'-mat'} saveargs];
+    end
     tmpsaveargs = '';
     for n = 1:length(saveargs)
         tmpsaveargs = [tmpsaveargs ' ' saveargs{n}]; %#ok<AGROW>
@@ -195,7 +198,9 @@ if isequal(Folder,feature('logdir')) && ~isempty(regexp(Filenamepart, '^matlabba
     if cputime > 9000
         tmp_list = dir([Folder filesep regexprep(Filenamepart, '\d+', '*')]);
         for i = 1:length(tmp_list)
-            if now - tmp_list(i).datenum > 1.5 && ~isempty(regexp(tmp_list(i).name, '^matlabbaseautosave\d+\.mat$', 'match', 'once')) %#ok<TNOW1>
+            if ~isempty(regexp(tmp_list(i).name, '^matlabbaseautosave\d+\.tmp$', 'match', 'once'))
+                delete([Folder filesep tmp_list(i).name]);
+            elseif now - tmp_list(i).datenum > 1.5 && ~isempty(regexp(tmp_list(i).name, '^matlabbaseautosave\d+\.mat$', 'match', 'once')) %#ok<TNOW1>
                 delete([Folder filesep tmp_list(i).name]);
             end
         end
@@ -212,12 +217,13 @@ if (isfinite(maximum_savefile_bytes) || isfinite(maximum_variable_bytes)) && ~is
     tmp_whos_table = tmp_whos_table(cumsum(tmp_whos_table.bytes) <= maximum_savefile_bytes,:);
     tmp_saveargs = regexprep(regexprep(regexprep(saveargs,'^\s+|\s+$',''),'(\S+)','''$1'''),' ',',');
     tmp_varnames = cell_to_string(regexprep(table2cell(tmp_whos_table(:,'name')),'^(.*)$','''$1'''), ',');
-    savestr = sprintf('save(''%s'',%s,%s);', filename, tmp_varnames, tmp_saveargs);
-
+    savestr = sprintf('save(''%s'',%s,%s);', regexprep(filename,'\.mat$','\.tmp'), tmp_varnames, tmp_saveargs);
     evalin('base',savestr);
+    movefile(regexprep(filename,'\.mat$','\.tmp'),filename,'f');
 else
-    savestr = ['try save ' filename ' ' saveargs ';end'];
+    savestr = ['try save ' regexprep(filename,'\.mat$','\.tmp') ' ' saveargs ';end'];
     evalin('base',savestr);
+    movefile(regexprep(filename,'\.mat$','\.tmp'),filename,'f');
 end
 
 
