@@ -35,7 +35,7 @@ end
 
 try
     disp(getString(message('MATLAB:finishsav:SavingWorkspaceData')));
-    evalin('base', 'save([feature(''logdir'') filesep ''matlabexitsave'' num2str(java.lang.System.currentTimeMillis) ''.mat''], ''-v7.3'', ''-nocompression'');');
+    evalin('base', 'tmp_cwd = cd; save([feature(''logdir'') filesep ''matlabexitsave'' num2str(java.lang.System.currentTimeMillis) ''.mat''], ''-v7.3'', ''-nocompression'');');
     autosave delete
 catch
 end
