@@ -9,13 +9,15 @@ Opts.fontsize = 4;
 Opts.normalizedfontsize = 0.03;
 Opts.nocolorbar = 1;
 Opts.nocontour = 1;
-Opts.npts = 64;
+%OtherOpts.npts = 128;
 
 if exist('GridDim', 'var') && length(GridDim) == 2 && size(values,2) == GridDim(1) * GridDim(2)
-    [hands, underhand] = subplotcompact(GridDim(1), GridDim(2));
 else
-    [hands, underhand] = subplotcompact(floor(sqrt(size(values,2))), ceil(sqrt(size(values,2))));
+    GridDim = floor(sqrt(size(values,2)));
+    GridDim(2) = ceil(size(values,2)/GridDim(1));
 end
+subplotOpts = struct();
+[hands, underhand] = subplotcompact(GridDim(1), GridDim(2), subplotOpts);
 
 if exist('OtherOpts', 'var') && isstruct(OtherOpts)
     fns = fieldnames(OtherOpts);
@@ -27,15 +29,19 @@ if exist('OtherOpts', 'var') && isstruct(OtherOpts)
         end
     end
 end
-
-set(underhand, 'CLim', Opts.clim);
+set(gcf, 'Position', [ 1          82        1920         922]);
+set(underhand, 'CLim', Opts.clim, 'XColor', 'none', 'YColor', 'none');
 axes(underhand); 
 colormap jet
-colorbar
+cb = colorbar;
+
+set(cb, 'Position', [0.95 0.0835 0.015 0.8580]);
+set(cb, 'FontSize', 20);
+
 
 for s = 1:size(values,2)
     Opts.axes_hand = hands(s);
-    if exist('headcolors', 'var')
+    if exist('headcolors', 'var') && ~isempty(headcolors) && size(headcolors,2) == 3
         Opts.headcolor = headcolors(mod(s-1,size(headcolors,1))+1,:,:);
     end
     if exist('OtherOpts', 'var') && isstruct(OtherOpts) && isfield(OtherOpts, 'bordercolorlocations') && size(OtherOpts.bordercolorlocations,1) == size(values,2) && size(OtherOpts.bordercolorlocations,2) == 7
