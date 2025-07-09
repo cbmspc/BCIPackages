@@ -66,6 +66,9 @@ for i = 1:size(Bounds,1)
     a = round(Bounds(i,1));
     b = round(Bounds(i,2));
     c = true;
+    if isnan(a) || isnan(b)
+        continue
+    end
     if isTri
         c = Bounds(i,3);
     end
