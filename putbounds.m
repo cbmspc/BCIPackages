@@ -91,5 +91,6 @@ if PrePadThisManySamples > 0
 end
 
 if length(Signal) > SigLen
+    warning('The constructed signal length (%i) is longer than the specified SigLen (%i) in the input argument and is truncated to match.', length(Signal), SigLen);
     Signal = Signal(1:SigLen);
 end
