@@ -73,13 +73,15 @@ bytestracker = bytestracker + sum([whos_smalllist.bytes]);
 HashBytesPerSec = 55e6;
 SaveBytesPerSec = 25e6;
 
+builtin_basictypes = {'double', 'single', 'uint64', 'uint32', 'uint16', 'uint8', 'int64', 'int32', 'int16', 'int8', 'char', 'logical'};
+
 whos_largelist = whos_keeplist([whos_keeplist.bytes] > parts_bytes_threshold);
 for i = 1:length(whos_largelist)
     if ishandle(wb)
         waitbar(bytestracker/bytestrackermax, wb, sprintf('Hashing the variable: %s (%s MiB)\nTime to hash~ %s.', whos_largelist(i).name, addThousandsCommaSeparators(ceil(whos_largelist(i).bytes/1024^2)),estimate_eta(whos_largelist(i).bytes,HashBytesPerSec)));
     end
     bestinputtype = 'array';
-    if whos_largelist(i).bytes < 2^31 && (strcmp(whos_largelist(i).class,'struct') || strcmp(whos_largelist(i).class,'table') || strcmp(whos_largelist(i).class,'cell'))
+    if whos_largelist(i).bytes < 2^31 && ~ismember(whos_largelist(i).class,builtin_basictypes)
         bestinputtype = 'tempfile';
     end
     tstart = tic;
