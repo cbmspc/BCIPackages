@@ -2645,7 +2645,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
-        set(h_hintbar, 'String', 'Zooming in. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Zooming in. Please wait.'); disable_movement_switches(); drawnow;
 
         acp = get(axehand, 'CurrentPoint');
         XCursor = acp(1); % this is the time point in seconds where the cursor is pointing at when scrolled
@@ -2671,14 +2671,14 @@ end
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
-        set(h_hintbar, 'String', ['Zoomed in to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
+        set(h_hintbar, 'String', ['Zoomed in to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']); enable_movement_switches();
     end
 
     function f_xzoomout(hObject, eventdata)
         if FilterBusy || MovementBusy
             return;
         end
-        set(h_hintbar, 'String', 'Zooming out. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Zooming out. Please wait.'); disable_movement_switches(); drawnow;
 
         acp = get(axehand, 'CurrentPoint');
         XCursor = acp(1); % this is the time point in seconds where the cursor is pointing at when scrolled
@@ -2715,14 +2715,14 @@ end
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
-        set(h_hintbar, 'String', ['Zoomed out to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
+        set(h_hintbar, 'String', ['Zoomed out to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']); enable_movement_switches();
     end
 
     function f_yzoomin(hObject, eventdata)
         if FilterBusy || MovementBusy
             return;
         end
-        set(h_hintbar, 'String', 'Zooming in. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Zooming in. Please wait.'); disable_movement_switches(); drawnow;
         YRange = YLim(2)-YLim(1);
         YRange = YRange / 2;
         YLim(1) = YLim(2) - YRange;
@@ -2730,14 +2730,14 @@ end
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
-        set(h_hintbar, 'String', ['Zoomed in to ' get(h_yzoomlevel, 'String') ' on screen']);
+        set(h_hintbar, 'String', ['Zoomed in to ' get(h_yzoomlevel, 'String') ' on screen']); enable_movement_switches();
     end
 
     function f_yzoomout(hObject, eventdata)
         if FilterBusy || MovementBusy
             return;
         end
-        set(h_hintbar, 'String', 'Zooming out. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Zooming out. Please wait.'); disable_movement_switches(); drawnow;
         YRange = YLim(2)-YLim(1);
         %YCenter = (YLim(1)+YLim(2))/2;
         YRange = YRange * 2;
@@ -2746,14 +2746,14 @@ end
         MovementBusy = 1;
         resnap_zoom();
         MovementBusy = 0;
-        set(h_hintbar, 'String', ['Zoomed out to ' get(h_yzoomlevel, 'String') ' on screen']);
+        set(h_hintbar, 'String', ['Zoomed out to ' get(h_yzoomlevel, 'String') ' on screen']); enable_movement_switches();
     end
 
     function f_panleft(hObject, eventdata) %#ok<*INUSL>
         if FilterBusy || MovementBusy || XLim(1) == Time_min
             return;
         end
-        set(h_hintbar, 'String', 'Panning. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Panning. Please wait.'); disable_movement_switches(); drawnow;
         panfrac = panfrac_noncursor_mode;
         panmod = 1;
         if ~isempty(eventdata)
@@ -2776,14 +2776,14 @@ end
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
-        set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
+        set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']); enable_movement_switches();
     end
 
     function f_panright(hObject, eventdata)
         if FilterBusy || MovementBusy || XLim(2) == Time_max
             return;
         end
-        set(h_hintbar, 'String', 'Panning. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Panning. Please wait.'); disable_movement_switches(); drawnow;
         panfrac = panfrac_noncursor_mode;
         panmod = 1;
         if ~isempty(eventdata)
@@ -2806,7 +2806,7 @@ end
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
-        set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
+        set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']); enable_movement_switches();
     end
 
     function select_next_plothand()
@@ -2855,7 +2855,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
-        set(h_hintbar, 'String', 'Panning. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Panning. Please wait.'); disable_movement_switches(); drawnow;
 
         %2024-10-08 Pan up/down behaves differently in the main window vs. in the PSD window
         if isequal(hObject, viewhand_psd)
@@ -2873,17 +2873,18 @@ end
         ind = find(yt >= YLim(1) & yt <= YLim(2));
         ytl = get(axehand, 'YTickLabel');
         if ~isempty(ind)
-            set(h_hintbar, 'String', ['Panned up to ' ytl{ind(end)} ' -- ' ytl{ind(1)} ' (' num2str(length(ind)) ' channels)']);
+            set(h_hintbar, 'String', ['Panned up to ' ytl{ind(end)} ' -- ' ytl{ind(1)} ' (' num2str(length(ind)) ' channels)']); 
         else
             set(h_hintbar, 'String', '');
         end
+        enable_movement_switches();
     end
 
     function f_pandown(hObject, eventdata)
         if FilterBusy || MovementBusy
             return;
         end
-        set(h_hintbar, 'String', 'Panning. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Panning. Please wait.'); disable_movement_switches(); drawnow;
 
         %2024-10-08 Pan up/down behaves differently in the main window vs. in the PSD window
         if isequal(hObject, viewhand_psd)
@@ -2905,6 +2906,7 @@ end
         else
             set(h_hintbar, 'String', '');
         end
+        enable_movement_switches();
     end
 
 
@@ -2929,7 +2931,7 @@ end
             set(h_xspan_samplenumber1, 'String', num2str(max(1,XLim(1)*SampleRate+1)));
             return;
         end
-        set(h_hintbar, 'String', 'Changing horizontal range. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Changing horizontal range. Please wait.'); disable_movement_switches(); drawnow;
         v = str2double(get(h_xspan_edit1, 'String'));
         if isfinite(v) && imag(v) == 0
             if  v < XLim(2)
@@ -2943,7 +2945,7 @@ end
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
-        set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
+        set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']); enable_movement_switches();
     end
 
 
@@ -2954,7 +2956,7 @@ end
             set(h_xspan_samplenumber2, 'String', num2str(min(Ntp,XLim(2)*SampleRate+1)));
             return;
         end
-        set(h_hintbar, 'String', 'Changing horizontal range. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Changing horizontal range. Please wait.'); disable_movement_switches(); drawnow;
         v = str2double(get(h_xspan_edit2, 'String'));
         if isfinite(v) && imag(v) == 0
             if v > XLim(1)
@@ -2968,7 +2970,7 @@ end
         MovementBusy = 1;
         resnap_pan();
         MovementBusy = 0;
-        set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']);
+        set(h_hintbar, 'String', ['XLim changed to ' num2str(XLim(1)) ' -- ' num2str(XLim(2)) ' seconds']); enable_movement_switches();
     end
 
 
@@ -3065,7 +3067,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
-        set(h_hintbar, 'String', 'Decreasing vertical sensitivity. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Decreasing vertical sensitivity. Please wait.'); disable_movement_switches(); drawnow;
         yl2 = YLim(2)-0.5*chansep;
         yl1 = YLim(1)+0.5*chansep;
         FirstChViewable = ceil(-(yl2+chansep/2)/chansep);
@@ -3085,14 +3087,14 @@ end
         resnap_zoom();
         MovementBusy = 0;
         %redraw();
-        set(h_hintbar, 'String', ['Decreased sensitivity to ' get(h_sensitivity, 'String') ' between channel name tickmarks']);
+        set(h_hintbar, 'String', ['Decreased sensitivity to ' get(h_sensitivity, 'String') ' between channel name tickmarks']); enable_movement_switches();
     end
 
     function f_sepdown(hObject, eventdata)
         if FilterBusy || MovementBusy
             return;
         end
-        set(h_hintbar, 'String', 'Increasing vertical sensitivity. Please wait.'); drawnow;
+        set(h_hintbar, 'String', 'Increasing vertical sensitivity. Please wait.'); disable_movement_switches(); drawnow;
         yl2 = YLim(2)-0.5*chansep;
         yl1 = YLim(1)+0.5*chansep;
         FirstChViewable = ceil(-(yl2+chansep/2)/chansep);
@@ -3112,7 +3114,7 @@ end
         resnap_zoom();
         MovementBusy = 0;
         %redraw();
-        set(h_hintbar, 'String', ['Increased sensitivity to ' get(h_sensitivity, 'String') ' between channel name tickmarks']);
+        set(h_hintbar, 'String', ['Increased sensitivity to ' get(h_sensitivity, 'String') ' between channel name tickmarks']); enable_movement_switches();
     end
 
     function resnap_pan()
