@@ -2645,6 +2645,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
+        set(h_hintbar, 'String', 'Zooming in. Please wait.'); drawnow;
 
         acp = get(axehand, 'CurrentPoint');
         XCursor = acp(1); % this is the time point in seconds where the cursor is pointing at when scrolled
@@ -2677,6 +2678,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
+        set(h_hintbar, 'String', 'Zooming out. Please wait.'); drawnow;
 
         acp = get(axehand, 'CurrentPoint');
         XCursor = acp(1); % this is the time point in seconds where the cursor is pointing at when scrolled
@@ -2720,6 +2722,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
+        set(h_hintbar, 'String', 'Zooming in. Please wait.'); drawnow;
         YRange = YLim(2)-YLim(1);
         YRange = YRange / 2;
         YLim(1) = YLim(2) - YRange;
@@ -2734,6 +2737,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
+        set(h_hintbar, 'String', 'Zooming out. Please wait.'); drawnow;
         YRange = YLim(2)-YLim(1);
         %YCenter = (YLim(1)+YLim(2))/2;
         YRange = YRange * 2;
@@ -2749,6 +2753,7 @@ end
         if FilterBusy || MovementBusy || XLim(1) == Time_min
             return;
         end
+        set(h_hintbar, 'String', 'Panning. Please wait.'); drawnow;
         panfrac = panfrac_noncursor_mode;
         panmod = 1;
         if ~isempty(eventdata)
@@ -2778,6 +2783,7 @@ end
         if FilterBusy || MovementBusy || XLim(2) == Time_max
             return;
         end
+        set(h_hintbar, 'String', 'Panning. Please wait.'); drawnow;
         panfrac = panfrac_noncursor_mode;
         panmod = 1;
         if ~isempty(eventdata)
@@ -2849,6 +2855,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
+        set(h_hintbar, 'String', 'Panning. Please wait.'); drawnow;
 
         %2024-10-08 Pan up/down behaves differently in the main window vs. in the PSD window
         if isequal(hObject, viewhand_psd)
@@ -2876,6 +2883,8 @@ end
         if FilterBusy || MovementBusy
             return;
         end
+        set(h_hintbar, 'String', 'Panning. Please wait.'); drawnow;
+
         %2024-10-08 Pan up/down behaves differently in the main window vs. in the PSD window
         if isequal(hObject, viewhand_psd)
             select_next_plothand();
@@ -2920,6 +2929,7 @@ end
             set(h_xspan_samplenumber1, 'String', num2str(max(1,XLim(1)*SampleRate+1)));
             return;
         end
+        set(h_hintbar, 'String', 'Changing horizontal range. Please wait.'); drawnow;
         v = str2double(get(h_xspan_edit1, 'String'));
         if isfinite(v) && imag(v) == 0
             if  v < XLim(2)
@@ -2944,6 +2954,7 @@ end
             set(h_xspan_samplenumber2, 'String', num2str(min(Ntp,XLim(2)*SampleRate+1)));
             return;
         end
+        set(h_hintbar, 'String', 'Changing horizontal range. Please wait.'); drawnow;
         v = str2double(get(h_xspan_edit2, 'String'));
         if isfinite(v) && imag(v) == 0
             if v > XLim(1)
@@ -3054,6 +3065,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
+        set(h_hintbar, 'String', 'Decreasing vertical sensitivity. Please wait.'); drawnow;
         yl2 = YLim(2)-0.5*chansep;
         yl1 = YLim(1)+0.5*chansep;
         FirstChViewable = ceil(-(yl2+chansep/2)/chansep);
@@ -3080,6 +3092,7 @@ end
         if FilterBusy || MovementBusy
             return;
         end
+        set(h_hintbar, 'String', 'Increasing vertical sensitivity. Please wait.'); drawnow;
         yl2 = YLim(2)-0.5*chansep;
         yl1 = YLim(1)+0.5*chansep;
         FirstChViewable = ceil(-(yl2+chansep/2)/chansep);
