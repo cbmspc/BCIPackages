@@ -659,7 +659,7 @@ InfoLabelEnable = 0;
 
 
 % Identify not-connected channels by signal variance
-chnc = nanmax(Signal) - nanmin(Signal) == 0; %#ok<*NANMIN,*NANMAX>
+chnc = max(Signal) - min(Signal) == 0; %#ok<*NANMIN,*NANMAX>
 
 % Identify not-connected channels by zero-length channel names
 if length(chnc) == length(ChanNames)
@@ -905,7 +905,7 @@ for ch = Nsch:-1:1
     plotpip1hand(ch) = plot(0, 0, '+', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
     plotpip2hand(ch) = plot(0, 0, 'v', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
     plotpip3hand(ch) = plot(0, 0, '^', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
-    plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - nanmean(Signal(t1:t2,selchan(ch))) - chansep*ch); %#ok<*NANMEAN>
+    plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - mean(Signal(t1:t2,selchan(ch)),'omitmissing') - chansep*ch); %#ok<*NANMEAN>
     set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:), 'LineWidth', PlotLineWidth);
     set(plothand(ch), 'ButtonDownFcn', @f_plothand_buttondown);
     setappdata(plothand(ch), 'chanind', selchan(ch));
@@ -3271,7 +3271,7 @@ end
                 if ZscoreFilter.state
                     YDATA = nanzscore(YDATA)*ZscoreFilter.multiplier;
                 else
-                    YDATA = YDATA - nanmedian(YDATA); %#ok<*NANMEDIAN>
+                    YDATA = YDATA - median(YDATA,'omitmissing'); %#ok<*NANMEDIAN>
                 end
 
                 %Po241217: Cap the traces above/below chansep
@@ -3763,7 +3763,7 @@ end
                 if ZscoreFilter.state
                     YDATA_fullres = nanzscore(YDATA_fullres)*ZscoreFilter.multiplier - chansep*ch;
                 else
-                    YDATA_fullres = YDATA_fullres - nanmedian(YDATA_fullres) - chansep*ch;
+                    YDATA_fullres = YDATA_fullres - median(YDATA_fullres,'omitmissing') - chansep*ch;
                 end
                 
                 ypoint(ch) = interp1(Time, Signal_postenvelope(:,selchan(ch)), selected_timepoint);
@@ -4358,6 +4358,8 @@ end
         assignin(export_workspace_dest, 'signalviewer_Signal_postenvelope', Signal_postenvelope);
         assignin(export_workspace_dest, 'signalviewer_ChanNames', ChanNames);
         assignin(export_workspace_dest, 'signalviewer_selchan', selchan);
+        assignin(export_workspace_dest, 'signalviewer_xlimtime', XLim);
+        assignin(export_workspace_dest, 'signalviewer_xlimsamp', [find(Time >= XLim(1),1) find(Time <= XLim(2),1,'last')]);
         assignin(export_workspace_dest, 'signalviewer_PlottedChanNames', ChanNames(selchan));
         assignin(export_workspace_dest, 'signalviewer_RerefChanNames', ChanNames(RerefFilter.chanidx));
         assignin(export_workspace_dest, 'signalviewer_SavedPointsTable', SavedPointsTable);
