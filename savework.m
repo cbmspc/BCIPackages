@@ -6,9 +6,9 @@ if ~exist('clearaftersave','var') || ~isscalar(clearaftersave)
     clearaftersave = false;
 end
 username = sanitizefilename(username);
-if exist([username '-workspace.mat'], 'file')
+if isfile([username '-workspace.mat'])
     d = dir([username '-workspace.mat']);
-    if now - d.datenum < 3/86400 %#ok<*TNOW1>
+    if isscalar(d) && now - d.datenum < 3/86400 %#ok<*TNOW1>
         error('Cannot save now. There is another instance of MATLAB currently saving into the same file.');
     end
 end

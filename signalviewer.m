@@ -679,6 +679,14 @@ else
     ica_A = [];
 end
 
+if ~iscell(ChanNames) && ischar(ChanNames)
+    if size(Signal,2) == 1
+        ChanNames = {ChanNames};
+    elseif size(Signal,2) == numel(ChanNames)
+        ChanNames = num2cell(ChanNames);
+    end
+end
+
 if size(Signal,2) ~= numel(ChanNames)
     error('The numbers of channels in Signal and in ChanNames disagree.');
 end
