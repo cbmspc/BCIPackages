@@ -3346,7 +3346,7 @@ end
 
 
             linevisible = get(eventplothand, 'Visible');
-            if any([linevisible{:}] == 0)
+            if (~isscalar(eventplothand) && any([linevisible{:}] == 0)) || (isscalar(eventplothand) && (linevisible == 0))
                 set(eventplothand, 'Visible', 'on');
             end
 
