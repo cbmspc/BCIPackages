@@ -658,6 +658,15 @@ InfoLabelEnable = 0;
 % end
 
 
+if ~iscell(ChanNames) && ischar(ChanNames)
+    if size(Signal,2) == 1
+        ChanNames = {ChanNames};
+    elseif size(Signal,2) == numel(ChanNames)
+        ChanNames = num2cell(ChanNames);
+    end
+end
+
+
 % Identify not-connected channels by signal variance
 chnc = max(Signal) - min(Signal) == 0; %#ok<*NANMIN,*NANMAX>
 
@@ -677,14 +686,6 @@ if exist('ica_W', 'var') && exist('ica_A', 'var') && ~isempty(ica_W) && ~isempty
 else
     ica_W = [];
     ica_A = [];
-end
-
-if ~iscell(ChanNames) && ischar(ChanNames)
-    if size(Signal,2) == 1
-        ChanNames = {ChanNames};
-    elseif size(Signal,2) == numel(ChanNames)
-        ChanNames = num2cell(ChanNames);
-    end
 end
 
 if size(Signal,2) ~= numel(ChanNames)
