@@ -99,19 +99,20 @@ function Hash = datahash(Data, Opt)
 % 2018-06-30: Modified by Po to allow data larger than Java heap size.
 % 2025-03-27: Modified by Po to allow these data types: datetime, string, table
 % 2025-04-03: Modified by Po: Use isfile instead of exist
+% 2025-09-05: Modified by Po: Use an undocumented getByteStreamFromArray
 
 % Main function: ===============================================================
 % Java is needed:
 if ~usejava('jvm')
-   error(['JSimon:', mfilename, ':NoJava'], ...
-      '*** %s: Java is required.', mfilename);
+    error(['JSimon:', mfilename, ':NoJava'], ...
+        '*** %s: Java is required.', mfilename);
 end
 
 % typecastx creates a shared data copy instead of the deep copy as Matlab's
 % TYPECAST - for a [1000x1000] DOUBLE array this is 100 times faster!
 persistent usetypecastx
 if isempty(usetypecastx)
-   usetypecastx = ~isempty(which('typecastx'));  % Run the slow WHICH once only
+    usetypecastx = ~isempty(which('typecastx'));  % Run the slow WHICH once only
 end
 
 % Default options: -------------------------------------------------------------
@@ -123,145 +124,152 @@ isBin     = false;
 % Check number and type of inputs: ---------------------------------------------
 nArg = nargin;
 if nArg == 2
-   if isa(Opt, 'struct') == 0   % Bad type of 2nd input:
-      error(['JSimon:', mfilename, ':BadInput2'], ...
-         '*** %s: 2nd input [Opt] must be a struct.', mfilename);
-   end
-   
-   % Specify hash algorithm:
-   if isfield(Opt, 'Method')
-      Method = upper(Opt.Method);
-   end
-   
-   % Specify output format:
-   if isfield(Opt, 'Format')
-      OutFormat = Opt.Format;
-   end
-   
-   % Check if the Input type is specified - default: 'array':
-   if isfield(Opt, 'Input')
-      if strcmpi(Opt.Input, 'tempfile')
-          w = whos('Data');
-          b = java.io.File(feature('logdir')).getUsableSpace;
-          if w.bytes < 2^31 && b > w.bytes
-              tempfilepath = [feature('logdir') filesep 'deephash-' num2str(feature('GetPid')) '-' num2str(prod(w.size)) '-' num2str(w.bytes) '.tmp'];
-              save(tempfilepath, 'Data', '-mat', '-v7', '-nocompression');
-              Opt.Input = 'File';
-              Data = tempfilepath;
-          else
-              Opt.Input = 'array';
-          end
-      end
+    if isa(Opt, 'struct') == 0   % Bad type of 2nd input:
+        error(['JSimon:', mfilename, ':BadInput2'], ...
+            '*** %s: 2nd input [Opt] must be a struct.', mfilename);
+    end
 
-      if strcmpi(Opt.Input, 'File')
-         isFile = true;
-         if ischar(Data) == 0
-            error(['JSimon:', mfilename, ':CannotOpen'], ...
-               '*** %s: 1st input is not a file name', mfilename);
-         end
-         
-         if ~isfile(Data)
-            error(['JSimon:', mfilename, ':FileNotFound'], ...
-               '*** %s: File not found: %s.', mfilename, Data);
-         end
-         
-      elseif strncmpi(Opt.Input, 'bin', 3)  % Accept 'binary'
-         isBin = true;
-         if (isnumeric(Data) || ischar(Data) || islogical(Data)) == 0
-            error(['JSimon:', mfilename, ':BadDataType'], ...
-               '*** %s: 1st input is not numeric, CHAR or LOGICAL.', mfilename);
-         end
-      end
-   end
-   
+    % Specify hash algorithm:
+    if isfield(Opt, 'Method')
+        Method = upper(Opt.Method);
+    end
+
+    % Specify output format:
+    if isfield(Opt, 'Format')
+        OutFormat = Opt.Format;
+    end
+
+    % Check if the Input type is specified - default: 'array':
+    if isfield(Opt, 'Input')
+        if strcmpi(Opt.Input,'bytestream')
+            try
+                Data = getByteStreamFromArray(Data);
+                Opt.Input = 'array';
+            catch
+                Opt.Input = 'array';
+            end
+        elseif strcmpi(Opt.Input, 'tempfile')
+            w = whos('Data');
+            b = java.io.File(feature('logdir')).getUsableSpace;
+            if w.bytes < 2^31 && b > w.bytes
+                tempfilepath = [feature('logdir') filesep 'deephash-' num2str(feature('GetPid')) '-' num2str(prod(w.size)) '-' num2str(w.bytes) '.tmp'];
+                save(tempfilepath, 'Data', '-mat', '-v7', '-nocompression');
+                Opt.Input = 'File';
+                Data = tempfilepath;
+            else
+                Opt.Input = 'array';
+            end
+        end
+
+        if strcmpi(Opt.Input, 'File')
+            isFile = true;
+            if ischar(Data) == 0
+                error(['JSimon:', mfilename, ':CannotOpen'], ...
+                    '*** %s: 1st input is not a file name', mfilename);
+            end
+
+            if ~isfile(Data)
+                error(['JSimon:', mfilename, ':FileNotFound'], ...
+                    '*** %s: File not found: %s.', mfilename, Data);
+            end
+
+        elseif strncmpi(Opt.Input, 'bin', 3)  % Accept 'binary'
+            isBin = true;
+            if (isnumeric(Data) || ischar(Data) || islogical(Data)) == 0
+                error(['JSimon:', mfilename, ':BadDataType'], ...
+                    '*** %s: 1st input is not numeric, CHAR or LOGICAL.', mfilename);
+            end
+        end
+    end
+
 elseif nArg ~= 1  % Bad number of arguments:
-   error(['JSimon:', mfilename, ':BadNInput'], ...
-      '*** %s: 1 or 2 inputs required.', mfilename);
+    error(['JSimon:', mfilename, ':BadNInput'], ...
+        '*** %s: 1 or 2 inputs required.', mfilename);
 end
 
 % Create the engine: -----------------------------------------------------------
 try
-   Engine = java.security.MessageDigest.getInstance(Method);
+    Engine = java.security.MessageDigest.getInstance(Method);
 catch
-   error(['JSimon:', mfilename, ':BadInput2'], ...
-      '*** %s: Invalid algorithm: [%s].', mfilename, Method);
+    error(['JSimon:', mfilename, ':BadInput2'], ...
+        '*** %s: Invalid algorithm: [%s].', mfilename, Method);
 end
 
 % Create the hash value: -------------------------------------------------------
 if isFile
-   % Read the file and calculate the hash:
-   FID = fopen(Data, 'r');
-   if FID < 0
-      error(['JSimon:', mfilename, ':CannotOpen'], ...
-         '*** %s: Cannot open file: %s.', mfilename, Data);
-   end
-   if exist('tempfilepath','var') && isfile(tempfilepath)
-       fseek(FID, 116, 0);
-   end
-   Data = fread(FID, Inf, '*uint8');
-   fclose(FID);
-   
-   SplitUpdate(Data, Engine);
-   if usetypecastx
-      Hash = typecastx(Engine.digest, 'uint8');
-   else
-      Hash = typecast(Engine.digest, 'uint8');
-   end
+    % Read the file and calculate the hash:
+    FID = fopen(Data, 'r');
+    if FID < 0
+        error(['JSimon:', mfilename, ':CannotOpen'], ...
+            '*** %s: Cannot open file: %s.', mfilename, Data);
+    end
+    if exist('tempfilepath','var') && isfile(tempfilepath)
+        fseek(FID, 116, 0);
+    end
+    Data = fread(FID, Inf, '*uint8');
+    fclose(FID);
+
+    SplitUpdate(Data, Engine);
+    if usetypecastx
+        Hash = typecastx(Engine.digest, 'uint8');
+    else
+        Hash = typecast(Engine.digest, 'uint8');
+    end
 
 elseif isBin             % Contents of an elementary array:
-   if isempty(Data)      % Nothing to do, Engine.update fails for empty input!
-      Hash = typecastx(Engine.digest, 'uint8');
-   elseif usetypecastx   % Faster typecastx:
-      if isreal(Data)
-         SplitUpdate(typecastx(Data(:), 'uint8'), Engine);
-      else
-         SplitUpdate(typecastx(real(Data(:)), 'uint8'), Engine);
-         SplitUpdate(typecastx(imag(Data(:)), 'uint8'), Engine);
-      end
-      Hash = typecastx(Engine.digest, 'uint8');
-      
-   else                  % Matlab's TYPECAST is less elegant:
-      if isnumeric(Data)
-         if isreal(Data)
+    if isempty(Data)      % Nothing to do, Engine.update fails for empty input!
+        Hash = typecastx(Engine.digest, 'uint8');
+    elseif usetypecastx   % Faster typecastx:
+        if isreal(Data)
+            SplitUpdate(typecastx(Data(:), 'uint8'), Engine);
+        else
+            SplitUpdate(typecastx(real(Data(:)), 'uint8'), Engine);
+            SplitUpdate(typecastx(imag(Data(:)), 'uint8'), Engine);
+        end
+        Hash = typecastx(Engine.digest, 'uint8');
+
+    else                  % Matlab's TYPECAST is less elegant:
+        if isnumeric(Data)
+            if isreal(Data)
+                SplitUpdate(typecast(Data(:), 'uint8'), Engine);
+            else
+                SplitUpdate(typecast(real(Data(:)), 'uint8'), Engine);
+                SplitUpdate(typecast(imag(Data(:)), 'uint8'), Engine);
+            end
+        elseif islogical(Data)               % TYPECAST cannot handle LOGICAL
+            SplitUpdate(typecast(uint8(Data(:)), 'uint8'), Engine);
+        elseif ischar(Data)                  % TYPECAST cannot handle CHAR
+            SplitUpdate(typecast(uint16(Data(:)), 'uint8'), Engine);
             SplitUpdate(typecast(Data(:), 'uint8'), Engine);
-         else
-            SplitUpdate(typecast(real(Data(:)), 'uint8'), Engine);
-            SplitUpdate(typecast(imag(Data(:)), 'uint8'), Engine);
-         end
-      elseif islogical(Data)               % TYPECAST cannot handle LOGICAL
-         SplitUpdate(typecast(uint8(Data(:)), 'uint8'), Engine);
-      elseif ischar(Data)                  % TYPECAST cannot handle CHAR
-         SplitUpdate(typecast(uint16(Data(:)), 'uint8'), Engine);
-         SplitUpdate(typecast(Data(:), 'uint8'), Engine);
-      end
-      Hash = typecast(Engine.digest, 'uint8');
-   end
-   
+        end
+        Hash = typecast(Engine.digest, 'uint8');
+    end
+
 elseif usetypecastx  % Faster typecastx:
-   Engine = CoreHash_(Data, Engine);
-   Hash   = typecastx(Engine.digest, 'uint8');
-   
+    Engine = CoreHash_(Data, Engine);
+    Hash   = typecastx(Engine.digest, 'uint8');
+
 else                 % Slower built-in TYPECAST:
-   Engine = CoreHash(Data, Engine);
-   Hash   = typecast(Engine.digest, 'uint8');
+    Engine = CoreHash(Data, Engine);
+    Hash   = typecast(Engine.digest, 'uint8');
 end
 
 % Convert hash specific output format: -----------------------------------------
 switch OutFormat
-   case 'hex'
-      Hash = sprintf('%.2x', double(Hash));
-   case 'HEX'
-      Hash = sprintf('%.2X', double(Hash));
-   case 'double'
-      Hash = double(reshape(Hash, 1, []));
-   case 'uint8'
-      Hash = reshape(Hash, 1, []);
-   case 'base64'
-      Hash = fBase64_enc(double(Hash));
-   otherwise
-      error(['JSimon:', mfilename, ':BadOutFormat'], ...
-         '*** %s: [Opt.Format] must be: HEX, hex, uint8, double, base64.', ...
-         mfilename);
+    case 'hex'
+        Hash = sprintf('%.2x', double(Hash));
+    case 'HEX'
+        Hash = sprintf('%.2X', double(Hash));
+    case 'double'
+        Hash = double(reshape(Hash, 1, []));
+    case 'uint8'
+        Hash = reshape(Hash, 1, []);
+    case 'base64'
+        Hash = fBase64_enc(double(Hash));
+    otherwise
+        error(['JSimon:', mfilename, ':BadOutFormat'], ...
+            '*** %s: [Opt.Format] must be: HEX, hex, uint8, double, base64.', ...
+            mfilename);
 end
 
 
@@ -281,40 +289,40 @@ function Engine = CoreHash_(Data, Engine)
 SplitUpdate([uint8(class(Data)), typecastx(size(Data), 'uint8')], Engine);
 
 if isstruct(Data)                    % Hash for all array elements and fields:
-   F      = sort(fieldnames(Data));  % Ignore order of fields
-   Engine = CoreHash_(F, Engine);    % Catch the fieldnames
-   
-   for iS = 1:numel(Data)            % Loop over elements of struct array
-      for iField = 1:length(F)       % Loop over fields
-         Engine = CoreHash_(Data(iS).(F{iField}), Engine);
-      end
-   end
-   
+    F      = sort(fieldnames(Data));  % Ignore order of fields
+    Engine = CoreHash_(F, Engine);    % Catch the fieldnames
+
+    for iS = 1:numel(Data)            % Loop over elements of struct array
+        for iField = 1:length(F)       % Loop over fields
+            Engine = CoreHash_(Data(iS).(F{iField}), Engine);
+        end
+    end
+
 elseif iscell(Data)                  % Get hash for all cell elements:
-   for iS = 1:numel(Data)
-      Engine = CoreHash_(Data{iS}, Engine);
-   end
-      
+    for iS = 1:numel(Data)
+        Engine = CoreHash_(Data{iS}, Engine);
+    end
+
 elseif isnumeric(Data) || islogical(Data) || ischar(Data)
-   if isempty(Data) == 0
-      if isreal(Data)                % TRUE for LOGICAL and CHAR also:
-         SplitUpdate(typecastx(Data(:), 'uint8'), Engine);
-      else                           % typecastx accepts complex input:
-         SplitUpdate(typecastx(real(Data(:)), 'uint8'), Engine);
-         SplitUpdate(typecastx(imag(Data(:)), 'uint8'), Engine);
-      end
-   end
-   
+    if isempty(Data) == 0
+        if isreal(Data)                % TRUE for LOGICAL and CHAR also:
+            SplitUpdate(typecastx(Data(:), 'uint8'), Engine);
+        else                           % typecastx accepts complex input:
+            SplitUpdate(typecastx(real(Data(:)), 'uint8'), Engine);
+            SplitUpdate(typecastx(imag(Data(:)), 'uint8'), Engine);
+        end
+    end
+
 elseif isa(Data, 'function_handle')
-   Engine = CoreHash(ConvertFuncHandle(Data), Engine);
-   
+    Engine = CoreHash(ConvertFuncHandle(Data), Engine);
+
 else  % Most likely this is a user-defined object:
-   try
-      Engine = CoreHash(ConvertObject(Data), Engine);
-   catch
-      warning(['JSimon:', mfilename, ':BadDataType'], ...
-         ['Type of variable not considered: ', class(Data)]);
-   end
+    try
+        Engine = CoreHash(ConvertObject(Data), Engine);
+    catch
+        warning(['JSimon:', mfilename, ':BadDataType'], ...
+            ['Type of variable not considered: ', class(Data)]);
+    end
 end
 
 % return;
@@ -327,46 +335,46 @@ function Engine = CoreHash(Data, Engine)
 SplitUpdate([uint8(class(Data)), typecast(size(Data), 'uint8')], Engine);
 
 if istable(Data)                  % Get hash for all cell elements:
-   Data = table2cell(Data);
+    Data = table2cell(Data);
 end
 
 if isstruct(Data)                    % Hash for all array elements and fields:
-   F      = sort(fieldnames(Data));  % Ignore order of fields
-   Engine = CoreHash(F, Engine);     % Catch the fieldnames
-   for iS = 1:numel(Data)            % Loop over elements of struct array
-      for iField = 1:length(F)       % Loop over fields
-         Engine = CoreHash(Data(iS).(F{iField}), Engine);
-      end
-   end
+    F      = sort(fieldnames(Data));  % Ignore order of fields
+    Engine = CoreHash(F, Engine);     % Catch the fieldnames
+    for iS = 1:numel(Data)            % Loop over elements of struct array
+        for iField = 1:length(F)       % Loop over fields
+            Engine = CoreHash(Data(iS).(F{iField}), Engine);
+        end
+    end
 elseif iscell(Data)                  % Get hash for all cell elements:
-   for iS = 1:numel(Data)
-      Engine = CoreHash(Data{iS}, Engine);
-   end
+    for iS = 1:numel(Data)
+        Engine = CoreHash(Data{iS}, Engine);
+    end
 elseif isempty(Data)
 elseif isnumeric(Data)
-   if isreal(Data)
-       SplitUpdate(typecast(Data(:), 'uint8'), Engine);
-   else
-       SplitUpdate(typecast(real(Data(:)), 'uint8'), Engine);
-       SplitUpdate(typecast(imag(Data(:)), 'uint8'), Engine);
-   end
+    if isreal(Data)
+        SplitUpdate(typecast(Data(:), 'uint8'), Engine);
+    else
+        SplitUpdate(typecast(real(Data(:)), 'uint8'), Engine);
+        SplitUpdate(typecast(imag(Data(:)), 'uint8'), Engine);
+    end
 elseif islogical(Data)               % TYPECAST cannot handle LOGICAL
-   SplitUpdate(typecast(uint8(Data(:)), 'uint8'), Engine);
+    SplitUpdate(typecast(uint8(Data(:)), 'uint8'), Engine);
 elseif isstring(Data)
-   SplitUpdate(typecast(uint16(char(Data(:))), 'uint8'), Engine);
+    SplitUpdate(typecast(uint16(char(Data(:))), 'uint8'), Engine);
 elseif isdatetime(Data)
-   SplitUpdate(typecast(datetime2unixtime(Data(:)), 'uint8'), Engine);
+    SplitUpdate(typecast(datetime2unixtime(Data(:)), 'uint8'), Engine);
 elseif ischar(Data)                  % TYPECAST cannot handle CHAR
-   SplitUpdate(typecast(uint16(Data(:)), 'uint8'), Engine);
+    SplitUpdate(typecast(uint16(Data(:)), 'uint8'), Engine);
 elseif isa(Data, 'function_handle')
-   Engine = CoreHash(ConvertFuncHandle(Data), Engine);
+    Engine = CoreHash(ConvertFuncHandle(Data), Engine);
 else  % Most likely a user-defined object:
-   try
-      Engine = CoreHash(ConvertObject(Data), Engine);
-   catch
-      warning(['JSimon:', mfilename, ':BadDataType'], ...
-         ['Type of variable not considered: ', class(Data)]);
-   end
+    try
+        Engine = CoreHash(ConvertObject(Data), Engine);
+    catch
+        warning(['JSimon:', mfilename, ':BadDataType'], ...
+            ['Type of variable not considered: ', class(Data)]);
+    end
 end
 
 % return;

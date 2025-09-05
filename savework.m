@@ -38,7 +38,7 @@ fprintf('\n\n********** SAVING YOUR WORKSPACE **********\nSaving workspace varia
 %etimeminutes = wsize/10e6/60*1.1;
 etimeminutes = wsize/17187500/60;
 if wsize > 300e6
-    fprintf('Because you are saving ~%s MB of data, this can take a while (estimated %.1f minutes)...', addThousandsCommaSeparators(ceil(wsize/1024^2*1.1)), etimeminutes);
+    fprintf('Because you are saving ~%s MB of data, this can take a while\n (estimated %.1f minutes, but some of this time is in the background where you can continue working)...', addThousandsCommaSeparators(ceil(wsize/1024^2*1.1)), etimeminutes);
     % try
     %     system(['explorer.exe "' cd '"']);
     % catch
@@ -56,7 +56,7 @@ donestat = 'SAVED';
 if clearaftersave
     donestat = 'SAVED AND CLEARED';
 end
-fprintf('\n Done! Saved in %s\nTo load this, go to the same folder and type loadwork\n********** WORKSPACE %s **********\n\n', ccd, donestat);
+fprintf('\n✅Foreground process is done. (Background transfer may still be in progress in a command prompt window.)\nLocation: %s\nTo load this, go to the same folder and type loadwork\n********** WORKSPACE %s **********\n\n', ccd, donestat);
 
 return
 

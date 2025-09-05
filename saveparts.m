@@ -16,8 +16,20 @@ if ~strcmp(fileext,'.mat')
     error('Filepath must end with .mat');
 end
 
+oldlocalpaths = dir([feature('logdir') filesep '_saveparts_*']);
+if ~isempty(oldlocalpaths)
+    for i = 1:length(oldlocalpaths)
+        try %#ok<TRYNC>
+            rmdir([oldlocalpaths(i).folder filesep oldlocalpaths(i).name]);
+        end
+    end
+end
 
-parts_bytes_threshold = 1024^2;
+localpathname = [feature('logdir') filesep '_saveparts_' rand_az(1,9)];
+mkdir(localpathname);
+localDirObj = java.io.File(localpathname);
+
+parts_bytes_threshold = 1024^2*10;
 
 if length(filename) < 2
     error('Filename is too short');
@@ -73,22 +85,25 @@ bytestracker = bytestracker + sum([whos_smalllist.bytes]);
 HashBytesPerSec = 55e6;
 SaveBytesPerSec = 25e6;
 
-builtin_basictypes = {'double', 'single', 'uint64', 'uint32', 'uint16', 'uint8', 'int64', 'int32', 'int16', 'int8', 'char', 'logical'};
+%builtin_basictypes = {'double', 'single', 'uint64', 'uint32', 'uint16', 'uint8', 'int64', 'int32', 'int16', 'int8', 'char', 'logical'};
 
 whos_largelist = whos_keeplist([whos_keeplist.bytes] > parts_bytes_threshold);
 for i = 1:length(whos_largelist)
     if ishandle(wb)
         waitbar(bytestracker/bytestrackermax, wb, sprintf('Hashing the variable: %s (%s MiB)\nTime to hash~ %s.', whos_largelist(i).name, addThousandsCommaSeparators(ceil(whos_largelist(i).bytes/1024^2)),estimate_eta(whos_largelist(i).bytes,HashBytesPerSec)));
     end
-    bestinputtype = 'array';
-    if whos_largelist(i).bytes < 2^31 && ~ismember(whos_largelist(i).class,builtin_basictypes)
-        bestinputtype = 'tempfile';
-    end
+    bestinputtype = 'bytestream';
+    % if whos_largelist(i).bytes < 2^31 && ~ismember(whos_largelist(i).class,builtin_basictypes)
+    %     bestinputtype = 'bytestream';
+    % end
     tstart = tic;
     whos_largelist(i).datahash = [sanitizefilename(whos_largelist(i).name) '-' datahash(evalin(workspace,whos_largelist(i).name), struct('Input',bestinputtype,'Method','MD5','Format','hex'))];
     telap = toc(tstart);
     HashBytesPerSec = whos_largelist(i).bytes / telap;
     bytestracker = bytestracker + whos_largelist(i).bytes/3;
+end
+
+for i = 1:length(whos_largelist)
 end
 
 for i = 1:length(whos_largelist)
@@ -107,9 +122,18 @@ for i = 1:length(whos_largelist)
             delete([dlist(j).folder filesep dlist(j).name]);
         end
     end
-    savestr = sprintf('save(''%s'',''%s'',''-mat'',''-v7.3'');', [pathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], whos_largelist(i).name);
+    
+    % If disk space allows, save locally first then move over
+    autopathname = localpathname;
+    if ~isfolder(localpathname)
+        mkdir(localpathname);
+    end
+    if localDirObj.getUsableSpace <= 1.1 * whos_largelist(i).bytes
+        autopathname = pathname;
+    end
+    savestr = sprintf('save(''%s'',''%s'',''-mat'',''-v7.3'');', [autopathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], whos_largelist(i).name);
     if whos_largelist(i).bytes < 2^31
-        savestr = sprintf('save(''%s'',''%s'',''-mat'',''-v7'');', [pathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], whos_largelist(i).name);
+        savestr = sprintf('save(''%s'',''%s'',''-mat'',''-v7'');', [autopathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], whos_largelist(i).name);
     end
     if ishandle(wb)
         %waitbar(bytestracker/bytestrackermax, wb, sprintf('Saving the variable: %s (%s MiB)', whos_largelist(i).name, addThousandsCommaSeparators(ceil(whos_largelist(i).bytes/1024^2))));
@@ -118,14 +142,40 @@ for i = 1:length(whos_largelist)
     tstart = tic;
     evalin(workspace, savestr);
     bytestracker = bytestracker + whos_largelist(i).bytes/3;
-    dlist = dir([pathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix]);
+    dlist = dir([autopathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix]);
     comparison_filename = [largefilenameprefix whos_largelist(i).datahash '-' datahash([dlist.bytes round(dlist.datenum*21600)],struct('Input','array','Method','MD5','Format','hex')) largefilenamesuffix];
-    movefile([pathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], [pathname filesep comparison_filename], 'f');
+    movefile([autopathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], [autopathname filesep comparison_filename], 'f');
     keeplist = [keeplist; {comparison_filename}];
     telap = toc(tstart);
     SaveBytesPerSec = whos_largelist(i).bytes / telap;
     bytestracker = bytestracker + whos_largelist(i).bytes/3;
 end
+
+
+% If the cache system is present, cache these files now before moving to
+% the final save location
+cachedir = get_nascache_dir();
+if isfolder(cachedir)
+    dlist = dir([localpathname filesep '*.mat']);
+    imax = length(dlist);
+    for i = 1:imax
+        try %#ok<TRYNC>
+            waitbar((i-1)/imax, wb, 'Saving into the cache system.');
+            hash = get_cached_filepath_getHashForHypotheticalFile(dlist(i).name, pathname, dlist(i).datenum, dlist(i).bytes);
+            cachesubdir = [cachedir filesep hash(1:4)];
+            if ~isfolder(cachesubdir)
+                mkdir(cachesubdir);
+            end
+            cachefile = [cachesubdir filesep hash '.mat'];
+            lastaccessedfile = [cachesubdir filesep hash '-la.tmp'];
+            copyfile([dlist(i).folder filesep dlist(i).name], cachefile, 'f');
+            fclose(fopen(lastaccessedfile,'w'));
+        end
+    end
+end
+waitbar(1, wb, 'Saving into the final location.');
+system(['start "Do not close this window. Moving the save files to the correct location..." /min Robocopy.exe /j /mov "' localpathname '" "' pathname '"']);
+
 
 dlist = dir([pathname filesep largefilenameprefix '*' largefilenamesuffix]);
 [~, ia] = setdiff({dlist.name}, keeplist);

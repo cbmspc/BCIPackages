@@ -4,6 +4,27 @@ disk_space_cleanup_threshold = 512*1024^3;
 original_filepath = lower(original_filepath);
 alternate_filepath = original_filepath;
 
+alternate_filepath = regexprep(alternate_filepath, '^\\\\ucibciserver\.d\.zind\.org\\', '\\\\ucibciserver\.stemcell\.uci\.edu\\');
+alternate_filepath = regexprep(alternate_filepath, '^\\\\ucibciserver\.myqnapcloud\.com\\', '\\\\ucibciserver\.stemcell\.uci\.edu\\');
+alternate_filepath = regexprep(alternate_filepath, '^\\\\128\.200\.248\.115\\', '\\\\ucibciserver\.stemcell\.uci\.edu\\');
+alternate_filepath = regexprep(alternate_filepath, '^\\\\10\.141\.150\.188\\', '\\\\ucibciserver\.stemcell\.uci\.edu\\');
+
+if strcmpi(getcomputername(), 'NCC18JQ')
+    alternate_filepath = regexprep(alternate_filepath, '^\\\\ucibciserver\.stemcell\.uci\.edu\\', '\\\\10\.141\.150\.188\\');
+end
+
+if isfolder('D:\rosync') || isfolder('P:\rosync')
+    alternate_filepath_rootfolder = regexp(alternate_filepath, '^\\\\ucibciserver\.stemcell\.uci\.edu\\([^\\]+)','tokens','once');
+    if ~isempty(alternate_filepath_rootfolder)
+        alternate_filepath_rootfolder = alternate_filepath_rootfolder{1};
+        if isfolder(['D:\rosync\' alternate_filepath_rootfolder])
+            alternate_filepath = regexprep(alternate_filepath, ['\\\\ucibciserver\.stemcell\.uci\.edu\\' alternate_filepath_rootfolder '\\'], ['D:\\rosync\\' alternate_filepath_rootfolder '\\']);
+        elseif isfolder(['P:\rosync\' alternate_filepath_rootfolder])
+            alternate_filepath = regexprep(alternate_filepath, ['\\\\ucibciserver\.stemcell\.uci\.edu\\' alternate_filepath_rootfolder '\\'], ['P:\\rosync\\' alternate_filepath_rootfolder '\\']);
+        end
+    end
+end
+
 dinfo = dir(original_filepath);
 adinfo = dir(alternate_filepath);
 if isempty(dinfo) || numel(dinfo) > 1 || dinfo.isdir
@@ -14,6 +35,12 @@ end
 if isempty(adinfo) || numel(adinfo) > 1 || adinfo.isdir || adinfo.datenum ~= dinfo.datenum || adinfo.bytes ~= dinfo.bytes
     alternate_filepath = original_filepath;
 end
+
+% These original paths are equivalent (same IP address) and are converted
+% to the canonical for hashing purpose
+dinfo.folder = get_cached_filepath_getCanonicalFolderNames(dinfo.folder);
+
+
 
 dotfile_extension = regexp(dinfo.name, '\.[^.]+$', 'match', 'once');
 
@@ -28,7 +55,7 @@ if length(hashed_dinfo) < 32
     filepath = original_filepath;
     return
 end
-%hashed_dinfo_first4 = hashed_dinfo(1:4);
+hashed_dinfo_first4 = hashed_dinfo(1:4);
 
 if ~exist('skipIfNotCached','var') || isempty(skipIfNotCached) || ~isscalar(skipIfNotCached)
     skipIfNotCached = false;
@@ -43,12 +70,15 @@ if startsWith(original_filepath,lower(cachedir))
 end
 
 
-%cachesubdir = [cachedir filesep hashed_dinfo_first4];
-cachesubdir = cachedir;
+cachesubdir = [cachedir filesep hashed_dinfo_first4];
+if ~isfolder(cachesubdir)
+    mkdir(cachesubdir);
+end
+%cachesubdir = cachedir;
 cachefile = [cachesubdir filesep hashed_dinfo dotfile_extension];
 lastaccessedfile = [cachesubdir filesep hashed_dinfo '-la.tmp'];
 
-if ~isfolder(cachedir)
+if ~isfolder(cachesubdir)
     % Can't create the cache dir. Something is wrong
     filepath = original_filepath;
     return
@@ -68,9 +98,13 @@ if ~isscalar(lastchecked)
     lastchecked = 0;
 end
 
-if isfolder(cachesubdir) && deficient_bytes > 0 && now - lastchecked > 0.05 %#ok<*TNOW1>
+if isfolder(cachedir) && deficient_bytes > 0 && now - lastchecked > 0.5 %#ok<*TNOW1>
     lastchecked = now;
-    list_cached = dir([cachesubdir filesep '*-la.tmp']);
+    list_cached = dir([cachedir filesep '**' filesep '*']);
+    list_cached = list_cached(~[list_cached.isdir]);
+    list_cached = list_cached(cellfun(@isempty,regexp({list_cached.name}, '^\.\.?$', 'match', 'once')));
+    list_files = list_cached(cellfun(@isempty,regexp({list_cached.name}, '-la\.tmp$', 'match', 'once')));
+    list_cached = list_cached(~cellfun(@isempty,regexp({list_cached.name}, '-la\.tmp$', 'match', 'once')));
     ld = [list_cached.datenum];
     [~, ind] = sort(ld);
     list_cached = list_cached(ind);
@@ -89,6 +123,14 @@ if isfolder(cachesubdir) && deficient_bytes > 0 && now - lastchecked > 0.05 %#ok
                 delete([cachesubdir filesep axethese{i} '.*']);
                 delete([cachesubdir filesep axethese{i} '-la.tmp']);
             end
+        end
+    end
+
+    % Delete any orphaned files (files without matching la files)
+    list_files_la = regexprep({list_files.name}, '\..*$', '-la.tmp');
+    for i = 1:length(list_files)
+        if ~isfile([list_files(i).folder filesep list_files_la{i}])
+            delete([list_files(i).folder filesep list_files(i).name]);
         end
     end
 end
