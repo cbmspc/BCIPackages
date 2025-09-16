@@ -29,7 +29,7 @@ localpathname = [feature('logdir') filesep '_saveparts_' rand_az(1,9)];
 mkdir(localpathname);
 localDirObj = java.io.File(localpathname);
 
-parts_bytes_threshold = 1024^2*10;
+parts_bytes_threshold = 1024^2*5;
 
 if length(filename) < 2
     error('Filename is too short');
@@ -59,8 +59,9 @@ end
 
 keeplist = {};
 if verbose
-    wb = waitbar(0, '', 'Name', ['saveparts: ' smallfilename]);
+    wb = waitbar(0, 'Saving smaller variables...', 'Name', ['saveparts: ' smallfilename]);
     set(findobj(wb,'Interpreter','tex'),'Interpreter','none');
+    set(findobj(wb,'type','text'),'Interpreter','none');
 else
     wb = -1;
 end
@@ -68,9 +69,6 @@ whos_smalllist = whos_keeplist([whos_keeplist.bytes] <= parts_bytes_threshold);
 bytestracker = 0;
 bytestrackermax = sum([whos_keeplist.bytes]);
 if ~isempty(whos_smalllist)
-    if ishandle(wb)
-        waitbar(0, wb, sprintf('Saving the index file...'));
-    end
     if sum([whos_smalllist.bytes]) < 2e31
         evalin(workspace, ['save(''' [pathname filesep smallfilename] ''',''' cell_to_string([{whos_smalllist.name} {'-mat'} {'-v7'}],''',''') ''');']);
     else
@@ -88,9 +86,13 @@ SaveBytesPerSec = 25e6;
 %builtin_basictypes = {'double', 'single', 'uint64', 'uint32', 'uint16', 'uint8', 'int64', 'int32', 'int16', 'int8', 'char', 'logical'};
 
 whos_largelist = whos_keeplist([whos_keeplist.bytes] > parts_bytes_threshold);
+
+[~,in] = sort([whos_largelist.bytes]);
+whos_largelist = whos_largelist(in);
+
 for i = 1:length(whos_largelist)
     if ishandle(wb)
-        waitbar(bytestracker/bytestrackermax, wb, sprintf('Hashing the variable: %s (%s MiB)\nTime to hash~ %s.', whos_largelist(i).name, addThousandsCommaSeparators(ceil(whos_largelist(i).bytes/1024^2)),estimate_eta(whos_largelist(i).bytes,HashBytesPerSec)));
+        waitbar(bytestracker/bytestrackermax, wb, sprintf('Hashing the variable: %s (%s MiB)\nTime to hash~ %s.', strrep(whos_largelist(i).name,'_','-'), addThousandsCommaSeparators(ceil(whos_largelist(i).bytes/1024^2)),estimate_eta(whos_largelist(i).bytes,HashBytesPerSec)));
     end
     bestinputtype = 'bytestream';
     % if whos_largelist(i).bytes < 2^31 && ~ismember(whos_largelist(i).class,builtin_basictypes)
@@ -103,7 +105,9 @@ for i = 1:length(whos_largelist)
     bytestracker = bytestracker + whos_largelist(i).bytes/3;
 end
 
-for i = 1:length(whos_largelist)
+hasRoboCopy = false;
+if system('where Robocopy.exe>NUL 2>&1') == 0
+    hasRoboCopy = true;
 end
 
 for i = 1:length(whos_largelist)
@@ -128,7 +132,7 @@ for i = 1:length(whos_largelist)
     if ~isfolder(localpathname)
         mkdir(localpathname);
     end
-    if localDirObj.getUsableSpace <= 1.1 * whos_largelist(i).bytes
+    if ~hasRoboCopy || localDirObj.getUsableSpace <= 1.1 * whos_largelist(i).bytes
         autopathname = pathname;
     end
     savestr = sprintf('save(''%s'',''%s'',''-mat'',''-v7.3'');', [autopathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], whos_largelist(i).name);
@@ -136,8 +140,7 @@ for i = 1:length(whos_largelist)
         savestr = sprintf('save(''%s'',''%s'',''-mat'',''-v7'');', [autopathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], whos_largelist(i).name);
     end
     if ishandle(wb)
-        %waitbar(bytestracker/bytestrackermax, wb, sprintf('Saving the variable: %s (%s MiB)', whos_largelist(i).name, addThousandsCommaSeparators(ceil(whos_largelist(i).bytes/1024^2))));
-        waitbar(bytestracker/bytestrackermax, wb, sprintf('Saving the variable: %s (%s MiB)\nTime to save~ %s.', whos_largelist(i).name, addThousandsCommaSeparators(ceil(whos_largelist(i).bytes/1024^2)),estimate_eta(whos_largelist(i).bytes,SaveBytesPerSec)));
+        waitbar(bytestracker/bytestrackermax, wb, sprintf('Saving the variable: %s (%s MiB)\nTime to save~ %s.', strrep(whos_largelist(i).name,'_','-'), addThousandsCommaSeparators(ceil(whos_largelist(i).bytes/1024^2)),estimate_eta(whos_largelist(i).bytes,SaveBytesPerSec)));
     end
     tstart = tic;
     evalin(workspace, savestr);
@@ -145,6 +148,7 @@ for i = 1:length(whos_largelist)
     dlist = dir([autopathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix]);
     comparison_filename = [largefilenameprefix whos_largelist(i).datahash '-' datahash([dlist.bytes round(dlist.datenum*21600)],struct('Input','array','Method','MD5','Format','hex')) largefilenamesuffix];
     movefile([autopathname filesep largefilenameprefix whos_largelist(i).datahash '-still_saving_please_wait' largefilenamesuffix], [autopathname filesep comparison_filename], 'f');
+    fileattrib([autopathname filesep comparison_filename], '+h');
     keeplist = [keeplist; {comparison_filename}];
     telap = toc(tstart);
     SaveBytesPerSec = whos_largelist(i).bytes / telap;
@@ -152,30 +156,32 @@ for i = 1:length(whos_largelist)
 end
 
 
-% If the cache system is present, cache these files now before moving to
-% the final save location
-cachedir = get_nascache_dir();
-if isfolder(cachedir)
-    dlist = dir([localpathname filesep '*.mat']);
-    imax = length(dlist);
-    for i = 1:imax
-        try %#ok<TRYNC>
-            waitbar((i-1)/imax, wb, 'Saving into the cache system.');
-            hash = get_cached_filepath_getHashForHypotheticalFile(dlist(i).name, pathname, dlist(i).datenum, dlist(i).bytes);
-            cachesubdir = [cachedir filesep hash(1:4)];
-            if ~isfolder(cachesubdir)
-                mkdir(cachesubdir);
+if hasRoboCopy
+    % If the cache system is present, cache these files now before moving to
+    % the final save location
+    cachedir = get_nascache_dir();
+    if isfolder(cachedir)
+        dlist = dir([localpathname filesep '*.mat']);
+        imax = length(dlist);
+        for i = 1:imax
+            try %#ok<TRYNC>
+                waitbar((i-1)/imax, wb, 'Saving into the cache system.');
+                hash = get_cached_filepath_getHashForHypotheticalFile(dlist(i).name, pathname, dlist(i).datenum, dlist(i).bytes);
+                cachesubdir = [cachedir filesep hash(1:4)];
+                if ~isfolder(cachesubdir)
+                    mkdir(cachesubdir);
+                end
+                cachefile = [cachesubdir filesep hash '.mat'];
+                lastaccessedfile = [cachesubdir filesep hash '-la.tmp'];
+                copyfile([dlist(i).folder filesep dlist(i).name], cachefile, 'f');
+                fileattrib(cachefile, '-h');
+                fclose(fopen(lastaccessedfile,'w'));
             end
-            cachefile = [cachesubdir filesep hash '.mat'];
-            lastaccessedfile = [cachesubdir filesep hash '-la.tmp'];
-            copyfile([dlist(i).folder filesep dlist(i).name], cachefile, 'f');
-            fclose(fopen(lastaccessedfile,'w'));
         end
     end
+    waitbar(1, wb, 'Saving into the final location.');
+    system(['start "Do not close this window (You can minimize). Moving the save files to the correct location..." /min Robocopy.exe /j /mov "' localpathname '" "' pathname '"']);
 end
-waitbar(1, wb, 'Saving into the final location.');
-system(['start "Do not close this window. Moving the save files to the correct location..." /min Robocopy.exe /j /mov "' localpathname '" "' pathname '"']);
-
 
 dlist = dir([pathname filesep largefilenameprefix '*' largefilenamesuffix]);
 [~, ia] = setdiff({dlist.name}, keeplist);

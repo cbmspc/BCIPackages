@@ -127,6 +127,11 @@
 %   opts.zscore = 1
 %   If specified, turns on zscore display after the viewer is opened
 %
+%   opts.center = 1
+%   If turned on, each channel is displayed with its local median removed.
+%   This is for display only. Cursor values are not affected by centering.
+%   For backward compatibility, this defaults to 1. Set to 0 to disable.
+%
 %   opts.sensitivity = 100
 %   If specified, sets vertical sensitivity (in microvolts) after viewer is opened
 %   By default, the viewer autoscales after applying filters. This can be disabled by setting opts.sensitivity = -1
@@ -748,6 +753,10 @@ BLIM = 1;
 ScreenLimitedDownsampling = 0;
 SLD_H = 32768;
 
+% Automatically subtract the local median of each channel to center the
+% signals
+AutoSubtractMedian = 1;
+
 DefaultYColor = [0.15 0.15 0.15];
 BusyYColor = [1 0 0];
 InactiveYColor = [0.65 0.65 0.65];
@@ -1232,6 +1241,8 @@ h_zscore_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normaliz
 h_fastdraw_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.965 0.58 0.030 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Fast', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize, 'Value', 0, 'FontWeight', fontweight_off, 'ForegroundColor', fontcolor_off);
 %h_fastdraw_state = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.985 0.58 0.015 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', text_on, 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize);
 
+h_center_switch = uicontrol(fighand, 'Style', 'togglebutton', 'Units', 'normalized', 'Position', [0.925 0.56 0.030 0.017], 'BackgroundColor', [0.7 0.7 0.7], 'String', 'Center', 'FontUnits', 'normalized', 'FontSize', NormalizedControlFontSize*0.9, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
+
 h_chansel_warnconfirm = uicontrol(fighand, 'Style', 'text', 'Units', 'normalized', 'Position', [0.925 0.56 0.07 0.12], 'ForegroundColor', [1 1 0], 'BackgroundColor', [0.2, 0.2, 0.2], 'String', 'Apply or revert channel selection first.', 'FontUnits', 'normalized', 'FontSize', 0.15, 'Visible', 'off');
 
 
@@ -1351,6 +1362,7 @@ set(h_notch_order, 'Callback', @f_notch_order);
 set(h_notch_qfactor, 'Callback', @f_notch_qfactor);
 set(h_zscore_switch, 'Callback', @f_zscore_switch);
 set(h_fastdraw_switch, 'Callback', @f_fastdraw_switch);
+set(h_center_switch, 'Callback', @f_center_switch);
 set(h_chansel_list, 'Callback', @f_chansel_list);
 set(h_chansel_commandentry, 'Callback', @f_chansel_commandentry);
 set(h_eventlabels_showhide, 'Callback', @f_eventlabels_showhide);
@@ -1488,6 +1500,12 @@ end
 if isfield(opts, 'zscore')
     if isscalar(opts.zscore) && opts.zscore
         f_zscore_switch(-10000, []);
+    end
+end
+
+if isfield(opts, 'center')
+    if isscalar(opts.center) && opts.center
+        f_center_switch(-10000, []);
     end
 end
 
@@ -2618,6 +2636,21 @@ end
     end
 
 
+    function f_center_switch(hObject, eventdata)
+        set(h_center_switch, 'Enable', 'off');
+        drawnow;
+        if AutoSubtractMedian
+            AutoSubtractMedian = 0;
+            set(h_center_switch, 'Value', 0, 'ForegroundColor', fontcolor_off, 'FontWeight', fontweight_off);
+        else
+            AutoSubtractMedian = 1;
+            set(h_center_switch, 'Value', 1, 'ForegroundColor', fontcolor_on1, 'FontWeight', fontweight_on1);
+        end
+        redraw();
+        set(h_center_switch, 'Enable', 'on');
+    end
+
+
     function L = validate_bpf_cutoff() %#ok<STOUT>
         bpf = parse_bpf_cutoff_string();
         %bpf = str2num(get(h_bpf_cutoff, 'String'), 'Evaluation', 'restricted'); %#ok<ST2NM>
@@ -3280,7 +3313,7 @@ end
                 if ZscoreFilter.state
                     YDATA = nanzscore(YDATA)*ZscoreFilter.multiplier;
                 else
-                    YDATA = YDATA - median(YDATA,'omitmissing'); %#ok<*NANMEDIAN>
+                    YDATA = YDATA - AutoSubtractMedian*median(YDATA,'omitmissing'); %#ok<*NANMEDIAN>
                 end
 
                 %Po241217: Cap the traces above/below chansep
@@ -3772,7 +3805,7 @@ end
                 if ZscoreFilter.state
                     YDATA_fullres = nanzscore(YDATA_fullres)*ZscoreFilter.multiplier - chansep*ch;
                 else
-                    YDATA_fullres = YDATA_fullres - median(YDATA_fullres,'omitmissing') - chansep*ch;
+                    YDATA_fullres = YDATA_fullres - AutoSubtractMedian*median(YDATA_fullres,'omitmissing') - chansep*ch;
                 end
                 
                 ypoint(ch) = interp1(Time, Signal_postenvelope(:,selchan(ch)), selected_timepoint);

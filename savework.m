@@ -6,9 +6,13 @@ if ~exist('clearaftersave','var') || ~isscalar(clearaftersave)
     clearaftersave = false;
 end
 username = sanitizefilename(username);
+usernameifdifferent = username;
+if nargin == 0
+    usernameifdifferent = '';
+end
 if isfile([username '-workspace.mat'])
     d = dir([username '-workspace.mat']);
-    if isscalar(d) && now - d.datenum < 3/86400 %#ok<*TNOW1>
+    if isscalar(d) && now - d.datenum < 5/86400 %#ok<*TNOW1>
         error('Cannot save now. There is another instance of MATLAB currently saving into the same file.');
     end
 end
@@ -18,7 +22,7 @@ if isempty(w)
     return
 end
 wsize = sum([w.bytes]);
-if wsize > 10e9
+if wsize > 20e9
     optsa.Interpreter = 'tex';
     optsa.WindowStyle = 'modal';
     optsa.Default='Save them all';
@@ -34,29 +38,32 @@ if wsize > 10e9
     end
 
 end
-fprintf('\n\n********** SAVING YOUR WORKSPACE **********\nSaving workspace variables to disk. Please wait.\n');
-%etimeminutes = wsize/10e6/60*1.1;
-etimeminutes = wsize/17187500/60;
+fprintf('\n\n********** SAVING YOUR WORKSPACE **********\nThe time now is: %s. Saving workspace variables (~%s MB) to disk under your username %s\n', datetime, addThousandsCommaSeparators(ceil(wsize/1024^2*1.1)), username);
+persistent etimefactor 
+if isempty(etimefactor)
+    etimefactor = 1/17187500/60/4;
+end
+etimeminutes = wsize*etimefactor;
 if wsize > 300e6
-    fprintf('Because you are saving ~%s MB of data, this can take a while\n (estimated %.1f minutes, but some of this time is in the background where you can continue working)...', addThousandsCommaSeparators(ceil(wsize/1024^2*1.1)), etimeminutes);
-    % try
-    %     system(['explorer.exe "' cd '"']);
-    % catch
-    % end
+    fprintf('Estimated %.0f minutes before you can resume working. Background transfer may still continue afterwards.\nSubsequent saves are also faster, because unchanged variables are not saved again.\n           PLEASE WAIT...', etimeminutes);
 end
 
 ccd = cd;
+t_start = tic;
 if clearaftersave
     evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose''); clear;']);
 else
     evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose'');']);
 end
+etimeminutes = toc(t_start)/60;
+etimefactor = etimeminutes/wsize;
+
 
 donestat = 'SAVED';
 if clearaftersave
     donestat = 'SAVED AND CLEARED';
 end
-fprintf('\n✅Foreground process is done. (Background transfer may still be in progress in a command prompt window.)\nLocation: %s\nTo load this, go to the same folder and type loadwork\n********** WORKSPACE %s **********\n\n', ccd, donestat);
+fprintf('\n✅Foreground process is done. Background transfer may still be in progress in a command prompt window.\n                             Do not disconnect or turn off computer until it is done.\n📁Location: <a href="matlab:winopen(''%s'');">Open in File Explorer</a> or <a href="matlab:cd(''%s'');">Change folder in MATLAB.</a>\n  To load this, go to the same folder and type loadwork %s\n********** WORKSPACE %s **********\n\n', ccd, ccd, usernameifdifferent, donestat);
 
 return
 

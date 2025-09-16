@@ -38,7 +38,7 @@ bytessofar = 0;
 for i = 1:length(dlist)
     if dlist(i).bytes > 0
         if ishandle(wb)
-            desc = regexprep(dlist(i).name, '^.*--(\w+)-.*$', '$1');
+            desc = strrep(regexprep(dlist(i).name, '^.*--(\w+)-.*$', '$1'),'_','-');
             if isempty(desc) || endsWith(desc,'.mat')
                 desc = 'smaller variables';
             end
