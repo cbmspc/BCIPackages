@@ -41,6 +41,15 @@
 %   opts.EventFontSize = Event font size in points.
 %     Example: opts.EventFontSize = 16
 %
+%   opts.ChannelColorRules = Regular Expression rules (Nx2 cell array: first column is the rule, second column is the RGB triplet) to automatically color based on the channel names
+%     Example: opts.ChannelColorRules = {'^LGrid' [1.0 0.5 0.0]; '^RGrid' [0 0 1]}
+%     These rules will override jet/line colors and nofiltchannels
+%
+%   opts.ChannelLineRules = Regular Expression rules (Nx3 cell array: first column is the rule, second column is the LineWidth (a number), third column is the LineStyle (a character)) to automatically set based on the channel names
+%     Example: opts.ChannelLineRules = {'^LGrid' 3 ':'; '^RGrid' 2 '--'}
+%     These rules will override jet/line colors and nofiltchannels
+%
+%
 %   opts.ica_W = ICA separating matrix with orientation (Nsource x Nchan), i.e. ica_W * Signal.' = Source.'
 %   opts.ica_A = ICA mixing matrix with orientation (Nchan x Nsource), i.e. ica_A * Source.' = Signal.'
 %    Example: [ica_sig, ica_A, ica_W] = fastica(Signal.', ...
@@ -285,7 +294,8 @@ SavedPointsTable = {};
 
 
 
-
+hasChannelColorRules = false;
+hasChannelLineRules = false;
 
 if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
 
@@ -315,6 +325,14 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
 
     if isfield(opts, 'SavedPointsTable') && iscell(SavedPointsTable) && size(SavedPointsTable,2) == 5 && size(SavedPointsTable,1) >= 1
         SavedPointsTable = opts.SavedPointsTable;
+    end
+
+    if isfield(opts, 'ChannelColorRules') && iscell(opts.ChannelColorRules)
+        hasChannelColorRules = true;
+    end
+
+    if isfield(opts, 'ChannelLineRules') && iscell(opts.ChannelLineRules)
+        hasChannelLineRules = true;
     end
 
     if isfield(opts, 'EventTimeStamps')
@@ -854,6 +872,7 @@ AxesFontSize = 12;
 CursorTextFontSize = 10;
 
 PlotLineWidth = 0.5;
+PlotLineStyle = '-';
 
 %InfoLabelFontName = 'Calibri';
 InfoLabelFontName = 'Consolas';
@@ -924,12 +943,18 @@ for ch = Nsch:-1:1
     plotpip2hand(ch) = plot(0, 0, 'v', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
     plotpip3hand(ch) = plot(0, 0, '^', 'MarkerFaceColor', 'none', 'MarkerEdgeColor', 'k', 'MarkerSize', PipMarkerSize, 'LineWidth', 2, 'Visible', 'off');
     plothand(ch) = plot(Time(t1:t2), Signal(t1:t2,selchan(ch)) - mean(Signal(t1:t2,selchan(ch)),'omitmissing') - chansep*ch); %#ok<*NANMEAN>
-    set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:), 'LineWidth', PlotLineWidth);
+    set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:), 'LineWidth', PlotLineWidth, 'LineStyle', PlotLineStyle);
     set(plothand(ch), 'ButtonDownFcn', @f_plothand_buttondown);
     setappdata(plothand(ch), 'chanind', selchan(ch));
     setappdata(plothand(ch), 'channame', ChanNames{selchan(ch)});
     if ismember(ChanNames{selchan(ch)}, nofiltchannames)
-        set(plothand(selchan(ch)), 'Color', [0 0 0]);
+        set(plothand(ch), 'Color', [0 0 0]);
+    end
+    if hasChannelColorRules
+        apply_channel_color_rules(plothand(ch), ChanNames{selchan(ch)}, opts.ChannelColorRules);
+    end
+    if hasChannelLineRules
+        apply_channel_line_rules(plothand(ch), ChanNames{selchan(ch)}, opts.ChannelLineRules);
     end
 end
 for ch = Nsch:-1:1
@@ -1876,6 +1901,48 @@ end
                 
         end
         %set(h_hintbar, 'String', 'Ctrl left/right: change time scale. Ctrl up/down: change sensitivity. Shift left/right: scroll slowly. Alt left/right: go to events.');
+    end
+
+
+    function apply_channel_color_rules(plothandle, channame, rules)
+        %   opts.ChannelColorRules = Regular Expression rules (Nx2 cell array: first column is the rule, second column is the RGB triplet) to automatically color based on the channel names
+        %     Example: opts.ChannelColorRules = {'^LGrid' [1.0 0.5 0.0]; '^RGrid' [0 0 1]}
+        %     These rules will override jet/line colors and nofiltchannels
+
+        if ~iscell(rules) || size(rules,2) ~= 2
+            return
+        end
+
+        for r = 1:size(rules,1)
+            if ~isempty(regexp(channame, rules{r,1}, 'match', 'once'))
+                try
+                    set(plothandle, 'Color', rules{r,2});
+                end
+                break;
+            end
+        end
+
+    end
+
+
+    function apply_channel_line_rules(plothandle, channame, rules)
+        %   opts.ChannelLineRules = Regular Expression rules (Nx3 cell array: first column is the rule, second column is the LineWidth (a number), third column is the LineStyle (a character)) to automatically set based on the channel names
+        %     Example: opts.ChannelLineRules = {'^LGrid' 3 ':'; '^RGrid' 2 '--'}
+        %     These rules will override jet/line colors and nofiltchannels
+
+        if ~iscell(rules) || size(rules,2) ~= 3
+            return
+        end
+
+        for r = 1:size(rules,1)
+            if ~isempty(regexp(channame, rules{r,1}, 'match', 'once'))
+                try
+                    set(plothandle, 'LineWidth', rules{r,2}, 'LineStyle', rules{r,3});
+                end
+                break;
+            end
+        end
+
     end
 
 
@@ -3326,11 +3393,17 @@ end
                 else
                     set(plothand(ch), 'Marker', ZoomedOutMarker);
                 end
-                set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:));
+                set(plothand(ch), 'Color', Kolor(mod(selchan(ch)-1,Nkolor)+1,:), 'LineWidth', PlotLineWidth, 'LineStyle', PlotLineStyle);
                 setappdata(plothand(ch), 'chanind', selchan(ch));
                 setappdata(plothand(ch), 'channame', ChanNames{selchan(ch)});
                 if ismember(ChanNames{selchan(ch)}, nofiltchannames)
                     set(plothand(ch), 'Color', [0 0 0]);
+                end
+                if hasChannelColorRules
+                    apply_channel_color_rules(plothand(ch), ChanNames{selchan(ch)}, opts.ChannelColorRules);
+                end
+                if hasChannelLineRules
+                    apply_channel_line_rules(plothand(ch), ChanNames{selchan(ch)}, opts.ChannelLineRules);
                 end
                 update_psd();
                 update_infolabels();
