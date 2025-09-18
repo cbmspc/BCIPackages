@@ -49,6 +49,11 @@
 %     Example: opts.ChannelLineRules = {'^LGrid' 3 ':'; '^RGrid' 2 '--'}
 %     These rules will override jet/line colors and nofiltchannels
 %
+%   opts.ChannelNamesFontName = The FontName for channel name labels
+%     Example: opts.ChannelNamesFontName = 'Verdana'
+%
+%   opts.ChannelNamesFontAngle = in degrees, rotation of the channel name labels
+%     Example: opts.ChannelNamesFontAngle = 90
 %
 %   opts.ica_W = ICA separating matrix with orientation (Nsource x Nchan), i.e. ica_W * Signal.' = Source.'
 %   opts.ica_A = ICA mixing matrix with orientation (Nchan x Nsource), i.e. ica_A * Source.' = Signal.'
@@ -297,6 +302,12 @@ SavedPointsTable = {};
 hasChannelColorRules = false;
 hasChannelLineRules = false;
 
+ChannelNamesFontAngle = 0;
+ChannelNamesFontName = 'Consolas';
+AxesFontSize = 12;
+ChannelNamesFontSize = AxesFontSize;
+
+
 if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
 
     if isfield(opts, 'fastica_stabilization') && ~isempty(opts.fastica_stabilization) && ischar(opts.fastica_stabilization)
@@ -333,6 +344,18 @@ if nargin >= 4 && exist('opts', 'var') && isstruct(opts)
 
     if isfield(opts, 'ChannelLineRules') && iscell(opts.ChannelLineRules)
         hasChannelLineRules = true;
+    end
+
+    if isfield(opts, 'ChannelNamesFontAngle') && isscalar(opts.ChannelNamesFontAngle) && isnumeric(opts.ChannelNamesFontAngle)
+        ChannelNamesFontAngle = opts.ChannelNamesFontAngle;
+    end
+
+    if isfield(opts, 'ChannelNamesFontSize') && isscalar(opts.ChannelNamesFontSize) && isnumeric(opts.ChannelNamesFontSize)
+        ChannelNamesFontSize = opts.ChannelNamesFontSize;
+    end
+
+    if isfield(opts, 'ChannelNamesFontName') && ischar(opts.ChannelNamesFontName)
+        ChannelNamesFontName = opts.ChannelNamesFontName;
     end
 
     if isfield(opts, 'EventTimeStamps')
@@ -867,8 +890,6 @@ EventFontWeight = 'bold';
 EventLineWidth = 0.1;
 EventLineStyle = ':';
 
-AxesFontName = 'Consolas';
-AxesFontSize = 12;
 CursorTextFontSize = 10;
 
 PlotLineWidth = 0.5;
@@ -926,7 +947,7 @@ YLim = [-chansep*Nsch-0.5*chansep, -chansep+0.5*chansep];
 XLim = [0 10];
 
 %changed_CND = 0;
-set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', AxesFontName, 'FontUnits', 'pixel', 'FontSize', AxesFontSize); %#ok<*NBRAK>
+set(gca, 'YTick', [-chansep*Nsch:chansep:-chansep], 'YTickLabel', fliplr(ChanNames(selchan)), 'YTickLabelRotation', ChannelNamesFontAngle, 'YLim', YLim, 'XLim', XLim, 'Position', AxesPosition, 'FontWeight', 'bold', 'FontName', ChannelNamesFontName, 'FontUnits', 'pixel', 'FontSize', ChannelNamesFontSize); %#ok<*NBRAK>
 axehand = get(fighand,'CurrentAxes');
 
 t1 = 1;
