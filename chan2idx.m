@@ -47,5 +47,9 @@ if exist('SWnonzero','var') && ~isempty(SWregexp) && isscalar(SWregexp) && SWnon
 end
 
 if SWregexp
-    sensors = allsensors{:};
+    if isempty(allsensors)
+        sensors = [];
+    else
+        sensors = allsensors{:};
+    end
 end
