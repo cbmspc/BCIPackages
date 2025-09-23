@@ -7,7 +7,10 @@
 %      Note: sensors will include all matching channels instead of only the
 %            first matching channel. Nonmatching channels are not included
 %            as placeholders.
-function [sensors, allsensors] = chan2idx (ChanNames, Channels, SWnonzero, SWregexp)
+% SWcasesensitive = case sensitive
+% SWunique = remove duplicates while preserving order
+%
+function [sensors, allsensors] = chan2idx (ChanNames, Channels, SWnonzero, SWregexp, SWcasesensitive, SWunique)
 if ~iscell(ChanNames)
     if ischar(ChanNames)
         ChanNames = string_to_cell(ChanNames,' ,');
@@ -23,8 +26,20 @@ if ~iscell(Channels)
     end
 end
 
-if ~exist('SWregexp','var') || isempty(SWregexp) || ~isscalar(SWregexp)
+if ~exist('SWnonzero','var') || ~isscalar(SWnonzero)
+    SWnonzero = false;
+end
+
+if ~exist('SWregexp','var') || ~isscalar(SWregexp)
     SWregexp = false;
+end
+
+if ~exist('SWcasesensitive','var') || ~isscalar(SWcasesensitive)
+    SWcasesensitive = false;
+end
+
+if ~exist('SWunique','var') || ~isscalar(SWunique)
+    SWunique = false;
 end
 
 N = length(Channels);
@@ -32,9 +47,17 @@ sensors = zeros(1,N);
 allsensors = cell(1,N);
 for i = 1:N
     if SWregexp
-        I = find(~cellfun(@isempty,regexpi(ChanNames, Channels{i}, 'once')));
+        if SWcasesensitive
+            I = find(~cellfun(@isempty,regexp(ChanNames, Channels{i}, 'once')));
+        else
+            I = find(~cellfun(@isempty,regexpi(ChanNames, Channels{i}, 'once')));
+        end
     else
-        I = find(strcmpi(ChanNames, Channels{i}));
+        if SWcasesensitive
+            I = find(strcmp(ChanNames, Channels{i}));
+        else
+            I = find(strcmpi(ChanNames, Channels{i}));
+        end
     end
     if ~isempty(I)
         sensors(i) = I(1);
@@ -42,7 +65,7 @@ for i = 1:N
     end
 end
 
-if exist('SWnonzero','var') && ~isempty(SWregexp) && isscalar(SWregexp) && SWnonzero
+if SWnonzero
     sensors = sensors(sensors>0);
 end
 
@@ -50,6 +73,13 @@ if SWregexp
     if isempty(allsensors)
         sensors = [];
     else
-        sensors = allsensors{:};
+        sensors = [allsensors{:}];
     end
 end
+
+if SWunique
+    sensors = unique(sensors, 'stable');
+end
+
+return
+
