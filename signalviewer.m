@@ -2050,10 +2050,10 @@ end
 
 
     function f_hold_switch(hObject, eventdata) %#ok<*INUSD>
-        if ~isempty(hObject) && isscalar(hObject) && hObject <= -100000
+        if isscalar(hObject) && hObject <= -100000
             % This always disables plot hold
             PlotHold = 1;
-        elseif ~isempty(hObject) && isscalar(hObject) && hObject <= -10000
+        elseif isscalar(hObject) && hObject <= -10000
             % This always enables plot hold
             PlotHold = 0;
         end
@@ -2693,7 +2693,6 @@ end
                 refit(ZscoreFilter.on_chansep);
             end
         end
-        %redraw();
         if plot_was_held
             if isempty(hObject) || numel(hObject) ~= 1 || hObject ~= -10000
                 % Turn off plot hold (except during startup sequence)
@@ -4692,19 +4691,33 @@ end
     end
 
     function refit(new_chansep)
+        plot_was_held = 0;
         while chansep > new_chansep
+            t_refitstart = tic;
             oldchansep = chansep;
             f_sepdown([], []);
+            if ~plot_was_held && ~PlotHold && toc(t_refitstart) > 0.1
+                f_hold_switch(-11000, []);
+                plot_was_held = 1;
+            end
             if oldchansep == chansep
                 break
             end
         end
         while chansep < new_chansep
+            t_refitstart = tic;
             oldchansep = chansep;
             f_sepup([], []);
+            if ~plot_was_held && ~PlotHold && toc(t_refitstart) > 0.1
+                f_hold_switch(-11000, []);
+                plot_was_held = 1;
+            end
             if oldchansep == chansep
                 break
             end
+        end
+        if plot_was_held
+            f_hold_switch(-100000, []);
         end
     end
 
