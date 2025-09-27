@@ -1,9 +1,12 @@
-function savework(username, clearaftersave)
+function savework(username, clearaftersave, foreground)
 if ~exist('username', 'var') || isempty(username) || ~ischar(username)
     username = getusername();
 end
 if ~exist('clearaftersave','var') || ~isscalar(clearaftersave)
     clearaftersave = false;
+end
+if ~exist('foreground','var') || ~isscalar(foreground)
+    foreground = false;
 end
 username = sanitizefilename(username);
 usernameifdifferent = username;
@@ -45,15 +48,27 @@ if isempty(etimefactor)
 end
 etimeminutes = wsize*etimefactor;
 if wsize > 300e6
-    fprintf('Estimated %.0f minutes before you can resume working. Background transfer may still continue afterwards.\nSubsequent saves are also faster, because unchanged variables are not saved again.\n           PLEASE WAIT...', etimeminutes);
+    bgnote = 'Background transfer may still continue afterwards.';
+    if foreground
+        bgnote = '';
+    end
+    fprintf('Estimated %.0f minutes before you can resume working. %s\nSubsequent saves are also faster, because unchanged variables are not saved again.\n           PLEASE WAIT...', etimeminutes, bgnote);
 end
 
 ccd = cd;
 t_start = tic;
 if clearaftersave
-    evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose''); clear;']);
+    if foreground
+        evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose'',''-foreground''); clear;']);
+    else
+        evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose''); clear;']);
+    end
 else
-    evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose'');']);
+    if foreground
+        evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose'',''-foreground'');']);
+    else
+        evalin('base', ['saveparts([cd filesep ' '''' username '-workspace.mat''],''-verbose'');']);
+    end
 end
 etimeminutes = toc(t_start)/60;
 etimefactor = etimeminutes/wsize;
@@ -63,7 +78,17 @@ donestat = 'SAVED';
 if clearaftersave
     donestat = 'SAVED AND CLEARED';
 end
-fprintf('\n✅Foreground process is done. Background transfer may still be in progress in a command prompt window.\n                             Do not disconnect or turn off computer until it is done.\n📁Location: <a href="matlab:winopen(''%s'');">Open in File Explorer</a> or <a href="matlab:cd(''%s'');">Change folder in MATLAB.</a>\n  To load this, go to the same folder and type loadwork %s\n********** WORKSPACE %s **********\n\n', ccd, ccd, usernameifdifferent, donestat);
+fgwarn = ['✅Foreground process is done. Background transfer may still be in progress in a command prompt window.\n' ...
+    '                             Do not disconnect or turn off computer until it is done.\n'''];
+if foreground
+    fgwarn = '';
+end
+fprintf(['\n' ...
+    fgwarn...
+    '📁Location: <a href="matlab:winopen(''%s'');">Open in File Explorer</a> or <a href="matlab:cd(''%s'');">Change folder in MATLAB.</a>\n' ...
+    '  To load this, go to the same folder and type loadwork %s\n' ...
+    '********** WORKSPACE %s **********\n\n'], ...
+    ccd, ccd, usernameifdifferent, donestat);
 
 return
 
